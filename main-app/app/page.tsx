@@ -1,10 +1,10 @@
-import { DeployButton } from "@/components/deploy-button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { AuthButton } from "@/components/auth-button";
-import { Hero } from "@/components/hero";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { ConnectSupabaseSteps } from "@/components/tutorial/connect-supabase-steps";
-import { SignUpUserSteps } from "@/components/tutorial/sign-up-user-steps";
+import { DeployButton } from "@/components/shared/deploy-button";
+import { EnvVarWarning } from "@/components/shared/env-var-warning";
+import { AuthButton } from "@/components/shared/auth-button";
+import { Hero } from "@/components/shared/hero";
+import { ThemeSwitcher } from "@/components/shared/theme-switcher";
+import { ConnectSupabaseSteps } from "@/components/shared/tutorial/connect-supabase-steps";
+import { SignUpUserSteps } from "@/components/shared/tutorial/sign-up-user-steps";
 import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
 import { Suspense } from "react";
