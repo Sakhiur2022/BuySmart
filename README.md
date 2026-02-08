@@ -7,7 +7,7 @@ BuySmart is a comprehensive e-commerce platform developed as a CSE327.2 Software
 Built using agile development methodology over 6 weeks (3 sprints), the platform demonstrates disciplined AI integration where core business logic remains deterministic while AI agents provide decision support and user assistance.
 
 **Team:** 3 members  
-**Duration:** 6 weeks (January 27 - March 9, 2026)  
+**Duration:** 6 weeks (Feb 8 - March 21, 2026)  
 **Methodology:** Agile Scrum with 2-week sprints
 
 ## Key Features
