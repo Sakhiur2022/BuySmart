@@ -13,7 +13,7 @@ const eslintConfig = [
   {
     ignores: ["**/.next/**", "**/node_modules/**"],
   },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...compat.extends("next/core-web-vitals", "next/typescript", "prettier"),
   {
     files: ["**/*.config.{js,mjs,cjs,ts}", "**/postcss.config.mjs"],
     rules: {
