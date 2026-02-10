@@ -8,11 +8,16 @@ on:
     branches:
       - main
 
+defaults:
+  run:
+    working-directory: main-app
+
 jobs:
   lint-and-typecheck:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+
         uses: actions/checkout@v4
 
       - name: Setup Node.js
