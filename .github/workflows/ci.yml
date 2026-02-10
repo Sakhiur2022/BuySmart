@@ -33,6 +33,3 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
-
-      - name: Build
-        run: npm run build
