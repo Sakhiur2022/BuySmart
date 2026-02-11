@@ -45,3 +45,5 @@ next-env.d.ts
 
 # project specific
 planning
+
+/main-app/lib/supabase/.temp
