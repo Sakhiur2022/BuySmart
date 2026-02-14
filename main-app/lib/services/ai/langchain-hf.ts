@@ -1,4 +1,5 @@
 import { PromptTemplate } from "@langchain/core/prompts";
+import type { StringPromptValueInterface } from "@langchain/core/prompt_values";
 import { RunnableLambda } from "@langchain/core/runnables";
 
 import { aiModels } from "@/lib/services/ai/config";
@@ -9,14 +10,18 @@ export function createHFCompletionChain(systemInstruction: string) {
     `${systemInstruction}\n\nUser:\n{input}\n\nAssistant:`,
   );
 
-  const runnable = RunnableLambda.from(async (formattedPrompt: string) => {
-    const response = await generateText({
-      prompt: formattedPrompt,
-      model: aiModels.chat.id,
-    });
+  const runnable = RunnableLambda.from(
+    async (promptValue: StringPromptValueInterface) => {
+      const formattedPrompt = promptValue.toString();
 
-    return response.text;
-  });
+      const response = await generateText({
+        prompt: formattedPrompt,
+        model: aiModels.chat.id,
+      });
+
+      return response.text;
+    },
+  );
 
   return prompt.pipe(runnable);
 }
