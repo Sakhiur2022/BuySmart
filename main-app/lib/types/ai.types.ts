@@ -48,6 +48,25 @@ export interface AIEmbeddingResponse {
   model: string;
 }
 
+export interface ProductEmbeddingContent {
+  id: string;
+  name: string;
+  description?: string | null;
+  shortDescription?: string | null;
+  categoryName?: string | null;
+  tags?: string[] | null;
+  brand?: string | null;
+  sku?: string | null;
+}
+
+export interface ProductEmbeddingGenerationResult {
+  productId: string;
+  model: string;
+  dimensions: number;
+  embedding: number[];
+  embeddingText: string;
+}
+
 export interface AISentimentResponse {
   label: AISentimentLabel;
   confidence: number;

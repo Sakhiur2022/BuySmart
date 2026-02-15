@@ -453,6 +453,9 @@ export type Database = {
           created_at: string
           description: string | null
           dimensions: Json | null
+          embedding: string | null
+          embedding_model: string | null
+          embedding_updated_at: string | null
           featured: boolean
           images: Json | null
           inventory_quantity: number
@@ -479,6 +482,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           dimensions?: Json | null
+          embedding?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
           featured?: boolean
           images?: Json | null
           inventory_quantity?: number
@@ -505,6 +511,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           dimensions?: Json | null
+          embedding?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
           featured?: boolean
           images?: Json | null
           inventory_quantity?: number

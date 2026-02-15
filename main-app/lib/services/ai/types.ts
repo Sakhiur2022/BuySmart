@@ -3,6 +3,8 @@ import type {
   AIClassificationResponse,
   AIEmbeddingResponse,
   AIModelConfig,
+  ProductEmbeddingContent,
+  ProductEmbeddingGenerationResult,
   AIRequestOptions,
   AISentimentResponse,
   AITextGenerationResponse,
@@ -12,6 +14,8 @@ export type { AIChatMessage, AIModelConfig, AIRequestOptions };
 export type {
   AIClassificationResponse,
   AIEmbeddingResponse,
+  ProductEmbeddingContent,
+  ProductEmbeddingGenerationResult,
   AISentimentResponse,
   AITextGenerationResponse,
 };

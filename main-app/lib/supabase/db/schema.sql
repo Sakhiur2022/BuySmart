@@ -3,6 +3,7 @@
 
 -- Extensions
 create extension if not exists pgcrypto;
+create extension if not exists vector;
 
 -- Enums
 create type user_role_enum as enum ('buyer', 'seller', 'admin', 'moderator');
@@ -75,6 +76,9 @@ create table if not exists products (
   featured boolean not null default false,
   seo_title varchar(255),
   seo_description text,
+  embedding vector(384),
+  embedding_model varchar(100),
+  embedding_updated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -217,6 +221,9 @@ create table if not exists ai_model_configs (
 -- Indexes
 create index if not exists idx_products_seller_status on products (seller_id, status);
 create index if not exists idx_products_category_status on products (category_id, status);
+create index if not exists idx_products_embedding_ivfflat
+  on products using ivfflat (embedding vector_cosine_ops)
+  with (lists = 100);
 create index if not exists idx_orders_buyer_status on orders (buyer_id, status);
 create index if not exists idx_orders_status_created on orders (status, created_at);
 create index if not exists idx_order_items_order on order_items (order_id);
