@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { AgentOrchestrator } from "@/lib/agents/orchestrator";
 import { RecommendationAgent } from "@/lib/agents/recommendation/recommendation-agent";
+import type {
+  RecommendationPayload,
+  RecommendationResult,
+} from "@/lib/agents/recommendation/types";
 import { createClient } from "@/lib/supabase/server";
+
+const orchestrator = new AgentOrchestrator();
+orchestrator.register(new RecommendationAgent());
 
 const candidateSchema = z.object({
   id: z.string().min(1).max(100),
   title: z.string().min(1).max(200),
-  category: z.string().min(1).max(120).optional(),
+  category_id: z.number().int().nonnegative().optional(),
   brand: z.string().min(1).max(120).optional(),
   price: z.number().nonnegative().optional(),
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
@@ -17,7 +25,7 @@ const constraintsSchema = z
   .object({
     budgetMin: z.number().nonnegative().optional(),
     budgetMax: z.number().nonnegative().optional(),
-    categories: z.array(z.string().min(1).max(120)).max(20).optional(),
+    category_ids: z.array(z.number().int().nonnegative()).max(20).optional(),
     brands: z.array(z.string().min(1).max(120)).max(20).optional(),
     mustHaveTags: z.array(z.string().min(1).max(50)).max(20).optional(),
     excludeProductIds: z.array(z.string().min(1).max(100)).max(50).optional(),
@@ -66,12 +74,14 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
 
-  const agent = new RecommendationAgent();
-  const result = await agent.run({
-    task: "recommendation",
-    payload: parsed.data,
-    context: data.user ? { userId: data.user.id } : undefined,
-  });
+  const result = await orchestrator.dispatch<
+    RecommendationPayload,
+    RecommendationResult
+  >(
+    "recommendation",
+    parsed.data, // This matches RecommendationPayload structurally due to zod validation
+    data.user ? { userId: data.user.id } : undefined,
+  );
 
   const maxResults = parsed.data.constraints?.maxResults;
   const trimmedResult = maxResults
