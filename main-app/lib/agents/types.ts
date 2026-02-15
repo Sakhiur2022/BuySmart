@@ -15,9 +15,11 @@ export interface AgentResult<TResult = unknown> {
   result: TResult;
   model?: string;
   latencyMs?: number;
+  cached?: boolean;
 }
 
 export interface IAgent<TPayload = Record<string, unknown>, TResult = unknown> {
   readonly name: string;
+  readonly version?: string;
   run(input: AgentInput<TPayload>): Promise<AgentResult<TResult>>;
 }

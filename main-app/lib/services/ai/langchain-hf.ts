@@ -4,6 +4,7 @@ import { RunnableLambda } from "@langchain/core/runnables";
 
 import { aiModels } from "@/lib/services/ai/config";
 import { generateText } from "@/lib/services/ai/models/llm";
+import type { AITextGenerationResponse } from "@/lib/types/ai.types";
 
 export function createHFCompletionChain(systemInstruction: string) {
   const prompt = PromptTemplate.fromTemplate(
@@ -11,7 +12,7 @@ export function createHFCompletionChain(systemInstruction: string) {
   );
 
   const runnable = RunnableLambda.from(
-    async (promptValue: StringPromptValueInterface) => {
+    async (promptValue: StringPromptValueInterface): Promise<AITextGenerationResponse> => {
       const formattedPrompt = promptValue.toString();
 
       const response = await generateText({
@@ -19,7 +20,7 @@ export function createHFCompletionChain(systemInstruction: string) {
         model: aiModels.chat.id,
       });
 
-      return response.text;
+      return response;
     },
   );
 

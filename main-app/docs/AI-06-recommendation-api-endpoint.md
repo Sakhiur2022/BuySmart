@@ -23,7 +23,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
     {
       "id": "string",
       "title": "string",
-      "category": "string (optional)",
+      "category_id": 0,
       "brand": "string (optional)",
       "price": 0,
       "tags": ["string"]
@@ -32,7 +32,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
   "constraints": {
     "budgetMin": 0,
     "budgetMax": 0,
-    "categories": ["string"],
+    "category_ids": [0],
     "brands": ["string"],
     "mustHaveTags": ["string"],
     "excludeProductIds": ["string"],
@@ -54,7 +54,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
         "title": "string",
         "reason": "string",
         "score": 0.0,
-        "category": "string",
+        "category_id": 0,
         "price": 0
       }
     ]

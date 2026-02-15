@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { BaseAgent } from "@/lib/agents/base-agent";
 import { AGENT_PROMPTS } from "@/lib/agents/prompts";
+import type { AgentInput } from "@/lib/agents/types";
 import type {
   ProductRecommendation,
   RecommendationPayload,
@@ -17,7 +18,7 @@ const responseSchema = z.object({
         title: z.string().min(1).max(200),
         reason: z.string().min(1).max(400),
         score: z.number().min(0).max(1),
-        category: z.string().optional(),
+        category_id: z.number().int().nonnegative().optional(),
         price: z.number().nonnegative().optional(),
       }),
     )
@@ -30,6 +31,8 @@ export class RecommendationAgent extends BaseAgent<
   RecommendationResult
 > {
   readonly name = "recommendation";
+  readonly version = "1.0.0";
+  protected cacheTtlMs = 5 * 60 * 1000;
 
   protected readonly systemPrompt = `${AGENT_PROMPTS.recommendation}
 
@@ -42,7 +45,7 @@ Return JSON only with this structure:
       "title": "string",
       "reason": "string",
       "score": 0.0,
-      "category": "string (optional)",
+      "category_id": 0,
       "price": 0
     }
   ]
@@ -50,7 +53,7 @@ Return JSON only with this structure:
 
 Rules:
 - Recommend only from provided candidates.
-- Respect budget/category/brand/tag constraints if provided.
+- Respect budget/category_id/brand/tag constraints if provided.
 - Keep reason concise and concrete.
 - Sort by highest score first.
 - Score must be between 0 and 1.`;
@@ -118,5 +121,18 @@ Rules:
       }))
       .sort((left, right) => right.score - left.score)
       .slice(0, 10);
+  }
+
+  protected override buildCacheKey(
+    input: AgentInput<RecommendationPayload>,
+  ): string | null {
+    if (!input.payload) {
+      return null;
+    }
+
+    return JSON.stringify({
+      userId: input.context?.userId ?? null,
+      payload: input.payload,
+    });
   }
 }

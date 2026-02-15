@@ -1,7 +1,7 @@
 export interface ProductCandidate {
   id: string;
   title: string;
-  category?: string;
+  category_id?: number;
   brand?: string;
   price?: number;
   tags?: string[];
@@ -10,7 +10,7 @@ export interface ProductCandidate {
 export interface RecommendationConstraints {
   budgetMin?: number;
   budgetMax?: number;
-  categories?: string[];
+  category_ids?: number[];
   brands?: string[];
   mustHaveTags?: string[];
   excludeProductIds?: string[];
@@ -29,7 +29,7 @@ export interface ProductRecommendation {
   title: string;
   reason: string;
   score: number;
-  category?: string;
+  category_id?: number;
   price?: number;
 }
 
