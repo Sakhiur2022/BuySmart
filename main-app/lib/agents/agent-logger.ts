@@ -83,7 +83,9 @@ export class AgentLogger {
       processing_time_ms: result.latencyMs ?? null,
       severity: result.success ? 'info' : 'error',
       status: result.success ? 'success' : 'failure',
-      error_message: result.success ? null : extractErrorMessage(result.result),
+      error_message: result.success
+        ? null
+        : result.errorMessage ?? extractErrorMessage(result.result),
       entity_type: 'agent',
       entity_id: null,
       metadata: toJson({
@@ -94,7 +96,11 @@ export class AgentLogger {
     };
 
     try {
-      await this.supabase.from('activity_logs').insert(row);
+      const { error } = await this.supabase.from('activity_logs').insert(row);
+
+      if (error) {
+        console.error('Failed to write agent log', error);
+      }
     } catch (error) {
       console.error('Failed to write agent log', error);
     }

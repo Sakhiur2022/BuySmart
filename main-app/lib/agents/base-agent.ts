@@ -26,6 +26,7 @@ export abstract class BaseAgent<TPayload = Record<string, unknown>, TResult = un
       if (cached) {
         return {
           ...cached,
+          latencyMs: Math.round(performance.now() - startedAt),
           cached: true,
         };
       }
@@ -60,6 +61,7 @@ export abstract class BaseAgent<TPayload = Record<string, unknown>, TResult = un
         success: false,
         result: this.parseOutput(normalized.message),
         latencyMs,
+        errorMessage: normalized.message,
       };
     }
   }

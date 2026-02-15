@@ -15,7 +15,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
 
 ## Request Schema
 
-```json
+```jsonc
 {
   "userIntent": "string",
   "contextSummary": "string (optional)",
@@ -23,7 +23,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
     {
       "id": "string",
       "title": "string",
-      "category_id": 0,
+      "category_id": 0, // optional
       "brand": "string (optional)",
       "price": 0,
       "tags": ["string"]
@@ -32,7 +32,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
   "constraints": {
     "budgetMin": 0,
     "budgetMax": 0,
-    "category_ids": [0],
+    "category_ids": [0], // optional
     "brands": ["string"],
     "mustHaveTags": ["string"],
     "excludeProductIds": ["string"],
@@ -43,7 +43,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
 
 ## Response Shape
 
-```json
+```jsonc
 {
   "success": true,
   "result": {
@@ -54,7 +54,7 @@ This deliverable exposes a public API endpoint to generate product recommendatio
         "title": "string",
         "reason": "string",
         "score": 0.0,
-        "category_id": 0,
+        "category_id": 0, // optional
         "price": 0
       }
     ]
