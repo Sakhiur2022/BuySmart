@@ -18,6 +18,7 @@ export interface ProductEmbeddingBackfillOptions {
   batchSize?: number;
   maxProducts?: number;
   onlyMissing?: boolean;
+  concurrency?: number;
 }
 
 export interface ProductEmbeddingBackfillResult {
@@ -108,6 +109,7 @@ export async function backfillProductEmbeddings(
   const batchSize = Math.max(1, Math.min(options.batchSize ?? 20, 200));
   const maxProducts = options.maxProducts;
   const onlyMissing = options.onlyMissing ?? true;
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 3, batchSize));
 
   const result: ProductEmbeddingBackfillResult = {
     processed: 0,
@@ -150,11 +152,11 @@ export async function backfillProductEmbeddings(
       break;
     }
 
-    for (const row of data) {
-      if (typeof maxProducts === "number" && result.processed >= maxProducts) {
-        break;
-      }
+    const remainingInRun =
+      typeof maxProducts === "number" ? Math.max(maxProducts - result.processed, 0) : data.length;
+    const rowsToProcess = data.slice(0, remainingInRun || data.length);
 
+    await runWithConcurrency(rowsToProcess, concurrency, async (row) => {
       result.processed += 1;
 
       try {
@@ -168,7 +170,7 @@ export async function backfillProductEmbeddings(
           reason: error instanceof Error ? error.message : "Unknown embedding generation error",
         });
       }
-    }
+    });
 
     if (data.length < currentBatchSize) {
       break;
@@ -180,4 +182,22 @@ export async function backfillProductEmbeddings(
   }
 
   return result;
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  handler: (item: T) => Promise<void>,
+): Promise<void> {
+  let index = 0;
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = items[index];
+      index += 1;
+      await handler(current);
+    }
+  });
+
+  await Promise.all(workers);
 }

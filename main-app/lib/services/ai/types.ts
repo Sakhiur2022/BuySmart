@@ -24,6 +24,7 @@ export interface HFInvokeOptions {
   cache?: boolean;
   cacheTtlMs?: number;
   signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface HFServiceConfig {

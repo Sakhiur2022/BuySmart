@@ -56,7 +56,8 @@ Rules:
 - Respect budget/category_id/brand/tag constraints if provided.
 - Keep reason concise and concrete.
 - Sort by highest score first.
-- Score must be between 0 and 1.`;
+- Score must be between 0 and 1.
+- Omit category_id when it is unknown or not provided.`;
 
   protected parseOutput(output: string): RecommendationResult {
     const parsedFromJson = this.tryParseAsJson(output);

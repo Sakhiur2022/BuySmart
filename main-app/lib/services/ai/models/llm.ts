@@ -1,6 +1,6 @@
 import { aiEnv, aiModels } from "@/lib/services/ai/config";
 import { invokeHuggingFaceModel } from "@/lib/services/ai/hf-client";
-import { AIResponseError } from "@/lib/services/ai/error-handler";
+import { AIRequestError, AIResponseError } from "@/lib/services/ai/error-handler";
 import { approximateTokenCount, buildChatPrompt, normalizeWhitespace } from "@/lib/services/ai/utils";
 import type {
   AIChatMessage,
@@ -23,6 +23,10 @@ interface GenerateTextInput {
 export async function generateText(
   input: GenerateTextInput,
 ): Promise<AITextGenerationResponse> {
+  if (!input.prompt.trim()) {
+    throw new AIRequestError("Text generation prompt must be a non-empty string.");
+  }
+
   const model = input.model ?? aiModels.llm.id;
 
   const payload = {
@@ -68,6 +72,10 @@ export async function generateChatCompletion(
   messages: AIChatMessage[],
   options?: AIRequestOptions,
 ): Promise<AITextGenerationResponse> {
+  if (messages.length === 0) {
+    throw new AIRequestError("Chat completion requires at least one message.");
+  }
+
   const prompt = buildChatPrompt(messages);
 
   return generateText({

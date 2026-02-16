@@ -16,6 +16,7 @@ export interface AgentResult<TResult = unknown> {
   model?: string;
   latencyMs?: number;
   cached?: boolean;
+  errorMessage?: string;
 }
 
 export interface IAgent<TPayload = Record<string, unknown>, TResult = unknown> {

@@ -26,6 +26,7 @@ export abstract class BaseAgent<TPayload = Record<string, unknown>, TResult = un
       if (cached) {
         return {
           ...cached,
+          latencyMs: Math.round(performance.now() - startedAt),
           cached: true,
         };
       }
@@ -55,11 +56,19 @@ export abstract class BaseAgent<TPayload = Record<string, unknown>, TResult = un
     } catch (error) {
       const normalized = normalizeAIError(error);
       const latencyMs = Math.round(performance.now() - startedAt);
+      let safeResult: TResult;
+
+      try {
+        safeResult = this.parseOutput(normalized.message);
+      } catch {
+        safeResult = null as TResult;
+      }
 
       return {
         success: false,
-        result: this.parseOutput(normalized.message),
+        result: safeResult,
         latencyMs,
+        errorMessage: normalized.message,
       };
     }
   }

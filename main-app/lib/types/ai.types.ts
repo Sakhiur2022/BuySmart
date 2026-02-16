@@ -5,7 +5,7 @@ export type AISupportedTask =
   | "sentiment"
   | "classification";
 
-export type AISentimentLabel = "positive" | "neutral" | "negative";
+export type AISentimentLabel = "positive" | "neutral" | "negative" | "mixed";
 
 export interface AIModelConfig {
   id: string;
