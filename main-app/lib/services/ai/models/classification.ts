@@ -1,6 +1,6 @@
 import { aiModels } from "@/lib/services/ai/config";
 import { invokeHuggingFaceModel } from "@/lib/services/ai/hf-client";
-import { AIResponseError } from "@/lib/services/ai/error-handler";
+import { AIRequestError, AIResponseError } from "@/lib/services/ai/error-handler";
 import type { AIClassificationResponse } from "@/lib/types/ai.types";
 
 interface HFZeroShotResponse {
@@ -17,10 +17,22 @@ interface ClassifyInput {
 export async function classifyText(
   input: ClassifyInput,
 ): Promise<AIClassificationResponse> {
+  if (!input.text.trim()) {
+    throw new AIRequestError("Classification input text must be a non-empty string.");
+  }
+
+  const normalizedLabels = input.candidateLabels
+    .map((label) => label.trim())
+    .filter((label) => Boolean(label));
+
+  if (normalizedLabels.length === 0) {
+    throw new AIRequestError("Classification requires at least one candidate label.");
+  }
+
   const payload = {
     inputs: input.text,
     parameters: {
-      candidate_labels: input.candidateLabels,
+      candidate_labels: normalizedLabels,
       multi_label: input.multiLabel ?? false,
     },
   };

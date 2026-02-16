@@ -52,24 +52,45 @@ export async function invokeHuggingFaceModel<T>(
   }
 
   const url = resolveInferenceUrl(model);
+  const timeoutMs = options?.timeoutMs ?? 15000;
 
   const execute = async (): Promise<T> => {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: createAuthHeaders(),
-      body: JSON.stringify(payload),
-      signal: options?.signal,
-    });
+    const controller = new AbortController();
+    const externalSignal = options?.signal;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      const rawErrorBody = await response.text();
-      throw new AIRequestError(
-        `Hugging Face request failed (${response.status}): ${rawErrorBody}`,
-        response.status,
-      );
+    const abortListener = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        externalSignal.addEventListener("abort", abortListener, { once: true });
+      }
     }
 
-    return (await response.json()) as T;
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: createAuthHeaders(),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const rawErrorBody = await response.text();
+        throw new AIRequestError(
+          `Hugging Face request failed (${response.status}): ${rawErrorBody}`,
+          response.status,
+        );
+      }
+
+      return (await response.json()) as T;
+    } finally {
+      clearTimeout(timeoutId);
+      if (externalSignal) {
+        externalSignal.removeEventListener("abort", abortListener);
+      }
+    }
   };
 
   const result = await limiter.schedule(() =>

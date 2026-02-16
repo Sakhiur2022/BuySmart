@@ -45,7 +45,7 @@ Return JSON only with this structure:
       "title": "string",
       "reason": "string",
       "score": 0.0,
-      "category_id": 0 (optional),
+      "category_id": 0,
       "price": 0
     }
   ]

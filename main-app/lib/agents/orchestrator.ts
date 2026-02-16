@@ -11,22 +11,22 @@ export interface PipelineStep<TPayload = Record<string, unknown>, TResult = unkn
 }
 
 export class AgentOrchestrator {
-  private readonly registry = new Map<string, IAgent<any, any>>();
+  private readonly registry = new Map<string, IAgent<unknown, unknown>>();
   private readonly logger: AgentLogger;
 
   constructor(logger: AgentLogger = new AgentLogger()) {
     this.logger = logger;
   }
 
-  register(agent: IAgent<any, any>): void {
+  register(agent: IAgent<unknown, unknown>): void {
     this.registry.set(agent.name, agent);
   }
 
-  registerMany(agents: IAgent<any, any>[]): void {
+  registerMany(agents: IAgent<unknown, unknown>[]): void {
     agents.forEach((agent) => this.register(agent));
   }
 
-  getAgent(name: string): IAgent<any, any> | undefined {
+  getAgent(name: string): IAgent<unknown, unknown> | undefined {
     return this.registry.get(name);
   }
 

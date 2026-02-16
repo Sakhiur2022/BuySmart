@@ -62,9 +62,14 @@ function extractErrorMessage(result: unknown): string | null {
 
 export class AgentLogger {
   private readonly supabase = getServiceRoleSupabase();
+  private missingSupabaseLogged = false;
 
   async log<TPayload, TResult>(params: AgentLogParams<TPayload, TResult>): Promise<void> {
     if (!this.supabase) {
+      if (!this.missingSupabaseLogged) {
+        console.warn("Agent logging is disabled because the service role client is unavailable.");
+        this.missingSupabaseLogged = true;
+      }
       return;
     }
 
