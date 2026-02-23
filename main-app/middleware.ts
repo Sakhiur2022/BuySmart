@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest) {
   const isEmailVerified = Boolean(emailConfirmedAt);
 
   if (!isEmailVerified && !isAuthRoute && pathname !== '/') {
-    return redirectTo('/auth/sign-up-success');
+    return redirectTo('/');
   }
 
   const isAdminRoute = pathname.startsWith('/admin');
