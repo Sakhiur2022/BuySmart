@@ -9,13 +9,14 @@ export function createClient() {
     {
       cookieOptions: {
         secure: isProd,
-        sameSite: 'strict',
+        sameSite: 'lax',
         path: '/',
       },
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       },
     },
   );
