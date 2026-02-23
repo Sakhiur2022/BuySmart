@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,11 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-6">
-            <OAuthProviderButtons defaultNextPath="/protected" />
+            <Suspense
+              fallback={<p className="text-center text-sm text-muted-foreground">Loading...</p>}
+            >
+              <OAuthProviderButtons defaultNextPath="/protected" />
+            </Suspense>
             <div className="text-center text-sm">
               Already have an account?{' '}
               <Link href="/auth/login" className="underline underline-offset-4">
