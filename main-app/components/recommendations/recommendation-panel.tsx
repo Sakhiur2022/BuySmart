@@ -285,8 +285,9 @@ export function RecommendationPanel() {
               <div className="grid gap-3 md:grid-cols-2">
                 {result.recommendations.map((recommendation, index) => {
                   const normalizedScore = Math.max(0, Math.min(1, recommendation.score))
-                  const match = recommendation.productId
-                    ? candidateLookup.get(recommendation.productId)
+                  const productId = recommendation.productId?.trim()
+                  const match: ProductCandidate | undefined = productId
+                    ? candidateLookup.get(productId)
                     : undefined
 
                   return (
@@ -312,7 +313,7 @@ export function RecommendationPanel() {
                         {recommendation.price !== undefined ? (
                           <span>{priceFormatter.format(recommendation.price)}</span>
                         ) : null}
-                        {recommendation.productId ? <span>ID: {recommendation.productId}</span> : null}
+                        {productId ? <span>ID: {productId}</span> : null}
                         {match?.brand ? <span>Brand: {match.brand}</span> : null}
                       </div>
                     </div>
