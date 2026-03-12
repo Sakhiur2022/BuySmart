@@ -47,3 +47,4 @@ next-env.d.ts
 planning
 
 /main-app/lib/supabase/.temp
+package-lock.json
