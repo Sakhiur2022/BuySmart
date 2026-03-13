@@ -22,17 +22,7 @@ export async function createClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll().filter(({ name, value }) => {
-            if (!name.startsWith('sb-')) return true;
-            try {
-              new TextDecoder('utf-8', { fatal: true }).decode(
-                Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
-              );
-              return true;
-            } catch {
-              return false; // discard corrupted auth cookie, treat user as signed out
-            }
-          });
+          return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
           try {
