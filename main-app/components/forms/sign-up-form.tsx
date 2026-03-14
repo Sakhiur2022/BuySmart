@@ -19,7 +19,7 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
             <Suspense
               fallback={<p className="text-center text-sm text-muted-foreground">Loading...</p>}
             >
-              <OAuthProviderButtons defaultNextPath="/protected" />
+              <OAuthProviderButtons defaultNextPath="/" />
             </Suspense>
             <div className="text-center text-sm">
               Already have an account?{' '}
