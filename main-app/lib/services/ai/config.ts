@@ -18,7 +18,7 @@ const aiEnvSchema = z.object({
   AI_TOP_P: z.coerce.number().min(0).max(1).default(0.9),
   HF_INFERENCE_ENDPOINT: z
     .string()
-    .default("https://api-inference.huggingface.co/models/"),
+    .default("https://router.huggingface.co/hf-inference/models/"),
   HF_RATE_LIMIT_DELAY: z.coerce.number().int().min(0).default(100),
   HF_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
 });
