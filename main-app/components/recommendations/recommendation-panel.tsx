@@ -1,31 +1,40 @@
-'use client'
+'use client';
 
-import { useMemo, useState } from 'react'
-import { Loader2, Sparkles, WandSparkles } from 'lucide-react'
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { Loader2, Sparkles, WandSparkles } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import type {
   ProductCandidate,
   RecommendationPayload,
   RecommendationResult,
-} from '@/lib/agents/recommendation/types'
+} from '@/lib/agents/recommendation/types';
 
 interface RecommendationApiResponse {
-  success: boolean
-  result: RecommendationResult
-  latencyMs?: number
-  errorMessage?: string
+  success: boolean;
+  result: RecommendationResult;
+  latencyMs?: number;
+  errorMessage?: string;
+}
+
+interface RecommendationPanelProps {
+  isAuthenticated: boolean;
+  userEmail?: string | null;
+  userDisplayName?: string;
+  candidates?: ProductCandidate[];
 }
 
 const SAMPLE_CANDIDATES: ProductCandidate[] = [
@@ -69,80 +78,110 @@ const SAMPLE_CANDIDATES: ProductCandidate[] = [
     price: 119,
     tags: ['camera', 'streaming', 'remote-work'],
   },
-]
+];
+
+const MAX_RESULTS_OPTIONS = ['2', '3', '4', '5', '6'];
+
+const MAX_RESULTS_BY_MODE = {
+  guest: 3,
+  member: 6,
+} as const;
+
+const getScoreBarClassName = (score: number) => {
+  const percentage = Math.round(Math.max(0, Math.min(1, score)) * 100);
+
+  if (percentage >= 90) return 'w-full';
+  if (percentage >= 80) return 'w-10/12';
+  if (percentage >= 70) return 'w-9/12';
+  if (percentage >= 60) return 'w-8/12';
+  if (percentage >= 50) return 'w-7/12';
+  if (percentage >= 40) return 'w-6/12';
+  if (percentage >= 30) return 'w-5/12';
+  if (percentage >= 20) return 'w-4/12';
+  if (percentage >= 10) return 'w-3/12';
+  return 'w-2/12';
+};
 
 const toNumber = (value: string): number | undefined => {
   if (!value.trim()) {
-    return undefined
+    return undefined;
   }
 
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 2,
-})
+});
 
-export function RecommendationPanel() {
-  const [userIntent, setUserIntent] = useState('I need gear for remote work and travel under $200')
+export function RecommendationPanel({
+  isAuthenticated,
+  userEmail,
+  userDisplayName,
+  candidates = SAMPLE_CANDIDATES,
+}: RecommendationPanelProps) {
+  const [userIntent, setUserIntent] = useState('I need gear for remote work and travel under $200');
   const [contextSummary, setContextSummary] = useState(
     'Prioritize lightweight products and practical daily use.',
-  )
-  const [budgetMin, setBudgetMin] = useState('')
-  const [budgetMax, setBudgetMax] = useState('200')
-  const [maxResults, setMaxResults] = useState('4')
+  );
+  const [budgetMin, setBudgetMin] = useState('');
+  const [budgetMax, setBudgetMax] = useState('200');
+  const [maxResults, setMaxResults] = useState(isAuthenticated ? '4' : '3');
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [latencyMs, setLatencyMs] = useState<number | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [result, setResult] = useState<RecommendationResult | null>(null)
+  const [isLoading, setIsLoading] = useState(false);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [result, setResult] = useState<RecommendationResult | null>(null);
 
   const candidateLookup = useMemo(
     () =>
-      new Map<string, ProductCandidate>(
-        SAMPLE_CANDIDATES.map((candidate) => [candidate.id, candidate]),
-      ),
-    [],
-  )
+      new Map<string, ProductCandidate>(candidates.map((candidate) => [candidate.id, candidate])),
+    [candidates],
+  );
+
+  const maxAllowedResults = isAuthenticated
+    ? MAX_RESULTS_BY_MODE.member
+    : MAX_RESULTS_BY_MODE.guest;
 
   const generateRecommendations = async () => {
-    const trimmedIntent = userIntent.trim()
+    const trimmedIntent = userIntent.trim();
     if (trimmedIntent.length < 3) {
-      setErrorMessage('Please provide a clearer intent (at least 3 characters).')
-      return
+      setErrorMessage('Please provide a clearer intent (at least 3 characters).');
+      return;
     }
 
-    const parsedBudgetMin = toNumber(budgetMin)
-    const parsedBudgetMax = toNumber(budgetMax)
-    const parsedMaxResults = toNumber(maxResults)
+    const parsedBudgetMin = toNumber(budgetMin);
+    const parsedBudgetMax = toNumber(budgetMax);
+    const parsedMaxResults = toNumber(maxResults);
+    const cappedMaxResults = Math.min(parsedMaxResults ?? maxAllowedResults, maxAllowedResults);
 
     const constraints: RecommendationPayload['constraints'] = {
       budgetMin: parsedBudgetMin,
       budgetMax: parsedBudgetMax,
-      maxResults: parsedMaxResults,
-    }
+      maxResults: cappedMaxResults,
+    };
 
     if (
       constraints.budgetMin !== undefined &&
       constraints.budgetMax !== undefined &&
       constraints.budgetMin > constraints.budgetMax
     ) {
-      setErrorMessage('Minimum budget cannot be greater than maximum budget.')
-      return
+      setErrorMessage('Minimum budget cannot be greater than maximum budget.');
+      return;
     }
 
-    setIsLoading(true)
-    setErrorMessage(null)
+    setIsLoading(true);
+    setErrorMessage(null);
 
     const payload: RecommendationPayload = {
       userIntent: trimmedIntent,
       contextSummary: contextSummary.trim() || undefined,
-      candidates: SAMPLE_CANDIDATES,
+      candidates,
       constraints,
-    }
+    };
 
     try {
       const response = await fetch('/api/recommendations', {
@@ -151,43 +190,61 @@ export function RecommendationPanel() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
-      })
+      });
 
       const data = (await response.json()) as RecommendationApiResponse & {
-        error?: string
-      }
+        error?: string;
+      };
 
       if (!response.ok || !data.success) {
-        const fallbackError = 'Recommendation request failed. Please try again.'
-        setResult(null)
-        setLatencyMs(null)
-        setErrorMessage(data.errorMessage ?? data.error ?? fallbackError)
-        return
+        const fallbackError = 'Recommendation request failed. Please try again.';
+        setResult(null);
+        setLatencyMs(null);
+        setErrorMessage(data.errorMessage ?? data.error ?? fallbackError);
+        return;
       }
 
-      setResult(data.result)
-      setLatencyMs(data.latencyMs ?? null)
+      setResult(data.result);
+      setLatencyMs(data.latencyMs ?? null);
     } catch {
-      setResult(null)
-      setLatencyMs(null)
-      setErrorMessage('Unable to connect to recommendation service right now.')
+      setResult(null);
+      setLatencyMs(null);
+      setErrorMessage('Unable to connect to recommendation service right now.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="border-primary/20">
       <CardHeader className="space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="rounded-lg bg-primary/15 p-2 text-primary">
             <Sparkles className="size-4" />
           </div>
           <CardTitle className="text-xl">AI Recommendations</CardTitle>
+          <Badge variant={isAuthenticated ? 'default' : 'secondary'}>
+            {isAuthenticated ? 'Member Mode' : 'Guest Mode'}
+          </Badge>
         </div>
         <CardDescription>
-          Describe what you need, then let the recommendation agent rank matching products.
+          {isAuthenticated
+            ? 'Describe what you need, then let the recommendation agent rank matching products.'
+            : 'Try the recommendation engine as a guest. You can sign in later for richer personalization.'}
         </CardDescription>
+        {isAuthenticated && userEmail ? (
+          <p className="text-xs text-muted-foreground">
+            Personalizing for {userDisplayName ?? userEmail}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Guest sessions are not persisted.{' '}
+            <Link href="/auth/sign-up" className="text-primary hover:underline">
+              Create an account
+            </Link>{' '}
+            to save your buyer profile.
+          </p>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-6">
@@ -234,15 +291,33 @@ export function RecommendationPanel() {
             />
           </div>
 
-          <div className="space-y-2 md:max-w-44">
+          <div className="space-y-2 md:max-w-52">
             <Label htmlFor="max-results">Max results</Label>
-            <Input
-              id="max-results"
-              inputMode="numeric"
-              value={maxResults}
-              onChange={(event) => setMaxResults(event.target.value)}
-              placeholder="4"
-            />
+            <Select value={maxResults} onValueChange={setMaxResults}>
+              <SelectTrigger id="max-results" className="w-full">
+                <SelectValue placeholder="Select max results" />
+              </SelectTrigger>
+              <SelectContent>
+                {MAX_RESULTS_OPTIONS.map((value) => {
+                  const isOverGuestLimit =
+                    !isAuthenticated && Number(value) > MAX_RESULTS_BY_MODE.guest;
+
+                  return (
+                    <SelectItem
+                      key={value}
+                      value={value}
+                      disabled={isOverGuestLimit}
+                      className={isOverGuestLimit ? 'opacity-50' : undefined}
+                    >
+                      {value}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            {!isAuthenticated ? (
+              <p className="text-xs text-muted-foreground">Guests can request up to 3 results.</p>
+            ) : null}
           </div>
         </div>
 
@@ -256,19 +331,42 @@ export function RecommendationPanel() {
             ) : (
               <>
                 <WandSparkles className="size-4" />
-                Generate Recommendations
+                {isAuthenticated ? 'Generate Recommendations' : 'Generate Guest Recommendations'}
               </>
             )}
           </Button>
 
           <span className="text-xs text-muted-foreground">
-            Candidates available: {SAMPLE_CANDIDATES.length}
+            Candidates available: {candidates.length}
           </span>
         </div>
+
+        {isLoading ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, index) => (
+              <div
+                key={`skeleton-${index}`}
+                className="space-y-3 rounded-lg border bg-card p-4 shadow-sm"
+              >
+                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                <div className="h-3 w-10/12 animate-pulse rounded bg-muted" />
+                <div className="h-2 w-full animate-pulse rounded bg-muted" />
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {errorMessage ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {errorMessage}
+          </div>
+        ) : null}
+
+        {!isLoading && !result && !errorMessage ? (
+          <div className="rounded-lg border border-border/70 bg-muted/25 p-4 text-sm text-muted-foreground">
+            Enter your intent and constraints, then generate recommendations to see AI-ranked
+            results.
           </div>
         ) : null}
 
@@ -284,11 +382,11 @@ export function RecommendationPanel() {
             {result.recommendations.length > 0 ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {result.recommendations.map((recommendation, index) => {
-                  const normalizedScore = Math.max(0, Math.min(1, recommendation.score))
-                  const productId = recommendation.productId?.trim()
+                  const normalizedScore = Math.max(0, Math.min(1, recommendation.score));
+                  const productId = recommendation.productId?.trim();
                   const match: ProductCandidate | undefined = productId
                     ? candidateLookup.get(productId)
-                    : undefined
+                    : undefined;
 
                   return (
                     <div
@@ -304,8 +402,7 @@ export function RecommendationPanel() {
 
                       <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-primary"
-                          style={{ width: `${Math.round(normalizedScore * 100)}%` }}
+                          className={`h-full rounded-full bg-primary ${getScoreBarClassName(normalizedScore)}`}
                         />
                       </div>
 
@@ -317,17 +414,19 @@ export function RecommendationPanel() {
                         {match?.brand ? <span>Brand: {match.brand}</span> : null}
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No recommendations were returned. Try broadening your intent or constraints.
-              </p>
+              <div className="rounded-lg border border-border/70 bg-muted/25 p-4">
+                <p className="text-sm text-muted-foreground">
+                  No recommendations were returned. Try broadening your intent or constraints.
+                </p>
+              </div>
             )}
           </div>
         ) : null}
       </CardContent>
     </Card>
-  )
+  );
 }
