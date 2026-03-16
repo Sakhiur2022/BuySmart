@@ -14,6 +14,8 @@ import { createClient } from '@/lib/supabase/client';
 type UserProfileFormProps = {
   userId: string;
   email: string;
+  emailConfirmed: boolean;
+  hasProfileRecord: boolean;
   initialProfile: {
     fullName: string;
     displayName: string;
@@ -52,7 +54,32 @@ function formatRole(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
 
-export function UserProfileForm({ userId, email, initialProfile }: UserProfileFormProps) {
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  }
+
+  return 'Failed to update profile.';
+}
+
+export function UserProfileForm({
+  userId,
+  email,
+  emailConfirmed,
+  hasProfileRecord,
+  initialProfile,
+}: UserProfileFormProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(initialProfile.fullName);
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
@@ -81,6 +108,13 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
     return date.toLocaleString();
   }, [updatedAt]);
 
+  const editDisabledReason = !emailConfirmed
+    ? 'Verify your email to edit your profile.'
+    : !hasProfileRecord
+      ? 'Your profile record is not initialized yet. Sign out and back in, or contact support.'
+      : null;
+  const canEdit = !editDisabledReason;
+
   const handleCancel = () => {
     setFullName(initialProfile.fullName);
     setDisplayName(initialProfile.displayName);
@@ -98,6 +132,12 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
     setIsSaving(true);
     setErrorMessage(null);
     setSuccessMessage(null);
+
+    if (!canEdit) {
+      setErrorMessage(editDisabledReason ?? 'Editing is disabled.');
+      setIsSaving(false);
+      return;
+    }
 
     const normalizedPhone = phone.trim();
     if (normalizedPhone && !/^[+0-9()\-\s]{7,20}$/.test(normalizedPhone)) {
@@ -149,7 +189,7 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
 
       router.refresh();
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to update profile.');
+      setErrorMessage(getErrorMessage(error));
     } finally {
       setIsSaving(false);
     }
@@ -174,6 +214,9 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
             <Badge variant={profileCompleted ? 'default' : 'outline'}>
               {profileCompleted ? 'Profile complete' : 'Profile incomplete'}
             </Badge>
+            <Badge variant={emailConfirmed ? 'secondary' : 'destructive'}>
+              {emailConfirmed ? 'Email verified' : 'Email not verified'}
+            </Badge>
           </div>
         </div>
 
@@ -196,6 +239,11 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
       <Separator />
 
       <CardContent className="pt-6">
+        {editDisabledReason ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {editDisabledReason}
+          </div>
+        ) : null}
         <form className="space-y-6" onSubmit={handleSave}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
@@ -251,7 +299,7 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
 
           <div className="flex flex-wrap gap-2">
             {!isEditing ? (
-              <Button type="button" onClick={() => setIsEditing(true)}>
+              <Button type="button" onClick={() => setIsEditing(true)} disabled={!canEdit}>
                 Edit profile
               </Button>
             ) : (

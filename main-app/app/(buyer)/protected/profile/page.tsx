@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { UserProfileForm } from '@/components/forms/user-profile-form';
 import { createClient } from '@/lib/supabase/server';
+import { getServiceRoleSupabase } from '@/lib/supabase/service-role';
 
 export default async function UserProfilePage() {
   const supabase = await createClient();
@@ -19,23 +20,59 @@ export default async function UserProfilePage() {
     .maybeSingle();
 
   const userMetadata = user.user_metadata ?? {};
+  let resolvedProfile = profile ?? null;
+
+  if (!resolvedProfile) {
+    const serviceRole = getServiceRoleSupabase();
+    if (serviceRole) {
+      const now = new Date().toISOString();
+      await serviceRole.from('users_profile').upsert(
+        {
+          user_id: user.id,
+          full_name: (userMetadata.full_name as string | undefined) ?? (userMetadata.name as string | undefined) ?? null,
+          display_name: null,
+          avatar_url:
+            (userMetadata.avatar_url as string | undefined) ??
+            (userMetadata.picture as string | undefined) ??
+            null,
+          phone: (userMetadata.phone as string | undefined) ?? null,
+          role: 'buyer',
+          profile_completed: false,
+          updated_at: now,
+        },
+        { onConflict: 'user_id' },
+      );
+
+      const { data: refreshedProfile } = await serviceRole
+        .from('users_profile')
+        .select('full_name, display_name, avatar_url, phone, role, profile_completed, updated_at')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      resolvedProfile = refreshedProfile ?? resolvedProfile;
+    }
+  }
+
+  const emailConfirmed = Boolean(user.email_confirmed_at);
+  const hasProfileRecord = Boolean(resolvedProfile);
 
   const initialProfile = {
     fullName:
-      (profile?.full_name as string | null) ??
+      (resolvedProfile?.full_name as string | null) ??
       (userMetadata.full_name as string | undefined) ??
       (userMetadata.name as string | undefined) ??
       '',
-    displayName: (profile?.display_name as string | null) ?? '',
+    displayName: (resolvedProfile?.display_name as string | null) ?? '',
     avatarUrl:
-      (profile?.avatar_url as string | null) ??
+      (resolvedProfile?.avatar_url as string | null) ??
       (userMetadata.avatar_url as string | undefined) ??
       (userMetadata.picture as string | undefined) ??
       '',
-    phone: (profile?.phone as string | null) ?? (userMetadata.phone as string | undefined) ?? '',
-    role: (profile?.role as string | null) ?? 'buyer',
-    profileCompleted: profile?.profile_completed ?? false,
-    updatedAt: (profile?.updated_at as string | null) ?? null,
+    phone:
+      (resolvedProfile?.phone as string | null) ?? (userMetadata.phone as string | undefined) ?? '',
+    role: (resolvedProfile?.role as string | null) ?? 'buyer',
+    profileCompleted: resolvedProfile?.profile_completed ?? false,
+    updatedAt: (resolvedProfile?.updated_at as string | null) ?? null,
   };
 
   return (
@@ -48,7 +85,13 @@ export default async function UserProfilePage() {
         </p>
       </section>
 
-      <UserProfileForm userId={user.id} email={user.email ?? 'No email'} initialProfile={initialProfile} />
+      <UserProfileForm
+        userId={user.id}
+        email={user.email ?? 'No email'}
+        emailConfirmed={emailConfirmed}
+        hasProfileRecord={hasProfileRecord}
+        initialProfile={initialProfile}
+      />
     </div>
   );
 }
