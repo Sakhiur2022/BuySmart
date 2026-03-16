@@ -15,7 +15,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         </CardHeader>
         <CardContent>
           <Suspense fallback={<p>Loading...</p>}>
-            <OAuthProviderButtons defaultNextPath="/protected" />
+            <OAuthProviderButtons defaultNextPath="/" />
           </Suspense>
         </CardContent>
       </Card>

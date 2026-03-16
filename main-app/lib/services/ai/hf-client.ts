@@ -13,11 +13,43 @@ const responseCache = new TTLCache<unknown>();
 const limiter = new SimpleRateLimiter(aiEnv.HF_RATE_LIMIT_DELAY);
 
 function resolveInferenceUrl(model: string): string {
-  const base = aiEnv.HF_INFERENCE_ENDPOINT.endsWith("/")
-    ? aiEnv.HF_INFERENCE_ENDPOINT
-    : `${aiEnv.HF_INFERENCE_ENDPOINT}/`;
+  const trimmed = aiEnv.HF_INFERENCE_ENDPOINT.trim();
+  const migratedBase = trimmed
+    .replace(
+      /^https:\/\/api-inference\.huggingface\.co\/models\/?$/,
+      "https://router.huggingface.co/hf-inference/models",
+    )
+    .replace(
+      /^https:\/\/api-inference\.huggingface\.co\/?$/,
+      "https://router.huggingface.co/hf-inference/models",
+    );
 
-  return `${base}${model}`;
+  const normalized = migratedBase.replace(/\/+$/, "");
+  if (normalized.includes("{model}")) {
+    return normalized.replace("{model}", encodeURIComponent(model));
+  }
+
+  let finalBase = normalized;
+  const isRouterHost = normalized.startsWith("https://router.huggingface.co");
+  const hasModelPath =
+    normalized.includes("/hf-inference/models") || normalized.endsWith("/models");
+
+  if (isRouterHost) {
+    if (normalized === "https://router.huggingface.co") {
+      finalBase = "https://router.huggingface.co/hf-inference/models";
+    } else if (normalized.endsWith("/hf-inference")) {
+      finalBase = `${normalized}/models`;
+    } else if (normalized.includes("/hf-inference") && !normalized.includes("/hf-inference/models")) {
+      finalBase = normalized.replace(/\/hf-inference\/?$/, "/hf-inference/models");
+    }
+  }
+
+  const base = finalBase.endsWith("/") ? finalBase : `${finalBase}/`;
+  if (isRouterHost || hasModelPath) {
+    return `${base}${encodeURIComponent(model)}`;
+  }
+
+  return finalBase;
 }
 
 function createAuthHeaders(): HeadersInit {
@@ -79,7 +111,7 @@ export async function invokeHuggingFaceModel<T>(
       if (!response.ok) {
         const rawErrorBody = await response.text();
         throw new AIRequestError(
-          `Hugging Face request failed (${response.status}): ${rawErrorBody}`,
+          `Hugging Face request failed (${response.status}) for ${model} at ${url}: ${rawErrorBody}`,
           response.status,
         );
       }

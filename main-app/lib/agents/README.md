@@ -27,7 +27,7 @@ AI_TEMPERATURE=0.7
 AI_MAX_TOKENS=1024
 AI_TOP_P=0.9
 
-HF_INFERENCE_ENDPOINT=https://api-inference.huggingface.co/models/
+HF_INFERENCE_ENDPOINT=https://router.huggingface.co/hf-inference/models/
 HF_RATE_LIMIT_DELAY=100
 HF_MAX_RETRIES=3
 ```

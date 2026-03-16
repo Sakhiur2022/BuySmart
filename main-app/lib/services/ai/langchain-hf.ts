@@ -7,8 +7,12 @@ import { generateText } from "@/lib/services/ai/models/llm";
 import type { AITextGenerationResponse } from "@/lib/types/ai.types";
 
 export function createHFCompletionChain(systemInstruction: string) {
+  const escapedSystemInstruction = systemInstruction
+    .replaceAll("{", "{{")
+    .replaceAll("}", "}}");
+
   const prompt = PromptTemplate.fromTemplate(
-    `${systemInstruction}\n\nUser:\n{input}\n\nAssistant:`,
+    `${escapedSystemInstruction}\n\nUser:\n{input}\n\nAssistant:`,
   );
 
   const runnable = RunnableLambda.from(
