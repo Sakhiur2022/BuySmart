@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client';
 type UserProfileFormProps = {
   userId: string;
   email: string;
+  emailConfirmed: boolean;
   hasProfileRecord: boolean;
   initialProfile: {
     fullName: string;
@@ -72,7 +73,13 @@ function getErrorMessage(error: unknown): string {
   return 'Failed to update profile.';
 }
 
-export function UserProfileForm({ userId, email, hasProfileRecord, initialProfile }: UserProfileFormProps) {
+export function UserProfileForm({
+  userId,
+  email,
+  emailConfirmed,
+  hasProfileRecord,
+  initialProfile,
+}: UserProfileFormProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(initialProfile.fullName);
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
@@ -82,8 +89,10 @@ export function UserProfileForm({ userId, email, hasProfileRecord, initialProfil
   const [updatedAt, setUpdatedAt] = useState<string | null>(initialProfile.updatedAt);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
 
   const identityName = displayName.trim() || fullName.trim() || email;
   const initials = getInitials(identityName);
@@ -189,6 +198,27 @@ export function UserProfileForm({ userId, email, hasProfileRecord, initialProfil
     }
   };
 
+  const handleResendVerification = async () => {
+    setIsResending(true);
+    setVerificationMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resend({ type: 'signup', email });
+
+      if (error) {
+        throw error;
+      }
+
+      setVerificationMessage('Verification email sent. Please check your inbox.');
+    } catch (error: unknown) {
+      setVerificationMessage(getErrorMessage(error));
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="space-y-5">
@@ -230,6 +260,19 @@ export function UserProfileForm({ userId, email, hasProfileRecord, initialProfil
       <Separator />
 
       <CardContent className="pt-6">
+        {!emailConfirmed ? (
+          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            <p>Email is not verified. Verify your email to unlock profile access.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={handleResendVerification} disabled={isResending}>
+                {isResending ? 'Sending...' : 'Resend verification email'}
+              </Button>
+              {verificationMessage ? (
+                <span className="text-xs text-muted-foreground">{verificationMessage}</span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {!hasProfileRecord ? (
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
             Profile record is not initialized yet. Please sign out and back in.
