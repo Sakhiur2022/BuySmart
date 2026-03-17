@@ -18,6 +18,8 @@ export default async function UserProfilePage() {
     .eq('user_id', user.id)
     .maybeSingle();
 
+  const hasProfileRecord = Boolean(profile);
+
   const userMetadata = user.user_metadata ?? {};
 
   const initialProfile = {
@@ -48,7 +50,12 @@ export default async function UserProfilePage() {
         </p>
       </section>
 
-      <UserProfileForm userId={user.id} email={user.email ?? 'No email'} initialProfile={initialProfile} />
+      <UserProfileForm
+        userId={user.id}
+        email={user.email ?? 'No email'}
+        hasProfileRecord={hasProfileRecord}
+        initialProfile={initialProfile}
+      />
     </div>
   );
 }

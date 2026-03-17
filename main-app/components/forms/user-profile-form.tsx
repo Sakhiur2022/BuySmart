@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client';
 type UserProfileFormProps = {
   userId: string;
   email: string;
+  hasProfileRecord: boolean;
   initialProfile: {
     fullName: string;
     displayName: string;
@@ -71,7 +72,7 @@ function getErrorMessage(error: unknown): string {
   return 'Failed to update profile.';
 }
 
-export function UserProfileForm({ userId, email, initialProfile }: UserProfileFormProps) {
+export function UserProfileForm({ userId, email, hasProfileRecord, initialProfile }: UserProfileFormProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(initialProfile.fullName);
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
@@ -100,6 +101,8 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
     return date.toLocaleString();
   }, [updatedAt]);
 
+  const canEdit = hasProfileRecord;
+
   const handleCancel = () => {
     setFullName(initialProfile.fullName);
     setDisplayName(initialProfile.displayName);
@@ -118,6 +121,12 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    if (!hasProfileRecord) {
+      setErrorMessage('Profile record is not initialized yet. Please sign out and back in.');
+      setIsSaving(false);
+      return;
+    }
+
     const normalizedPhone = phone.trim();
     if (normalizedPhone && !/^[+0-9()\-\s]{7,20}$/.test(normalizedPhone)) {
       setErrorMessage('Phone number can contain only digits, spaces, parentheses, + or -.');
@@ -131,21 +140,27 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
       const supabase = createClient();
       const now = new Date().toISOString();
 
-      const { error: profileError } = await supabase.from('users_profile').upsert(
-        {
-          user_id: userId,
+      const { data: updatedRows, error: profileError } = await supabase
+        .from('users_profile')
+        .update({
           full_name: toNull(fullName),
           display_name: toNull(displayName),
           phone: toNull(phone),
           avatar_url: toNull(avatarUrl),
           profile_completed: nextProfileCompleted,
           updated_at: now,
-        },
-        { onConflict: 'user_id' },
-      );
+        })
+        .eq('user_id', userId)
+        .select('user_id');
 
       if (profileError) {
         throw profileError;
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        setErrorMessage('Profile record is not initialized yet. Please sign out and back in.');
+        setIsSaving(false);
+        return;
       }
 
       const { error: authError } = await supabase.auth.updateUser({
@@ -215,6 +230,11 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
       <Separator />
 
       <CardContent className="pt-6">
+        {!hasProfileRecord ? (
+          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            Profile record is not initialized yet. Please sign out and back in.
+          </div>
+        ) : null}
         <form className="space-y-6" onSubmit={handleSave}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
@@ -270,7 +290,7 @@ export function UserProfileForm({ userId, email, initialProfile }: UserProfileFo
 
           <div className="flex flex-wrap gap-2">
             {!isEditing ? (
-              <Button type="button" onClick={() => setIsEditing(true)}>
+              <Button type="button" onClick={() => setIsEditing(true)} disabled={!canEdit}>
                 Edit profile
               </Button>
             ) : (
