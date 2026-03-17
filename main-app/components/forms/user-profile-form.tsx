@@ -149,64 +149,77 @@ export function UserProfileForm({
         updated_at: now,
       };
 
+      console.log('📝 Save attempt:', {
+        userId,
+        hasProfileRecord,
+        profileData,
+        formValues: { fullName, displayName, phone, avatarUrl },
+      });
+
       let profileError = null;
-      let updatedRows = null;
+      let saveResult = null;
 
       // Try to update existing record
       if (hasProfileRecord) {
         const result = await supabase
           .from('users_profile')
           .update(profileData)
-          .eq('user_id', userId)
-          .select('user_id');
+          .eq('user_id', userId);
 
         profileError = result.error;
-        updatedRows = result.data;
+        saveResult = result;
+        console.log('UPDATE result:', {
+          data: result.data,
+          error: result.error,
+          status: result.status,
+        });
       } else {
         // No existing record, try to insert
-        const result = await supabase
-          .from('users_profile')
-          .insert({
-            user_id: userId,
-            role: role,
-            ...profileData,
-          })
-          .select('user_id');
+        const result = await supabase.from('users_profile').insert({
+          user_id: userId,
+          role: role,
+          ...profileData,
+        });
 
         profileError = result.error;
-        updatedRows = result.data;
+        saveResult = result;
+        console.log('INSERT result:', {
+          data: result.data,
+          error: result.error,
+          status: result.status,
+        });
       }
 
       if (profileError) {
+        console.error('Profile save error:', profileError);
         throw profileError;
       }
 
-      if (!updatedRows || updatedRows.length === 0) {
-        setErrorMessage('Failed to save profile. Please try again.');
-        setIsSaving(false);
-        return;
+      // Check for silent failures
+      if (!saveResult) {
+        throw new Error('Unexpected: No result returned from database operation');
       }
 
-      const { error: authError } = await supabase.auth.updateUser({
-        data: {
-          full_name: toNull(fullName),
-          name: toNull(displayName) ?? toNull(fullName),
-          avatar_url: toNull(avatarUrl),
-        },
-      });
-
+      // Profile saved successfully
       setProfileCompleted(nextProfileCompleted);
       setUpdatedAt(now);
       setIsEditing(false);
+      setSuccessMessage('Profile updated successfully.');
 
-      if (authError) {
-        setSuccessMessage(
-          'Profile saved, but auth metadata sync failed. Please refresh and retry.',
-        );
-      } else {
-        setSuccessMessage('Profile updated successfully.');
-      }
+      // Update auth metadata in the background (non-blocking)
+      supabase.auth
+        .updateUser({
+          data: {
+            full_name: toNull(fullName),
+            name: toNull(displayName) ?? toNull(fullName),
+            avatar_url: toNull(avatarUrl),
+          },
+        })
+        .catch((err) => {
+          console.warn('Auth metadata update failed (non-critical):', err);
+        });
 
+      // Refresh page data
       router.refresh();
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error));
@@ -295,82 +308,80 @@ export function UserProfileForm({
             </div>
           </div>
         ) : null}
-        <form className="space-y-6" onSubmit={handleSave}>
-          {isEditing ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="fullName">Full name</Label>
-                  <Input
-                    id="fullName"
-                    value={fullName}
-                    disabled={isSaving}
-                    onChange={(event) => setFullName(event.target.value)}
-                    placeholder="Enter your full name"
-                    maxLength={255}
-                  />
-                </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="displayName">Display name</Label>
-                  <Input
-                    id="displayName"
-                    value={displayName}
-                    disabled={isSaving}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    placeholder="How should others see your name?"
-                    maxLength={100}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="phone">Phone number</Label>
-                  <Input
-                    id="phone"
-                    value={phone}
-                    disabled={isSaving}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="e.g. +880 17XX-XXXXXX"
-                    maxLength={20}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="avatarUrl">Avatar URL</Label>
-                  <Input
-                    id="avatarUrl"
-                    value={avatarUrl}
-                    disabled={isSaving}
-                    onChange={(event) => setAvatarUrl(event.target.value)}
-                    placeholder="https://example.com/avatar.png"
-                  />
-                </div>
+        {!isEditing ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {/* Click "Edit profile" to update your details. */}
+            </p>
+            <Button type="button" onClick={() => setIsEditing(true)} disabled={!canEdit}>
+              Edit profile
+            </Button>
+          </div>
+        ) : (
+          <form className="space-y-6" onSubmit={handleSave}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="fullName">Full name</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  disabled={isSaving}
+                  onChange={(event) => setFullName(event.target.value)}
+                  placeholder="Enter your full name"
+                  maxLength={255}
+                />
               </div>
 
-              {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
-              {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Click “Edit profile” to update your details.</p>
-          )}
+              <div className="grid gap-2">
+                <Label htmlFor="displayName">Display name</Label>
+                <Input
+                  id="displayName"
+                  value={displayName}
+                  disabled={isSaving}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  placeholder="How should others see your name?"
+                  maxLength={100}
+                />
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            {!isEditing ? (
-              <Button type="button" onClick={() => setIsEditing(true)} disabled={!canEdit}>
-                Edit profile
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone number</Label>
+                <Input
+                  id="phone"
+                  value={phone}
+                  disabled={isSaving}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="e.g. +880 17XX-XXXXXX"
+                  maxLength={20}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="avatarUrl">Avatar URL</Label>
+                <Input
+                  id="avatarUrl"
+                  value={avatarUrl}
+                  disabled={isSaving}
+                  onChange={(event) => setAvatarUrl(event.target.value)}
+                  placeholder="https://example.com/avatar.png"
+                />
+              </div>
+            </div>
+
+            {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+            {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Save changes'}
               </Button>
-            ) : (
-              <>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? 'Saving...' : 'Save changes'}
-                </Button>
-                <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving}>
-                  Cancel
-                </Button>
-              </>
-            )}
-          </div>
-        </form>
+              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
       </CardContent>
     </Card>
   );
