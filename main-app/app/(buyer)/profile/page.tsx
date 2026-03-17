@@ -43,14 +43,6 @@ export default async function UserProfilePage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
-        <h1 className="text-2xl font-semibold sm:text-3xl">My Profile</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-          View and manage your account details. Changes are saved to your Supabase profile and
-          synced to auth metadata.
-        </p>
-      </section>
-
       <UserProfileForm
         userId={user.id}
         email={user.email ?? 'No email'}

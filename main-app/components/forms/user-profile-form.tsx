@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Pencil } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -250,37 +251,61 @@ export function UserProfileForm({
   };
 
   return (
-    <Card>
-      <CardHeader className="space-y-5">
+    <Card className="overflow-hidden border-pink-200/80 bg-gradient-to-br from-rose-50 via-background to-amber-50/70 shadow-md dark:border-pink-500/30 dark:from-rose-950/25 dark:via-background dark:to-amber-950/20">
+      <CardHeader className="space-y-5 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_40%)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border">
+            <Avatar className="h-16 w-16 border-2 border-pink-200 shadow-sm dark:border-pink-500/40">
               {avatarUrl.trim() ? <AvatarImage src={avatarUrl.trim()} alt={identityName} /> : null}
               <AvatarFallback className="text-base font-semibold">{initials}</AvatarFallback>
             </Avatar>
             <div className="space-y-1">
-              <CardTitle className="text-2xl">{identityName}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-2xl text-rose-700 dark:text-rose-200">{identityName}</CardTitle>
+                {!isEditing ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setIsEditing(true)}
+                    disabled={!canEdit}
+                    aria-label="Edit profile"
+                    title="Edit profile"
+                    className="rounded-full border border-pink-200 bg-white/80 text-rose-600 hover:bg-pink-100 hover:text-rose-700 dark:border-pink-500/40 dark:bg-rose-900/20 dark:text-rose-200 dark:hover:bg-rose-900/40"
+                  >
+                    <Pencil />
+                  </Button>
+                ) : null}
+              </div>
               <CardDescription>{email}</CardDescription>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{formatRole(initialProfile.role)}</Badge>
-            <Badge variant={profileCompleted ? 'default' : 'outline'}>
+            <Badge
+              variant="secondary"
+              className="rounded-full border-pink-200 bg-pink-100/80 text-rose-700 dark:border-pink-500/40 dark:bg-rose-900/30 dark:text-rose-200"
+            >
+              {formatRole(initialProfile.role)}
+            </Badge>
+            <Badge
+              variant={profileCompleted ? 'default' : 'outline'}
+              className="rounded-full"
+            >
               {profileCompleted ? 'Profile complete' : 'Profile incomplete'}
             </Badge>
           </div>
         </div>
 
         <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-          <div>
+          <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
             <p className="text-xs uppercase tracking-wide">Account Email</p>
             <p className="mt-1 font-medium text-foreground">{email}</p>
           </div>
-          <div>
+          <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
             <p className="text-xs uppercase tracking-wide">Last Updated</p>
             <p className="mt-1 font-medium text-foreground">{lastUpdated}</p>
           </div>
-          <div>
+          <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
             <p className="text-xs uppercase tracking-wide">User ID</p>
             <p className="mt-1 truncate font-medium text-foreground">{userId}</p>
           </div>
@@ -309,16 +334,7 @@ export function UserProfileForm({
           </div>
         ) : null}
 
-        {!isEditing ? (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {/* Click "Edit profile" to update your details. */}
-            </p>
-            <Button type="button" onClick={() => setIsEditing(true)} disabled={!canEdit}>
-              Edit profile
-            </Button>
-          </div>
-        ) : (
+        {!isEditing ? null : (
           <form className="space-y-6" onSubmit={handleSave}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
