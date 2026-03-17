@@ -33,11 +33,7 @@ function toNull(value: string): string | null {
 }
 
 function getInitials(value: string): string {
-  const parts = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2);
+  const parts = value.trim().split(/\s+/).filter(Boolean).slice(0, 2);
 
   if (parts.length === 0) {
     return 'BS';
@@ -85,6 +81,7 @@ export function UserProfileForm({
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [phone, setPhone] = useState(initialProfile.phone);
   const [avatarUrl, setAvatarUrl] = useState(initialProfile.avatarUrl);
+  const [role] = useState(initialProfile.role);
   const [profileCompleted, setProfileCompleted] = useState(initialProfile.profileCompleted);
   const [updatedAt, setUpdatedAt] = useState<string | null>(initialProfile.updatedAt);
   const [isEditing, setIsEditing] = useState(false);
@@ -110,7 +107,7 @@ export function UserProfileForm({
     return date.toLocaleString();
   }, [updatedAt]);
 
-  const canEdit = hasProfileRecord;
+  const canEdit = true;
 
   const handleCancel = () => {
     setFullName(initialProfile.fullName);
@@ -130,12 +127,6 @@ export function UserProfileForm({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!hasProfileRecord) {
-      setErrorMessage('Profile record is not initialized yet. Please sign out and back in.');
-      setIsSaving(false);
-      return;
-    }
-
     const normalizedPhone = phone.trim();
     if (normalizedPhone && !/^[+0-9()\-\s]{7,20}$/.test(normalizedPhone)) {
       setErrorMessage('Phone number can contain only digits, spaces, parentheses, + or -.');
@@ -149,25 +140,49 @@ export function UserProfileForm({
       const supabase = createClient();
       const now = new Date().toISOString();
 
-      const { data: updatedRows, error: profileError } = await supabase
-        .from('users_profile')
-        .update({
-          full_name: toNull(fullName),
-          display_name: toNull(displayName),
-          phone: toNull(phone),
-          avatar_url: toNull(avatarUrl),
-          profile_completed: nextProfileCompleted,
-          updated_at: now,
-        })
-        .eq('user_id', userId)
-        .select('user_id');
+      const profileData = {
+        full_name: toNull(fullName),
+        display_name: toNull(displayName),
+        phone: toNull(phone),
+        avatar_url: toNull(avatarUrl),
+        profile_completed: nextProfileCompleted,
+        updated_at: now,
+      };
+
+      let profileError = null;
+      let updatedRows = null;
+
+      // Try to update existing record
+      if (hasProfileRecord) {
+        const result = await supabase
+          .from('users_profile')
+          .update(profileData)
+          .eq('user_id', userId)
+          .select('user_id');
+
+        profileError = result.error;
+        updatedRows = result.data;
+      } else {
+        // No existing record, try to insert
+        const result = await supabase
+          .from('users_profile')
+          .insert({
+            user_id: userId,
+            role: role,
+            ...profileData,
+          })
+          .select('user_id');
+
+        profileError = result.error;
+        updatedRows = result.data;
+      }
 
       if (profileError) {
         throw profileError;
       }
 
       if (!updatedRows || updatedRows.length === 0) {
-        setErrorMessage('Profile record is not initialized yet. Please sign out and back in.');
+        setErrorMessage('Failed to save profile. Please try again.');
         setIsSaving(false);
         return;
       }
@@ -185,7 +200,9 @@ export function UserProfileForm({
       setIsEditing(false);
 
       if (authError) {
-        setSuccessMessage('Profile saved, but auth metadata sync failed. Please refresh and retry.');
+        setSuccessMessage(
+          'Profile saved, but auth metadata sync failed. Please refresh and retry.',
+        );
       } else {
         setSuccessMessage('Profile updated successfully.');
       }
@@ -264,18 +281,18 @@ export function UserProfileForm({
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
             <p>Email is not verified. Verify your email to unlock profile access.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={handleResendVerification} disabled={isResending}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleResendVerification}
+                disabled={isResending}
+              >
                 {isResending ? 'Sending...' : 'Resend verification email'}
               </Button>
               {verificationMessage ? (
                 <span className="text-xs text-muted-foreground">{verificationMessage}</span>
               ) : null}
             </div>
-          </div>
-        ) : null}
-        {!hasProfileRecord ? (
-          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            Profile record is not initialized yet. Please sign out and back in.
           </div>
         ) : null}
         <form className="space-y-6" onSubmit={handleSave}>
