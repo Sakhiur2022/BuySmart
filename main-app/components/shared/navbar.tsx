@@ -19,16 +19,10 @@ export function Navbar() {
         {/* Main Nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link
-            href="/protected/products"
+            href="/buyer"
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             Products
-          </Link>
-          <Link
-            href="/profile"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Profile
           </Link>
         </nav>
 

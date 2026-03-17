@@ -19,16 +19,10 @@ export function Footer() {
           <div className="flex flex-col gap-2">
             <h3 className="font-semibold text-sm">Explore</h3>
             <Link
-              href="/protected/products"
+              href="/buyer"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Products
-            </Link>
-            <Link
-              href="/profile"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              My Profile
             </Link>
             <Link
               href="/protected/settings"

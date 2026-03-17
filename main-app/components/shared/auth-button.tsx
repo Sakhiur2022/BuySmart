@@ -37,7 +37,23 @@ export async function AuthButton() {
       {avatarUrl && (
         <Image src={avatarUrl} alt={userName} width={32} height={32} className="rounded-full" />
       )}
-      <span className="text-sm font-medium">{userName}</span>
+      <div className="relative group">
+        <Link
+          href="/profile"
+          className="text-sm font-medium hover:text-foreground/80"
+          aria-haspopup="menu"
+        >
+          {userName}
+        </Link>
+        <div className="absolute right-0 z-50 mt-2 hidden w-40 rounded-md border bg-popover p-1 text-popover-foreground shadow-md group-hover:block group-focus-within:block">
+          <Link href="/buyer" className="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent">
+            Products
+          </Link>
+          <Link href="/profile" className="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent">
+            Profile
+          </Link>
+        </div>
+      </div>
       <LogoutButton />
     </div>
   );
