@@ -279,57 +279,63 @@ export function UserProfileForm({
           </div>
         ) : null}
         <form className="space-y-6" onSubmit={handleSave}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="fullName">Full name</Label>
-              <Input
-                id="fullName"
-                value={fullName}
-                disabled={!isEditing || isSaving}
-                onChange={(event) => setFullName(event.target.value)}
-                placeholder="Enter your full name"
-                maxLength={255}
-              />
-            </div>
+          {isEditing ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="fullName">Full name</Label>
+                  <Input
+                    id="fullName"
+                    value={fullName}
+                    disabled={isSaving}
+                    onChange={(event) => setFullName(event.target.value)}
+                    placeholder="Enter your full name"
+                    maxLength={255}
+                  />
+                </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="displayName">Display name</Label>
-              <Input
-                id="displayName"
-                value={displayName}
-                disabled={!isEditing || isSaving}
-                onChange={(event) => setDisplayName(event.target.value)}
-                placeholder="How should others see your name?"
-                maxLength={100}
-              />
-            </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="displayName">Display name</Label>
+                  <Input
+                    id="displayName"
+                    value={displayName}
+                    disabled={isSaving}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="How should others see your name?"
+                    maxLength={100}
+                  />
+                </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="phone">Phone number</Label>
-              <Input
-                id="phone"
-                value={phone}
-                disabled={!isEditing || isSaving}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="e.g. +880 17XX-XXXXXX"
-                maxLength={20}
-              />
-            </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">Phone number</Label>
+                  <Input
+                    id="phone"
+                    value={phone}
+                    disabled={isSaving}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="e.g. +880 17XX-XXXXXX"
+                    maxLength={20}
+                  />
+                </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="avatarUrl">Avatar URL</Label>
-              <Input
-                id="avatarUrl"
-                value={avatarUrl}
-                disabled={!isEditing || isSaving}
-                onChange={(event) => setAvatarUrl(event.target.value)}
-                placeholder="https://example.com/avatar.png"
-              />
-            </div>
-          </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="avatarUrl">Avatar URL</Label>
+                  <Input
+                    id="avatarUrl"
+                    value={avatarUrl}
+                    disabled={isSaving}
+                    onChange={(event) => setAvatarUrl(event.target.value)}
+                    placeholder="https://example.com/avatar.png"
+                  />
+                </div>
+              </div>
 
-          {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
-          {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
+              {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+              {successMessage ? <p className="text-sm text-emerald-600">{successMessage}</p> : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Click “Edit profile” to update your details.</p>
+          )}
 
           <div className="flex flex-wrap gap-2">
             {!isEditing ? (
