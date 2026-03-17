@@ -30,6 +30,12 @@ export function Navbar() {
           >
             Profile
           </Link>
+          <Link
+            href="/profile/settings"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Settings
+          </Link>
         </nav>
 
         {/* Right side */}

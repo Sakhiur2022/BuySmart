@@ -31,7 +31,7 @@ export function Footer() {
               My Profile
             </Link>
             <Link
-              href="/protected/settings"
+              href="/profile/settings"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Settings
