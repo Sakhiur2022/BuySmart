@@ -25,7 +25,7 @@ export function Navbar() {
             Products
           </Link>
           <Link
-            href="/protected/profile"
+            href="/profile"
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             Profile

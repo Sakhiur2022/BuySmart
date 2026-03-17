@@ -25,7 +25,7 @@ export function Footer() {
               Products
             </Link>
             <Link
-              href="/protected/profile"
+              href="/profile"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               My Profile

@@ -14,8 +14,6 @@ import { createClient } from '@/lib/supabase/client';
 type UserProfileFormProps = {
   userId: string;
   email: string;
-  emailConfirmed: boolean;
-  hasProfileRecord: boolean;
   initialProfile: {
     fullName: string;
     displayName: string;
@@ -73,13 +71,7 @@ function getErrorMessage(error: unknown): string {
   return 'Failed to update profile.';
 }
 
-export function UserProfileForm({
-  userId,
-  email,
-  emailConfirmed,
-  hasProfileRecord,
-  initialProfile,
-}: UserProfileFormProps) {
+export function UserProfileForm({ userId, email, initialProfile }: UserProfileFormProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState(initialProfile.fullName);
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
@@ -108,13 +100,6 @@ export function UserProfileForm({
     return date.toLocaleString();
   }, [updatedAt]);
 
-  const editDisabledReason = !emailConfirmed
-    ? 'Verify your email to edit your profile.'
-    : !hasProfileRecord
-      ? 'Your profile record is not initialized yet. Sign out and back in, or contact support.'
-      : null;
-  const canEdit = !editDisabledReason;
-
   const handleCancel = () => {
     setFullName(initialProfile.fullName);
     setDisplayName(initialProfile.displayName);
@@ -132,12 +117,6 @@ export function UserProfileForm({
     setIsSaving(true);
     setErrorMessage(null);
     setSuccessMessage(null);
-
-    if (!canEdit) {
-      setErrorMessage(editDisabledReason ?? 'Editing is disabled.');
-      setIsSaving(false);
-      return;
-    }
 
     const normalizedPhone = phone.trim();
     if (normalizedPhone && !/^[+0-9()\-\s]{7,20}$/.test(normalizedPhone)) {
@@ -214,9 +193,6 @@ export function UserProfileForm({
             <Badge variant={profileCompleted ? 'default' : 'outline'}>
               {profileCompleted ? 'Profile complete' : 'Profile incomplete'}
             </Badge>
-            <Badge variant={emailConfirmed ? 'secondary' : 'destructive'}>
-              {emailConfirmed ? 'Email verified' : 'Email not verified'}
-            </Badge>
           </div>
         </div>
 
@@ -239,11 +215,6 @@ export function UserProfileForm({
       <Separator />
 
       <CardContent className="pt-6">
-        {editDisabledReason ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {editDisabledReason}
-          </div>
-        ) : null}
         <form className="space-y-6" onSubmit={handleSave}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
@@ -299,7 +270,7 @@ export function UserProfileForm({
 
           <div className="flex flex-wrap gap-2">
             {!isEditing ? (
-              <Button type="button" onClick={() => setIsEditing(true)} disabled={!canEdit}>
+              <Button type="button" onClick={() => setIsEditing(true)}>
                 Edit profile
               </Button>
             ) : (
