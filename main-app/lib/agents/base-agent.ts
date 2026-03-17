@@ -1,13 +1,14 @@
-import { createHFCompletionChain } from "@/lib/services/ai/langchain-hf";
-import { normalizeAIError } from "@/lib/services/ai/error-handler";
-import { TTLCache } from "@/lib/services/ai/cache";
-import type { AgentInput, AgentResult, IAgent } from "@/lib/agents/types";
+import { createGroqCompletionChain } from '@/lib/services/ai/langchain-groq';
+import { normalizeAIError } from '@/lib/services/ai/error-handler';
+import { TTLCache } from '@/lib/services/ai/cache';
+import type { AgentInput, AgentResult, IAgent } from '@/lib/agents/types';
 
-export abstract class BaseAgent<TPayload = Record<string, unknown>, TResult = unknown>
-  implements IAgent<TPayload, TResult>
-{
+export abstract class BaseAgent<
+  TPayload = Record<string, unknown>,
+  TResult = unknown,
+> implements IAgent<TPayload, TResult> {
   abstract readonly name: string;
-  readonly version = "1.0.0";
+  readonly version = '1.0.0';
   protected abstract readonly systemPrompt: string;
   protected abstract parseOutput(output: string): TResult;
   protected cacheTtlMs = 0;
@@ -33,7 +34,7 @@ export abstract class BaseAgent<TPayload = Record<string, unknown>, TResult = un
     }
 
     try {
-      const chain = createHFCompletionChain(this.systemPrompt);
+      const chain = createGroqCompletionChain(this.systemPrompt);
       const response = await chain.invoke({
         input: JSON.stringify(input.payload),
       });

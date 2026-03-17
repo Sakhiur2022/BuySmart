@@ -8,7 +8,7 @@ import type {
   AIRequestOptions,
   AISentimentResponse,
   AITextGenerationResponse,
-} from "@/lib/types/ai.types";
+} from '@/lib/types/ai.types';
 
 export type { AIChatMessage, AIModelConfig, AIRequestOptions };
 export type {
@@ -27,9 +27,22 @@ export interface HFInvokeOptions {
   timeoutMs?: number;
 }
 
+export interface GroqInvokeOptions {
+  cache?: boolean;
+  cacheTtlMs?: number;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
 export interface HFServiceConfig {
   apiKey: string;
   inferenceEndpoint: string;
+  maxRetries: number;
+  rateLimitDelayMs: number;
+}
+
+export interface GroqServiceConfig {
+  apiKey: string;
   maxRetries: number;
   rateLimitDelayMs: number;
 }
