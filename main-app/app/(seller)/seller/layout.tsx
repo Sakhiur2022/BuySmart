@@ -33,7 +33,6 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
 
         {/* Content */}
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">{children}</main>
-      </div>
     </div>
   );
 }
