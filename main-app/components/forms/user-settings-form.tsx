@@ -167,7 +167,9 @@ export function UserSettingsForm({
     setPreferencesSuccess(null);
 
     if (!hasProfileRecord) {
-      setPreferencesError('Profile record is not initialized yet. Please sign out and sign in again.');
+      setPreferencesError(
+        'Profile record is not initialized yet. Please sign out and sign in again.',
+      );
       setIsSavingPreferences(false);
       return;
     }
@@ -232,12 +234,16 @@ export function UserSettingsForm({
         <CardHeader className="space-y-4 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_40%)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="text-xl text-rose-700 dark:text-rose-200">
+              {/* RESPONSIVE: Title and description scale down on mobile for readability */}
+              <CardTitle className="text-lg sm:text-xl text-rose-700 dark:text-rose-200">
                 Account Settings
               </CardTitle>
-              <CardDescription>Update your preferences and secure your account.</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
+                Update your preferences and secure your account.
+              </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            {/* RESPONSIVE: Badges flex-wrap with gap-2 to avoid cramping on mobile */}
+            <div className="flex flex-wrap gap-2">
               <Badge
                 variant="secondary"
                 className="rounded-full border-pink-200 bg-pink-100/80 text-rose-700 dark:border-pink-500/40 dark:bg-rose-900/30 dark:text-rose-200"
@@ -250,27 +256,32 @@ export function UserSettingsForm({
             </div>
           </div>
 
-          <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+          {/* RESPONSIVE: Info grid - single column on mobile, 3 columns on tablet+ for better spacing */}
+          <div className="grid gap-2 text-xs sm:text-sm text-muted-foreground sm:grid-cols-3">
             <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
               <p className="text-xs uppercase tracking-wide">Account Email</p>
-              <p className="mt-1 font-medium text-foreground">{email}</p>
+              <p className="mt-1 text-xs sm:text-sm font-medium text-foreground truncate">
+                {email}
+              </p>
             </div>
             <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
               <p className="text-xs uppercase tracking-wide">Last Updated</p>
-              <p className="mt-1 font-medium text-foreground">{lastUpdated}</p>
+              <p className="mt-1 text-xs sm:text-sm font-medium text-foreground">{lastUpdated}</p>
             </div>
             <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
               <p className="text-xs uppercase tracking-wide">User ID</p>
-              <p className="mt-1 truncate font-medium text-foreground">{userId}</p>
+              <p className="mt-1 truncate text-xs sm:text-sm font-medium text-foreground">
+                {userId}
+              </p>
             </div>
           </div>
         </CardHeader>
 
         <Separator />
 
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 px-4 sm:px-6">
           {!hasProfileRecord ? (
-            <div className="mb-4 rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            <div className="mb-4 rounded-lg border bg-muted/40 px-4 py-3 text-xs sm:text-sm text-muted-foreground">
               Profile record is not initialized yet. Please sign out and sign in again.
             </div>
           ) : null}
@@ -284,9 +295,12 @@ export function UserSettingsForm({
 
             <TabsContent value="preferences" className="space-y-4">
               <form className="space-y-6" onSubmit={handleSavePreferences}>
+                {/* RESPONSIVE: Select fields grid - single column on mobile, 2 columns on tablet+ */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="grid gap-2">
-                    <Label htmlFor="themePreference">Theme preference</Label>
+                    <Label htmlFor="themePreference" className="text-xs sm:text-sm font-medium">
+                      Theme preference
+                    </Label>
                     <Select
                       value={preferences.theme}
                       onValueChange={(value) =>
@@ -297,7 +311,7 @@ export function UserSettingsForm({
                       }
                       disabled={isSavingPreferences || !hasProfileRecord}
                     >
-                      <SelectTrigger id="themePreference">
+                      <SelectTrigger id="themePreference" className="h-11 sm:h-10">
                         <SelectValue placeholder="Choose a theme" />
                       </SelectTrigger>
                       <SelectContent>
@@ -309,7 +323,9 @@ export function UserSettingsForm({
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="timezonePreference">Timezone</Label>
+                    <Label htmlFor="timezonePreference" className="text-xs sm:text-sm font-medium">
+                      Timezone
+                    </Label>
                     <Select
                       value={preferences.timezone}
                       onValueChange={(value) =>
@@ -320,7 +336,7 @@ export function UserSettingsForm({
                       }
                       disabled={isSavingPreferences || !hasProfileRecord}
                     >
-                      <SelectTrigger id="timezonePreference">
+                      <SelectTrigger id="timezonePreference" className="h-11 sm:h-10">
                         <SelectValue placeholder="Choose a timezone" />
                       </SelectTrigger>
                       <SelectContent>
@@ -334,8 +350,9 @@ export function UserSettingsForm({
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex items-start gap-3 rounded-lg border p-4">
+                {/* RESPONSIVE: Checkbox cards grid - single column on mobile, 2 columns on tablet+, full width touch targets */}
+                <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                  <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
                     <Checkbox
                       id="emailNotifications"
                       checked={preferences.emailNotifications}
@@ -346,9 +363,13 @@ export function UserSettingsForm({
                         }))
                       }
                       disabled={isSavingPreferences || !hasProfileRecord}
+                      className="mt-0.5 sm:mt-1"
                     />
                     <span className="space-y-1">
-                      <Label htmlFor="emailNotifications" className="block text-sm font-medium">
+                      <Label
+                        htmlFor="emailNotifications"
+                        className="block text-xs sm:text-sm font-medium cursor-pointer"
+                      >
                         Email notifications
                       </Label>
                       <span className="block text-xs text-muted-foreground">
@@ -357,7 +378,7 @@ export function UserSettingsForm({
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-3 rounded-lg border p-4">
+                  <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
                     <Checkbox
                       id="productAlerts"
                       checked={preferences.productAlerts}
@@ -368,9 +389,13 @@ export function UserSettingsForm({
                         }))
                       }
                       disabled={isSavingPreferences || !hasProfileRecord}
+                      className="mt-0.5 sm:mt-1"
                     />
                     <span className="space-y-1">
-                      <Label htmlFor="productAlerts" className="block text-sm font-medium">
+                      <Label
+                        htmlFor="productAlerts"
+                        className="block text-xs sm:text-sm font-medium cursor-pointer"
+                      >
                         Product alerts
                       </Label>
                       <span className="block text-xs text-muted-foreground">
@@ -379,7 +404,7 @@ export function UserSettingsForm({
                     </span>
                   </div>
 
-                  <div className="flex items-start gap-3 rounded-lg border p-4">
+                  <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors sm:col-span-2">
                     <Checkbox
                       id="marketingEmails"
                       checked={preferences.marketingEmails}
@@ -390,9 +415,13 @@ export function UserSettingsForm({
                         }))
                       }
                       disabled={isSavingPreferences || !hasProfileRecord}
+                      className="mt-0.5 sm:mt-1"
                     />
                     <span className="space-y-1">
-                      <Label htmlFor="marketingEmails" className="block text-sm font-medium">
+                      <Label
+                        htmlFor="marketingEmails"
+                        className="block text-xs sm:text-sm font-medium cursor-pointer"
+                      >
                         Marketing emails
                       </Label>
                       <span className="block text-xs text-muted-foreground">
@@ -402,12 +431,19 @@ export function UserSettingsForm({
                   </div>
                 </div>
 
-                {preferencesError ? <p className="text-sm text-red-600">{preferencesError}</p> : null}
+                {preferencesError ? (
+                  <p className="text-xs sm:text-sm text-red-600">{preferencesError}</p>
+                ) : null}
                 {preferencesSuccess ? (
-                  <p className="text-sm text-emerald-600">{preferencesSuccess}</p>
+                  <p className="text-xs sm:text-sm text-emerald-600">{preferencesSuccess}</p>
                 ) : null}
 
-                <Button type="submit" disabled={isSavingPreferences || !hasProfileRecord}>
+                {/* RESPONSIVE: Full width button on mobile, auto on tablet+ */}
+                <Button
+                  type="submit"
+                  disabled={isSavingPreferences || !hasProfileRecord}
+                  className="w-full sm:w-auto h-11 sm:h-10"
+                >
                   {isSavingPreferences ? 'Saving...' : 'Save preferences'}
                 </Button>
               </form>
@@ -415,7 +451,7 @@ export function UserSettingsForm({
 
             <TabsContent value="privacy" className="space-y-4">
               <form className="space-y-4" onSubmit={handleSavePreferences}>
-                <div className="flex items-start gap-3 rounded-lg border p-4">
+                <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
                   <Checkbox
                     id="publicProfile"
                     checked={preferences.publicProfile}
@@ -426,9 +462,13 @@ export function UserSettingsForm({
                       }))
                     }
                     disabled={isSavingPreferences || !hasProfileRecord}
+                    className="mt-0.5 sm:mt-1"
                   />
                   <span className="space-y-1">
-                    <Label htmlFor="publicProfile" className="block text-sm font-medium">
+                    <Label
+                      htmlFor="publicProfile"
+                      className="block text-xs sm:text-sm font-medium cursor-pointer"
+                    >
                       Public profile visibility
                     </Label>
                     <span className="block text-xs text-muted-foreground">
@@ -437,12 +477,18 @@ export function UserSettingsForm({
                   </span>
                 </div>
 
-                {preferencesError ? <p className="text-sm text-red-600">{preferencesError}</p> : null}
+                {preferencesError ? (
+                  <p className="text-xs sm:text-sm text-red-600">{preferencesError}</p>
+                ) : null}
                 {preferencesSuccess ? (
-                  <p className="text-sm text-emerald-600">{preferencesSuccess}</p>
+                  <p className="text-xs sm:text-sm text-emerald-600">{preferencesSuccess}</p>
                 ) : null}
 
-                <Button type="submit" disabled={isSavingPreferences || !hasProfileRecord}>
+                <Button
+                  type="submit"
+                  disabled={isSavingPreferences || !hasProfileRecord}
+                  className="w-full sm:w-auto h-11 sm:h-10"
+                >
                   {isSavingPreferences ? 'Saving...' : 'Save privacy settings'}
                 </Button>
               </form>
@@ -450,9 +496,12 @@ export function UserSettingsForm({
 
             <TabsContent value="security" className="space-y-4">
               <form className="space-y-4" onSubmit={handleUpdatePassword}>
+                {/* RESPONSIVE: Password fields grid - single column on mobile, 2 columns on tablet+, 44px touch target height */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="grid gap-2">
-                    <Label htmlFor="newPassword">New password</Label>
+                    <Label htmlFor="newPassword" className="text-xs sm:text-sm font-medium">
+                      New password
+                    </Label>
                     <Input
                       id="newPassword"
                       type="password"
@@ -461,6 +510,7 @@ export function UserSettingsForm({
                       placeholder="At least 8 characters"
                       minLength={8}
                       disabled={isUpdatingPassword}
+                      className="h-11 sm:h-10"
                     />
                     {passwordNeedsMoreChars ? (
                       <p className="text-xs text-amber-600" aria-live="polite">
@@ -470,7 +520,9 @@ export function UserSettingsForm({
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="confirmPassword">Confirm password</Label>
+                    <Label htmlFor="confirmPassword" className="text-xs sm:text-sm font-medium">
+                      Confirm password
+                    </Label>
                     <Input
                       id="confirmPassword"
                       type="password"
@@ -479,6 +531,7 @@ export function UserSettingsForm({
                       placeholder="Re-enter new password"
                       minLength={8}
                       disabled={isUpdatingPassword}
+                      className="h-11 sm:h-10"
                     />
                     {passwordMismatch ? (
                       <p className="text-xs text-amber-600" aria-live="polite">
@@ -488,8 +541,12 @@ export function UserSettingsForm({
                   </div>
                 </div>
 
-                {passwordError ? <p className="text-sm text-red-600">{passwordError}</p> : null}
-                {passwordSuccess ? <p className="text-sm text-emerald-600">{passwordSuccess}</p> : null}
+                {passwordError ? (
+                  <p className="text-xs sm:text-sm text-red-600">{passwordError}</p>
+                ) : null}
+                {passwordSuccess ? (
+                  <p className="text-xs sm:text-sm text-emerald-600">{passwordSuccess}</p>
+                ) : null}
 
                 <Button
                   type="submit"
@@ -499,6 +556,7 @@ export function UserSettingsForm({
                     confirmPassword.length === 0 ||
                     passwordMismatch
                   }
+                  className="w-full sm:w-auto h-11 sm:h-10"
                 >
                   {isUpdatingPassword ? 'Updating...' : 'Update password'}
                 </Button>
