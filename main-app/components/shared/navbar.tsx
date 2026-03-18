@@ -1,19 +1,26 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Suspense } from 'react';
-import { ShoppingBag } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { AuthButton } from '@/components/shared/auth-button';
 import { hasEnvVars } from '@/lib/utils';
 import { EnvVarWarning } from '@/components/shared/env-var-warning';
+import logo from '@/public/icons/CSE327_Logo_red.jpg';
 
 export function Navbar() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
       <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand */}
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-          <ShoppingBag className="h-5 w-5 text-primary" />
-          <span>BuySmart</span>
+        {/* Brand - Logo */}
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <Image
+            src={logo}
+            alt="CSE327 Logo"
+            height={40}
+            width={140}
+            priority
+            className="object-contain h-8 w-auto md:h-10"
+          />
         </Link>
 
         {/* Main Nav */}

@@ -1,6 +1,4 @@
 import Link from 'next/link';
-import { Navbar } from '@/components/shared/navbar';
-import { Footer } from '@/components/shared/footer';
 import { LayoutDashboard, Package, PlusCircle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,9 +11,7 @@ const sellerNav = [
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
-      <div className="flex flex-1">
+    <div className="flex flex-1">
         {/* Sidebar */}
         <aside className="hidden md:flex w-56 shrink-0 flex-col border-r bg-muted/40 py-6 px-3 gap-1">
           <p className="px-3 mb-2 text-xs font-semibold uppercase text-muted-foreground tracking-wider">
@@ -38,7 +34,6 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         {/* Content */}
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">{children}</main>
       </div>
-      <Footer />
     </div>
   );
 }
