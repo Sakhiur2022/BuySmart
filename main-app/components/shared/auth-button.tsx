@@ -37,7 +37,14 @@ export async function AuthButton() {
       {avatarUrl && (
         <Image src={avatarUrl} alt={userName} width={32} height={32} className="rounded-full" />
       )}
-      <span className="text-sm font-medium">{userName}</span>
+      <Link
+        href="/profile"
+        className="text-sm font-medium hover:text-foreground/80"
+        title="Go to profile"
+        aria-label={`Go to profile: ${userName}`}
+      >
+        {userName}
+      </Link>
       <LogoutButton />
     </div>
   );

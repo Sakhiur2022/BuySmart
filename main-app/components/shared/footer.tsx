@@ -19,12 +19,13 @@ export function Footer() {
           <div className="flex flex-col gap-2">
             <h3 className="font-semibold text-sm">Explore</h3>
             <Link
-              href="/protected/products"
+              href="/buyer"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Products
             </Link>
             <Link
+<<<<<<< HEAD
               href="/profile"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -32,6 +33,9 @@ export function Footer() {
             </Link>
             <Link
               href="/profile/settings"
+=======
+              href="/protected/settings"
+>>>>>>> main
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Settings

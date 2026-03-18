@@ -29,6 +29,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.4",
+    "framer-motion": "^12.38.0",
     "langchain": "^1.2.24",
     "lucide-react": "^0.511.0",
     "next": "^15.5.7",
