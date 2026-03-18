@@ -19,16 +19,11 @@ export function Navbar() {
         {/* Main Nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link
-            href="/protected/products"
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            href="/buyer"
+            className="rounded-full border border-pink-300/70 bg-gradient-to-r from-pink-100 via-rose-100 to-amber-100 px-4 py-1.5 font-semibold text-rose-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:from-pink-200 hover:to-amber-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:border-pink-500/40 dark:from-rose-900/40 dark:via-pink-900/30 dark:to-amber-900/30 dark:text-pink-100"
+            title="Browse products"
           >
             Products
-          </Link>
-          <Link
-            href="/protected/profile"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Profile
           </Link>
         </nav>
 
