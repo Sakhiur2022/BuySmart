@@ -5,7 +5,6 @@ import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { AuthButton } from '@/components/shared/auth-button';
 import { hasEnvVars } from '@/lib/utils';
 import { EnvVarWarning } from '@/components/shared/env-var-warning';
-import logo from '@/public/icons/CSE327_Logo_red.jpg';
 
 export function Navbar() {
   return (
@@ -14,8 +13,8 @@ export function Navbar() {
         {/* Brand - Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <Image
-            src={logo}
-            alt="CSE327 Logo"
+            src="/icons/CSE327_Logo_red.jpg"
+            alt="BuySmart Logo"
             height={40}
             width={140}
             priority
