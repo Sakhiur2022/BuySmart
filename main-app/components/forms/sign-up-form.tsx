@@ -13,6 +13,8 @@ import { Separator } from '@/components/ui/separator';
 import { createClient } from '@/lib/supabase/client';
 import { OAuthProviderButtons } from '@/app/(auth)/components/oauth-provider-buttons';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
   const router = useRouter();
   const [fullName, setFullName] = useState('');
@@ -21,11 +23,13 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const emailIsInvalid = email.length > 0 && !EMAIL_REGEX.test(email.trim());
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
   const passwordMismatch = confirmPassword.length > 0 && password !== confirmPassword;
   const canSubmit =
     fullName.trim().length > 0 &&
     email.trim().length > 0 &&
+    !emailIsInvalid &&
     password.length >= 8 &&
     confirmPassword.length > 0 &&
     !passwordMismatch;
@@ -122,6 +126,11 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
                   required
                   disabled={isSubmitting}
                 />
+                {emailIsInvalid ? (
+                  <p className="text-xs text-amber-600" aria-live="polite">
+                    Enter a valid email format (example: name@example.com).
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-2">

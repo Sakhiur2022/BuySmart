@@ -13,6 +13,8 @@ import { Separator } from '@/components/ui/separator';
 import { OAuthProviderButtons } from '@/app/(auth)/components/oauth-provider-buttons';
 import { Suspense } from 'react';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function getLoginErrorMessage(error: unknown): string {
   if (!(error instanceof Error)) {
     return 'Unable to sign in.';
@@ -37,6 +39,9 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const emailIsInvalid = email.length > 0 && !EMAIL_REGEX.test(email.trim());
+  const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
+  const canSubmit = !emailIsInvalid && password.length >= 8;
 
   const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,6 +90,11 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
                   required
                   disabled={isSubmitting}
                 />
+                {emailIsInvalid ? (
+                  <p className="text-xs text-amber-600" aria-live="polite">
+                    Enter a valid email format (example: name@example.com).
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid gap-2">
@@ -107,11 +117,16 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
                   required
                   disabled={isSubmitting}
                 />
+                {passwordNeedsMoreChars ? (
+                  <p className="text-xs text-amber-600" aria-live="polite">
+                    Password must be at least 8 characters ({password.length}/8).
+                  </p>
+                ) : null}
               </div>
 
               {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button type="submit" className="w-full" disabled={isSubmitting || !canSubmit}>
                 {isSubmitting ? 'Signing in...' : 'Sign in with email'}
               </Button>
 
