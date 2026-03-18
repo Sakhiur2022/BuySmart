@@ -1,14 +1,7 @@
-import { Navbar } from '@/components/shared/navbar';
-import { Footer } from '@/components/shared/footer';
-
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <Navbar />
-      <main className="flex-1 w-full">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">{children}</div>
-      </main>
-      <Footer />
-    </div>
+    <main className="w-full">
+      <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">{children}</div>
+    </main>
   );
 }
