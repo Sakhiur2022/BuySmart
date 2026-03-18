@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useState } from "react";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function ForgotPasswordForm({
   className,
   ...props
@@ -23,6 +25,7 @@ export function ForgotPasswordForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const emailIsInvalid = email.length > 0 && !EMAIL_REGEX.test(email.trim());
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,21 +72,32 @@ export function ForgotPasswordForm({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleForgotPassword}>
+            <form onSubmit={handleForgotPassword} autoComplete="on">
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
+                    name="email"
                     type="email"
                     placeholder="m@example.com"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
+                  {emailIsInvalid ? (
+                    <p className="text-xs text-amber-600" aria-live="polite">
+                      Enter a valid email format (example: name@example.com).
+                    </p>
+                  ) : null}
                 </div>
                 {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full" disabled={isLoading || emailIsInvalid}>
                   {isLoading ? "Sending..." : "Send reset email"}
                 </Button>
               </div>

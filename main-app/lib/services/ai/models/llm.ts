@@ -1,18 +1,27 @@
-import { aiEnv, aiModels } from "@/lib/services/ai/config";
-import { invokeHuggingFaceModel } from "@/lib/services/ai/hf-client";
-import { AIRequestError, AIResponseError } from "@/lib/services/ai/error-handler";
-import { approximateTokenCount, buildChatPrompt, normalizeWhitespace } from "@/lib/services/ai/utils";
+import { aiEnv, aiModels } from '@/lib/services/ai/config';
+import { invokeGroqModel, type GroqTextGenerationPayload } from '@/lib/services/ai/groq-client';
+import { AIRequestError, AIResponseError } from '@/lib/services/ai/error-handler';
+import { approximateTokenCount, normalizeWhitespace } from '@/lib/services/ai/utils';
 import type {
   AIChatMessage,
   AIRequestOptions,
   AITextGenerationResponse,
-} from "@/lib/types/ai.types";
+} from '@/lib/types/ai.types';
 
-interface HFGenerationResponseItem {
-  generated_text?: string;
+interface GroqCompletionResponse {
+  choices: Array<{
+    message: {
+      content: string;
+      role: string;
+    };
+    finish_reason: string;
+  }>;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
-
-type HFGenerationResponse = HFGenerationResponseItem[] | HFGenerationResponseItem;
 
 interface GenerateTextInput {
   prompt: string;
@@ -20,50 +29,45 @@ interface GenerateTextInput {
   options?: AIRequestOptions;
 }
 
-export async function generateText(
-  input: GenerateTextInput,
-): Promise<AITextGenerationResponse> {
+export async function generateText(input: GenerateTextInput): Promise<AITextGenerationResponse> {
   if (!input.prompt.trim()) {
-    throw new AIRequestError("Text generation prompt must be a non-empty string.");
+    throw new AIRequestError('Text generation prompt must be a non-empty string.');
   }
 
   const model = input.model ?? aiModels.llm.id;
 
-  const payload = {
-    inputs: input.prompt,
-    parameters: {
-      temperature: input.options?.temperature ?? aiEnv.AI_TEMPERATURE,
-      max_new_tokens: input.options?.maxTokens ?? aiEnv.AI_MAX_TOKENS,
-      top_p: input.options?.topP ?? aiEnv.AI_TOP_P,
-      return_full_text: false,
-    },
+  const payload: GroqTextGenerationPayload = {
+    messages: [
+      {
+        role: 'user',
+        content: input.prompt,
+      },
+    ],
+    temperature: input.options?.temperature ?? aiEnv.AI_TEMPERATURE,
+    max_tokens: input.options?.maxTokens ?? aiEnv.AI_MAX_TOKENS,
+    top_p: input.options?.topP ?? aiEnv.AI_TOP_P,
   };
 
-  const rawResponse = await invokeHuggingFaceModel<HFGenerationResponse>(
-    model,
-    payload,
-    { cache: false, signal: input.options?.signal },
-  );
+  const rawResponse = await invokeGroqModel<GroqCompletionResponse>(model, payload, {
+    cache: false,
+    signal: input.options?.signal,
+  });
 
-  const generatedText = Array.isArray(rawResponse)
-    ? rawResponse[0]?.generated_text
-    : rawResponse.generated_text;
+  const generatedText = rawResponse.choices[0]?.message?.content;
 
   if (!generatedText) {
-    throw new AIResponseError("Hugging Face text generation returned empty output.");
+    throw new AIResponseError('Groq text generation returned empty output.');
   }
 
   const normalizedText = normalizeWhitespace(generatedText);
-  const promptTokens = approximateTokenCount(input.prompt);
-  const completionTokens = approximateTokenCount(normalizedText);
 
   return {
     text: normalizedText,
     model,
     usage: {
-      promptTokens,
-      completionTokens,
-      totalTokens: promptTokens + completionTokens,
+      promptTokens: rawResponse.usage.prompt_tokens,
+      completionTokens: rawResponse.usage.completion_tokens,
+      totalTokens: rawResponse.usage.total_tokens,
     },
   };
 }
@@ -73,14 +77,41 @@ export async function generateChatCompletion(
   options?: AIRequestOptions,
 ): Promise<AITextGenerationResponse> {
   if (messages.length === 0) {
-    throw new AIRequestError("Chat completion requires at least one message.");
+    throw new AIRequestError('Chat completion requires at least one message.');
   }
 
-  const prompt = buildChatPrompt(messages);
+  const model = aiModels.chat.id;
 
-  return generateText({
-    prompt,
-    model: aiModels.chat.id,
-    options,
+  const payload: GroqTextGenerationPayload = {
+    messages: messages.map((msg) => ({
+      role: msg.role as 'user' | 'assistant' | 'system',
+      content: msg.content,
+    })),
+    temperature: options?.temperature ?? aiEnv.AI_TEMPERATURE,
+    max_tokens: options?.maxTokens ?? aiEnv.AI_MAX_TOKENS,
+    top_p: options?.topP ?? aiEnv.AI_TOP_P,
+  };
+
+  const rawResponse = await invokeGroqModel<GroqCompletionResponse>(model, payload, {
+    cache: false,
+    signal: options?.signal,
   });
+
+  const generatedText = rawResponse.choices[0]?.message?.content;
+
+  if (!generatedText) {
+    throw new AIResponseError('Groq chat completion returned empty output.');
+  }
+
+  const normalizedText = normalizeWhitespace(generatedText);
+
+  return {
+    text: normalizedText,
+    model,
+    usage: {
+      promptTokens: rawResponse.usage.prompt_tokens,
+      completionTokens: rawResponse.usage.completion_tokens,
+      totalTokens: rawResponse.usage.total_tokens,
+    },
+  };
 }

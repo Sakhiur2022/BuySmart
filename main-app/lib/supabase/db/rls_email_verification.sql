@@ -8,6 +8,7 @@ $$;
 
 drop policy if exists "users_profile_self_read" on users_profile;
 drop policy if exists "users_profile_self_write" on users_profile;
+drop policy if exists "users_profile_self_insert" on users_profile;
 drop policy if exists "products_public_read" on products;
 drop policy if exists "products_owner_write" on products;
 drop policy if exists "orders_buyer_read" on orders;
@@ -23,19 +24,22 @@ drop policy if exists "ai_model_configs_admin_only" on ai_model_configs;
 create policy "users_profile_self_read" on users_profile
   for select
   using (
-    is_email_confirmed()
-    and (user_id = auth.uid() or is_admin(auth.uid()))
+    user_id = auth.uid()
   );
 
 create policy "users_profile_self_write" on users_profile
   for update
   using (
-    is_email_confirmed()
-    and (user_id = auth.uid() or is_admin(auth.uid()))
+    user_id = auth.uid()
   )
   with check (
-    is_email_confirmed()
-    and (user_id = auth.uid() or is_admin(auth.uid()))
+    user_id = auth.uid()
+  );
+
+create policy "users_profile_self_insert" on users_profile
+  for insert
+  with check (
+    auth.uid() IS NOT NULL AND user_id = auth.uid()
   );
 
 create policy "products_public_read" on products

@@ -22,6 +22,7 @@ export function UpdatePasswordForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
   const router = useRouter();
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -29,6 +30,12 @@ export function UpdatePasswordForm({
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const { error } = await supabase.auth.updateUser({ password });
@@ -59,14 +66,20 @@ export function UpdatePasswordForm({
                 <Input
                   id="password"
                   type="password"
-                  placeholder="New password"
+                  placeholder="At least 8 characters"
                   required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                {passwordNeedsMoreChars ? (
+                  <p className="text-xs text-amber-600" aria-live="polite">
+                    Password must be at least 8 characters ({password.length}/8).
+                  </p>
+                ) : null}
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || password.length < 8}>
                 {isLoading ? "Saving..." : "Save new password"}
               </Button>
             </div>

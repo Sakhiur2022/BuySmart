@@ -13,13 +13,13 @@ export async function middleware(request: NextRequest) {
   const cookieOptions = {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'strict' as const,
+    sameSite: 'lax' as const,
     path: '/',
   };
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_OR_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -61,13 +61,6 @@ export async function middleware(request: NextRequest) {
       return redirectTo('/auth/login');
     }
     return response;
-  }
-
-  const emailConfirmedAt = claims.email_confirmed_at ?? claims.confirmed_at ?? null;
-  const isEmailVerified = Boolean(emailConfirmedAt);
-
-  if (!isEmailVerified && !isAuthRoute && pathname !== '/') {
-    return redirectTo('/');
   }
 
   const isAdminRoute = pathname.startsWith('/admin');
