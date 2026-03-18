@@ -25,7 +25,6 @@ export function Footer() {
               Products
             </Link>
             <Link
-<<<<<<< HEAD
               href="/profile"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -33,9 +32,6 @@ export function Footer() {
             </Link>
             <Link
               href="/profile/settings"
-=======
-              href="/protected/settings"
->>>>>>> main
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Settings
