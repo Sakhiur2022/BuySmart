@@ -23,7 +23,17 @@ export async function AuthButton() {
     );
   }
 
+  // Fetch user profile to get display_name
+  const { data: userProfile } = await supabase
+    .from('users_profile')
+    .select('display_name')
+    .eq('user_id', user.id)
+    .single();
+
+  // Use display_name if it exists and is not empty
+  // Otherwise, fall back to metadata (full_name or name), email, or 'User'
   const userName =
+    (userProfile?.display_name && userProfile.display_name.trim()) ||
     (user.user_metadata?.full_name as string) ||
     (user.user_metadata?.name as string) ||
     user.email ||
