@@ -26,8 +26,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { createClient } from '@/lib/supabase/client';
-import { savePreferences } from '@/lib/actions/settings';
+import { savePreferences, updatePassword } from '@/lib/actions/settings';
 
 type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -261,11 +260,12 @@ export function UserSettingsForm({
     }
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({ password });
+      // FIX: Use Server Action with server client (reads session cookies)
+      // instead of browser client which cannot access server-side session
+      const result = await updatePassword(password);
 
-      if (error) {
-        throw error;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update password');
       }
 
       setPassword('');
@@ -302,368 +302,371 @@ export function UserSettingsForm({
     <div className="space-y-6">
       <motion.div {...cardMotion}>
         <Card className="overflow-hidden border-pink-200/80 bg-linear-to-br from-rose-50 via-background to-amber-50/70 shadow-md dark:border-pink-500/30 dark:from-rose-950/25 dark:via-background dark:to-amber-950/20">
-        <CardHeader className="space-y-4 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_40%)]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              {/* RESPONSIVE: Title and description scale down on mobile for readability */}
-              <CardTitle className="text-lg sm:text-xl text-rose-700 dark:text-rose-200">
-                Account Settings
-              </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Update your preferences and secure your account.
-              </CardDescription>
-            </div>
-            {/* RESPONSIVE: Badges flex-wrap with gap-2 to avoid cramping on mobile */}
-            <div className="flex flex-wrap gap-2">
-              <Badge
-                variant="secondary"
-                className="rounded-full border-pink-200 bg-pink-100/80 text-rose-700 dark:border-pink-500/40 dark:bg-rose-900/30 dark:text-rose-200"
-              >
-                {formatRole(role)}
-              </Badge>
-              <Badge variant={emailVerified ? 'default' : 'outline'} className="rounded-full">
-                {emailVerified ? 'Email verified' : 'Email not verified'}
-              </Badge>
-            </div>
-          </div>
-
-          {/* RESPONSIVE: Info grid - single column on mobile, 3 columns on tablet+ for better spacing */}
-          <div className="grid gap-2 text-xs sm:text-sm text-muted-foreground sm:grid-cols-3">
-            <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
-              <p className="text-xs uppercase tracking-wide">Account Email</p>
-              <p className="mt-1 text-xs sm:text-sm font-medium text-foreground truncate">
-                {email}
-              </p>
-            </div>
-            <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
-              <p className="text-xs uppercase tracking-wide">Last Updated</p>
-              <p className="mt-1 text-xs sm:text-sm font-medium text-foreground">{lastUpdated}</p>
-            </div>
-            <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
-              <p className="text-xs uppercase tracking-wide">User ID</p>
-              <p className="mt-1 truncate text-xs sm:text-sm font-medium text-foreground">
-                {userId}
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-
-        <Separator />
-
-        <CardContent className="pt-6 px-4 sm:px-6">
-          {!hasProfileRecord ? (
-            <div className="mb-4 rounded-lg border bg-muted/40 px-4 py-3 text-xs sm:text-sm text-muted-foreground">
-              Profile record is not initialized yet. Please sign out and sign in again.
-            </div>
-          ) : null}
-
-          <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="preferences">Preferences</TabsTrigger>
-              <TabsTrigger value="privacy">Privacy</TabsTrigger>
-              <TabsTrigger value="security">Security</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="preferences" className="space-y-4">
-              <motion.div {...panelMotion}>
-                <form className="space-y-6" onSubmit={handleSavePreferences}>
-                {/* RESPONSIVE: Select fields grid - single column on mobile, 2 columns on tablet+ */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="themePreference" className="text-xs sm:text-sm font-medium">
-                      Theme preference
-                    </Label>
-                    <Select
-                      value={preferences.theme}
-                      onValueChange={(value) =>
-                        setPreferences((prev) => ({
-                          ...prev,
-                          theme: value as ThemePreference,
-                        }))
-                      }
-                      disabled={isSavingPreferences || !hasProfileRecord}
-                    >
-                      <SelectTrigger id="themePreference" className="h-11 sm:h-10">
-                        <SelectValue placeholder="Choose a theme" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="system">System</SelectItem>
-                        <SelectItem value="light">Light</SelectItem>
-                        <SelectItem value="dark">Dark</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="timezonePreference" className="text-xs sm:text-sm font-medium">
-                      Timezone
-                    </Label>
-                    <Select
-                      value={preferences.timezone}
-                      onValueChange={(value) =>
-                        setPreferences((prev) => ({
-                          ...prev,
-                          timezone: value,
-                        }))
-                      }
-                      disabled={isSavingPreferences || !hasProfileRecord}
-                    >
-                      <SelectTrigger id="timezonePreference" className="h-11 sm:h-10">
-                        <SelectValue placeholder="Choose a timezone" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {timezoneOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* RESPONSIVE: Toggle cards grid - single column on mobile, 2 columns on tablet+, full width touch targets */}
-                <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                  <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
-                    <span className="flex-1 space-y-1">
-                      <Label
-                        htmlFor="emailNotifications"
-                        className="block text-xs sm:text-sm font-medium cursor-pointer"
-                      >
-                        Email notifications
-                      </Label>
-                      <span className="block text-xs text-muted-foreground">
-                        Receive updates on account activity and important alerts.
-                      </span>
-                    </span>
-                    <ToggleSwitch
-                      id="emailNotifications"
-                      checked={preferences.emailNotifications}
-                      onCheckedChange={(checked) =>
-                        setPreferences((prev) => ({
-                          ...prev,
-                          emailNotifications: checked,
-                        }))
-                      }
-                      disabled={isSavingPreferences || !hasProfileRecord}
-                    />
-                  </div>
-
-                  <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
-                    <span className="flex-1 space-y-1">
-                      <Label
-                        htmlFor="productAlerts"
-                        className="block text-xs sm:text-sm font-medium cursor-pointer"
-                      >
-                        Product alerts
-                      </Label>
-                      <span className="block text-xs text-muted-foreground">
-                        Get notified about product updates and recommendation changes.
-                      </span>
-                    </span>
-                    <ToggleSwitch
-                      id="productAlerts"
-                      checked={preferences.productAlerts}
-                      onCheckedChange={(checked) =>
-                        setPreferences((prev) => ({
-                          ...prev,
-                          productAlerts: checked,
-                        }))
-                      }
-                      disabled={isSavingPreferences || !hasProfileRecord}
-                    />
-                  </div>
-
-                  <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors sm:col-span-2">
-                    <span className="flex-1 space-y-1">
-                      <Label
-                        htmlFor="marketingEmails"
-                        className="block text-xs sm:text-sm font-medium cursor-pointer"
-                      >
-                        Marketing emails
-                      </Label>
-                      <span className="block text-xs text-muted-foreground">
-                        Receive special offers, campaigns, and newsletter content.
-                      </span>
-                    </span>
-                    <ToggleSwitch
-                      id="marketingEmails"
-                      checked={preferences.marketingEmails}
-                      onCheckedChange={(checked) =>
-                        setPreferences((prev) => ({
-                          ...prev,
-                          marketingEmails: checked,
-                        }))
-                      }
-                      disabled={isSavingPreferences || !hasProfileRecord}
-                    />
-                  </div>
-                </div>
-
-                {preferencesError ? (
-                  <p className="text-xs sm:text-sm text-red-600">{preferencesError}</p>
-                ) : null}
-                {preferencesSuccess ? (
-                  <p className="text-xs sm:text-sm text-emerald-600">{preferencesSuccess}</p>
-                ) : null}
-
-                {/* RESPONSIVE: Full width button on mobile, auto on tablet+ */}
-                <Button
-                  type="submit"
-                  disabled={isSavingPreferences || !hasProfileRecord}
-                  className="w-full sm:w-auto h-11 sm:h-10"
+          <CardHeader className="space-y-4 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_40%)]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                {/* RESPONSIVE: Title and description scale down on mobile for readability */}
+                <CardTitle className="text-lg sm:text-xl text-rose-700 dark:text-rose-200">
+                  Account Settings
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  Update your preferences and secure your account.
+                </CardDescription>
+              </div>
+              {/* RESPONSIVE: Badges flex-wrap with gap-2 to avoid cramping on mobile */}
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant="secondary"
+                  className="rounded-full border-pink-200 bg-pink-100/80 text-rose-700 dark:border-pink-500/40 dark:bg-rose-900/30 dark:text-rose-200"
                 >
-                  {isSavingPreferences ? 'Saving...' : 'Save preferences'}
-                </Button>
-                </form>
-              </motion.div>
-            </TabsContent>
+                  {formatRole(role)}
+                </Badge>
+                <Badge variant={emailVerified ? 'default' : 'outline'} className="rounded-full">
+                  {emailVerified ? 'Email verified' : 'Email not verified'}
+                </Badge>
+              </div>
+            </div>
 
-            <TabsContent value="privacy" className="space-y-4">
-              <motion.div {...panelMotion}>
-                <form className="space-y-4" onSubmit={handleSavePreferences}>
-                <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
-                  <span className="flex-1 space-y-1">
-                    <Label
-                      htmlFor="publicProfile"
-                      className="block text-xs sm:text-sm font-medium cursor-pointer"
-                    >
-                      Public profile visibility
-                    </Label>
-                    <span className="block text-xs text-muted-foreground">
-                      Allow your profile to be visible in shared buyer experiences.
-                    </span>
-                  </span>
-                  <ToggleSwitch
-                    id="publicProfile"
-                    checked={preferences.publicProfile}
-                    onCheckedChange={(checked) =>
-                      setPreferences((prev) => ({
-                        ...prev,
-                        publicProfile: checked,
-                      }))
-                    }
-                    disabled={isSavingPreferences || !hasProfileRecord}
-                  />
-                </div>
+            {/* RESPONSIVE: Info grid - single column on mobile, 3 columns on tablet+ for better spacing */}
+            <div className="grid gap-2 text-xs sm:text-sm text-muted-foreground sm:grid-cols-3">
+              <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
+                <p className="text-xs uppercase tracking-wide">Account Email</p>
+                <p className="mt-1 text-xs sm:text-sm font-medium text-foreground truncate">
+                  {email}
+                </p>
+              </div>
+              <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
+                <p className="text-xs uppercase tracking-wide">Last Updated</p>
+                <p className="mt-1 text-xs sm:text-sm font-medium text-foreground">{lastUpdated}</p>
+              </div>
+              <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
+                <p className="text-xs uppercase tracking-wide">User ID</p>
+                <p className="mt-1 truncate text-xs sm:text-sm font-medium text-foreground">
+                  {userId}
+                </p>
+              </div>
+            </div>
+          </CardHeader>
 
-                {preferencesError ? (
-                  <p className="text-xs sm:text-sm text-red-600">{preferencesError}</p>
-                ) : null}
-                {preferencesSuccess ? (
-                  <p className="text-xs sm:text-sm text-emerald-600">{preferencesSuccess}</p>
-                ) : null}
+          <Separator />
 
-                <Button
-                  type="submit"
-                  disabled={isSavingPreferences || !hasProfileRecord}
-                  className="w-full sm:w-auto h-11 sm:h-10"
-                >
-                  {isSavingPreferences ? 'Saving...' : 'Save privacy settings'}
-                </Button>
-                </form>
-              </motion.div>
-            </TabsContent>
+          <CardContent className="pt-6 px-4 sm:px-6">
+            {!hasProfileRecord ? (
+              <div className="mb-4 rounded-lg border bg-muted/40 px-4 py-3 text-xs sm:text-sm text-muted-foreground">
+                Profile record is not initialized yet. Please sign out and sign in again.
+              </div>
+            ) : null}
 
-            <TabsContent value="security" className="space-y-4">
-              <motion.div {...panelMotion}>
-                <form className="space-y-4" onSubmit={handlePasswordSubmit}>
-                {/* RESPONSIVE: Password fields grid - single column on mobile, 2 columns on tablet+, 44px touch target height */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="newPassword" className="text-xs sm:text-sm font-medium">
-                      New password
-                    </Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder="At least 8 characters"
-                      minLength={8}
-                      disabled={isUpdatingPassword}
-                      className="h-11 sm:h-10"
-                    />
-                    {passwordNeedsMoreChars ? (
-                      <p className="text-xs text-amber-600" aria-live="polite">
-                        Password must be at least 8 characters ({password.length}/8).
-                      </p>
+            <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
+              <TabsList>
+                <TabsTrigger value="preferences">Preferences</TabsTrigger>
+                <TabsTrigger value="privacy">Privacy</TabsTrigger>
+                <TabsTrigger value="security">Security</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="preferences" className="space-y-4">
+                <motion.div {...panelMotion}>
+                  <form className="space-y-6" onSubmit={handleSavePreferences}>
+                    {/* RESPONSIVE: Select fields grid - single column on mobile, 2 columns on tablet+ */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label htmlFor="themePreference" className="text-xs sm:text-sm font-medium">
+                          Theme preference
+                        </Label>
+                        <Select
+                          value={preferences.theme}
+                          onValueChange={(value) =>
+                            setPreferences((prev) => ({
+                              ...prev,
+                              theme: value as ThemePreference,
+                            }))
+                          }
+                          disabled={isSavingPreferences || !hasProfileRecord}
+                        >
+                          <SelectTrigger id="themePreference" className="h-11 sm:h-10">
+                            <SelectValue placeholder="Choose a theme" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="system">System</SelectItem>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="dark">Dark</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label
+                          htmlFor="timezonePreference"
+                          className="text-xs sm:text-sm font-medium"
+                        >
+                          Timezone
+                        </Label>
+                        <Select
+                          value={preferences.timezone}
+                          onValueChange={(value) =>
+                            setPreferences((prev) => ({
+                              ...prev,
+                              timezone: value,
+                            }))
+                          }
+                          disabled={isSavingPreferences || !hasProfileRecord}
+                        >
+                          <SelectTrigger id="timezonePreference" className="h-11 sm:h-10">
+                            <SelectValue placeholder="Choose a timezone" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {timezoneOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* RESPONSIVE: Toggle cards grid - single column on mobile, 2 columns on tablet+, full width touch targets */}
+                    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                      <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
+                        <span className="flex-1 space-y-1">
+                          <Label
+                            htmlFor="emailNotifications"
+                            className="block text-xs sm:text-sm font-medium cursor-pointer"
+                          >
+                            Email notifications
+                          </Label>
+                          <span className="block text-xs text-muted-foreground">
+                            Receive updates on account activity and important alerts.
+                          </span>
+                        </span>
+                        <ToggleSwitch
+                          id="emailNotifications"
+                          checked={preferences.emailNotifications}
+                          onCheckedChange={(checked) =>
+                            setPreferences((prev) => ({
+                              ...prev,
+                              emailNotifications: checked,
+                            }))
+                          }
+                          disabled={isSavingPreferences || !hasProfileRecord}
+                        />
+                      </div>
+
+                      <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
+                        <span className="flex-1 space-y-1">
+                          <Label
+                            htmlFor="productAlerts"
+                            className="block text-xs sm:text-sm font-medium cursor-pointer"
+                          >
+                            Product alerts
+                          </Label>
+                          <span className="block text-xs text-muted-foreground">
+                            Get notified about product updates and recommendation changes.
+                          </span>
+                        </span>
+                        <ToggleSwitch
+                          id="productAlerts"
+                          checked={preferences.productAlerts}
+                          onCheckedChange={(checked) =>
+                            setPreferences((prev) => ({
+                              ...prev,
+                              productAlerts: checked,
+                            }))
+                          }
+                          disabled={isSavingPreferences || !hasProfileRecord}
+                        />
+                      </div>
+
+                      <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors sm:col-span-2">
+                        <span className="flex-1 space-y-1">
+                          <Label
+                            htmlFor="marketingEmails"
+                            className="block text-xs sm:text-sm font-medium cursor-pointer"
+                          >
+                            Marketing emails
+                          </Label>
+                          <span className="block text-xs text-muted-foreground">
+                            Receive special offers, campaigns, and newsletter content.
+                          </span>
+                        </span>
+                        <ToggleSwitch
+                          id="marketingEmails"
+                          checked={preferences.marketingEmails}
+                          onCheckedChange={(checked) =>
+                            setPreferences((prev) => ({
+                              ...prev,
+                              marketingEmails: checked,
+                            }))
+                          }
+                          disabled={isSavingPreferences || !hasProfileRecord}
+                        />
+                      </div>
+                    </div>
+
+                    {preferencesError ? (
+                      <p className="text-xs sm:text-sm text-red-600">{preferencesError}</p>
                     ) : null}
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="confirmPassword" className="text-xs sm:text-sm font-medium">
-                      Confirm password
-                    </Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                      placeholder="Re-enter new password"
-                      minLength={8}
-                      disabled={isUpdatingPassword}
-                      className="h-11 sm:h-10"
-                    />
-                    {passwordMismatch ? (
-                      <p className="text-xs text-amber-600" aria-live="polite">
-                        Password and confirmation do not match yet.
-                      </p>
+                    {preferencesSuccess ? (
+                      <p className="text-xs sm:text-sm text-emerald-600">{preferencesSuccess}</p>
                     ) : null}
-                  </div>
-                </div>
 
-                {passwordError ? (
-                  <p className="text-xs sm:text-sm text-red-600">{passwordError}</p>
-                ) : null}
-                {passwordSuccess ? (
-                  <p className="text-xs sm:text-sm text-emerald-600">{passwordSuccess}</p>
-                ) : null}
+                    {/* RESPONSIVE: Full width button on mobile, auto on tablet+ */}
+                    <Button
+                      type="submit"
+                      disabled={isSavingPreferences || !hasProfileRecord}
+                      className="w-full sm:w-auto h-11 sm:h-10"
+                    >
+                      {isSavingPreferences ? 'Saving...' : 'Save preferences'}
+                    </Button>
+                  </form>
+                </motion.div>
+              </TabsContent>
 
-                <Button
-                  type="submit"
-                  disabled={
-                    isUpdatingPassword ||
-                    password.length < 8 ||
-                    confirmPassword.length === 0 ||
-                    passwordMismatch
-                  }
-                  className="w-full sm:w-auto h-11 sm:h-10"
-                >
-                  {isUpdatingPassword ? 'Updating...' : 'Update password'}
-                </Button>
-                </form>
-                <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Confirm password change</DialogTitle>
-                      <DialogDescription>
-                        This will update your account password. Make sure you remember it.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsConfirmDialogOpen(false)}
-                        disabled={isUpdatingPassword}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleConfirmPasswordUpdate}
-                        disabled={isUpdatingPassword}
-                      >
-                        Confirm update
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </motion.div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
+              <TabsContent value="privacy" className="space-y-4">
+                <motion.div {...panelMotion}>
+                  <form className="space-y-4" onSubmit={handleSavePreferences}>
+                    <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
+                      <span className="flex-1 space-y-1">
+                        <Label
+                          htmlFor="publicProfile"
+                          className="block text-xs sm:text-sm font-medium cursor-pointer"
+                        >
+                          Public profile visibility
+                        </Label>
+                        <span className="block text-xs text-muted-foreground">
+                          Allow your profile to be visible in shared buyer experiences.
+                        </span>
+                      </span>
+                      <ToggleSwitch
+                        id="publicProfile"
+                        checked={preferences.publicProfile}
+                        onCheckedChange={(checked) =>
+                          setPreferences((prev) => ({
+                            ...prev,
+                            publicProfile: checked,
+                          }))
+                        }
+                        disabled={isSavingPreferences || !hasProfileRecord}
+                      />
+                    </div>
+
+                    {preferencesError ? (
+                      <p className="text-xs sm:text-sm text-red-600">{preferencesError}</p>
+                    ) : null}
+                    {preferencesSuccess ? (
+                      <p className="text-xs sm:text-sm text-emerald-600">{preferencesSuccess}</p>
+                    ) : null}
+
+                    <Button
+                      type="submit"
+                      disabled={isSavingPreferences || !hasProfileRecord}
+                      className="w-full sm:w-auto h-11 sm:h-10"
+                    >
+                      {isSavingPreferences ? 'Saving...' : 'Save privacy settings'}
+                    </Button>
+                  </form>
+                </motion.div>
+              </TabsContent>
+
+              <TabsContent value="security" className="space-y-4">
+                <motion.div {...panelMotion}>
+                  <form className="space-y-4" onSubmit={handlePasswordSubmit}>
+                    {/* RESPONSIVE: Password fields grid - single column on mobile, 2 columns on tablet+, 44px touch target height */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label htmlFor="newPassword" className="text-xs sm:text-sm font-medium">
+                          New password
+                        </Label>
+                        <Input
+                          id="newPassword"
+                          type="password"
+                          value={password}
+                          onChange={(event) => setPassword(event.target.value)}
+                          placeholder="At least 8 characters"
+                          minLength={8}
+                          disabled={isUpdatingPassword}
+                          className="h-11 sm:h-10"
+                        />
+                        {passwordNeedsMoreChars ? (
+                          <p className="text-xs text-amber-600" aria-live="polite">
+                            Password must be at least 8 characters ({password.length}/8).
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label htmlFor="confirmPassword" className="text-xs sm:text-sm font-medium">
+                          Confirm password
+                        </Label>
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(event) => setConfirmPassword(event.target.value)}
+                          placeholder="Re-enter new password"
+                          minLength={8}
+                          disabled={isUpdatingPassword}
+                          className="h-11 sm:h-10"
+                        />
+                        {passwordMismatch ? (
+                          <p className="text-xs text-amber-600" aria-live="polite">
+                            Password and confirmation do not match yet.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {passwordError ? (
+                      <p className="text-xs sm:text-sm text-red-600">{passwordError}</p>
+                    ) : null}
+                    {passwordSuccess ? (
+                      <p className="text-xs sm:text-sm text-emerald-600">{passwordSuccess}</p>
+                    ) : null}
+
+                    <Button
+                      type="submit"
+                      disabled={
+                        isUpdatingPassword ||
+                        password.length < 8 ||
+                        confirmPassword.length === 0 ||
+                        passwordMismatch
+                      }
+                      className="w-full sm:w-auto h-11 sm:h-10"
+                    >
+                      {isUpdatingPassword ? 'Updating...' : 'Update password'}
+                    </Button>
+                  </form>
+                  <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Confirm password change</DialogTitle>
+                        <DialogDescription>
+                          This will update your account password. Make sure you remember it.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsConfirmDialogOpen(false)}
+                          disabled={isUpdatingPassword}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={handleConfirmPasswordUpdate}
+                          disabled={isUpdatingPassword}
+                        >
+                          Confirm update
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </motion.div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
         </Card>
       </motion.div>
     </div>

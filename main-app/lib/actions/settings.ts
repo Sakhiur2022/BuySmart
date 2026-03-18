@@ -60,3 +60,47 @@ export async function savePreferences(userId: string, preferences: UserSettingsP
     };
   }
 }
+
+// FIX: Added Server Action to use server client (reads session cookies)
+// instead of browser client which has no access to server-side session
+export async function updatePassword(newPassword: string) {
+  try {
+    const supabase = await createClient();
+
+    // FIX: Verify session exists before calling updateUser
+    const {
+      data: { user },
+      error: sessionError,
+    } = await supabase.auth.getUser();
+
+    if (sessionError || !user) {
+      return {
+        success: false,
+        error: 'Session expired. Please log in again.',
+      };
+    }
+
+    // FIX: Use server client with valid session to update password
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      error: null,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to update password';
+    return {
+      success: false,
+      error: message,
+    };
+  }
+}
