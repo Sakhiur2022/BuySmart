@@ -594,7 +594,8 @@ export function UserProfileForm({
         <CardHeader className="space-y-5 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_40%)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 border-2 border-pink-200 shadow-sm dark:border-pink-500/40">
+              {/* RESPONSIVE: Avatar scales down on mobile for better layout at 360-393dp viewport */}
+              <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-pink-200 shadow-sm dark:border-pink-500/40">
                 {avatarUrl.trim() ? (
                   <AvatarImage src={avatarUrl.trim()} alt={identityName} />
                 ) : null}
@@ -602,7 +603,8 @@ export function UserProfileForm({
               </Avatar>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-2xl text-rose-700 dark:text-rose-200">
+                  {/* RESPONSIVE: Title scales down on mobile (360-393dp) for readable spacing */}
+                  <CardTitle className="text-lg sm:text-2xl text-rose-700 dark:text-rose-200">
                     {identityName}
                   </CardTitle>
                   {!isEditing ? (
@@ -709,7 +711,7 @@ export function UserProfileForm({
                     onBlur={(event) => handleFieldBlur('fullName', event.target.value)}
                     placeholder="Enter your full name"
                     maxLength={255}
-                    className={getInputMotionClassName('fullName')}
+                    className={`${getInputMotionClassName('fullName')} h-11 sm:h-10 w-full`}
                   />
                 </motion.div>
 
@@ -736,7 +738,7 @@ export function UserProfileForm({
                     onBlur={(event) => handleFieldBlur('displayName', event.target.value)}
                     placeholder="How should others see your name?"
                     maxLength={100}
-                    className={getInputMotionClassName('displayName')}
+                    className={`${getInputMotionClassName('displayName')} h-11 sm:h-10 w-full`}
                   />
                 </motion.div>
 
@@ -768,7 +770,7 @@ export function UserProfileForm({
                     onBlur={(event) => handleFieldBlur('phone', event.target.value)}
                     placeholder="e.g. +880 17XX-XXXXXX"
                     maxLength={20}
-                    className={getInputMotionClassName('phone')}
+                    className={`${getInputMotionClassName('phone')} h-11 sm:h-10 w-full`}
                   />
                   <AnimatePresence>
                     {phoneFieldError ? (
@@ -810,7 +812,7 @@ export function UserProfileForm({
                     onFocus={() => setFocusedField('avatarUrl')}
                     onBlur={(event) => handleFieldBlur('avatarUrl', event.target.value)}
                     placeholder="https://example.com/avatar.png"
-                    className={getInputMotionClassName('avatarUrl')}
+                    className={`${getInputMotionClassName('avatarUrl')} h-11 sm:h-10 w-full`}
                   />
                 </motion.div>
               </motion.div>
@@ -1012,12 +1014,15 @@ export function UserProfileForm({
                             </motion.div>
 
                             <motion.div variants={dialogContentItemVariants} className="pt-6">
-                              <DialogFooter>
+                              {/* RESPONSIVE: Stack buttons vertically on mobile, horizontal on tablet+ with flex-col-reverse for proper visual hierarchy */}
+                              <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                                 <Button
                                   ref={cancelButtonRef}
                                   type="button"
                                   variant="outline"
                                   onClick={() => handleDialogOpenChange(false)}
+                                  disabled={isSaving}
+                                  className="w-full sm:w-auto h-11 sm:h-10"
                                 >
                                   Cancel
                                 </Button>
@@ -1025,12 +1030,14 @@ export function UserProfileForm({
                                   whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
                                   whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
                                   transition={{ duration: 0.1 }}
+                                  className="w-full sm:w-auto"
                                 >
                                   <Button
                                     type="button"
                                     onClick={handleConfirmSave}
                                     disabled={isSaving}
                                     variant={saveStatus === 'error' ? 'destructive' : 'default'}
+                                    className="w-full sm:w-auto h-11 sm:h-10"
                                   >
                                     <AnimatePresence mode="wait" initial={false}>
                                       {/* CHANGE: Show spinner + "Saving..." when saving */}
