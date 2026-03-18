@@ -77,16 +77,21 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-6">
-            <form className="flex flex-col gap-4" onSubmit={handleEmailLogin}>
+            <form className="flex flex-col gap-4" onSubmit={handleEmailLogin} autoComplete="on">
               <div className="grid gap-2">
                 <Label htmlFor="loginEmail">Email</Label>
                 <Input
                   id="loginEmail"
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="m@example.com"
-                  autoComplete="email"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="email"
                   required
                   disabled={isSubmitting}
                 />
@@ -109,6 +114,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
                 </div>
                 <Input
                   id="loginPassword"
+                  name="password"
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}

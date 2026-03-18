@@ -98,11 +98,12 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-6">
-            <form className="flex flex-col gap-4" onSubmit={handleEmailSignUp}>
+            <form className="flex flex-col gap-4" onSubmit={handleEmailSignUp} autoComplete="on">
               <div className="grid gap-2">
                 <Label htmlFor="signUpFullName">Full name</Label>
                 <Input
                   id="signUpFullName"
+                  name="fullName"
                   type="text"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
@@ -118,11 +119,16 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
                 <Label htmlFor="signUpEmail">Email</Label>
                 <Input
                   id="signUpEmail"
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="m@example.com"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="email"
                   required
                   disabled={isSubmitting}
                 />
@@ -137,6 +143,7 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
                 <Label htmlFor="signUpPassword">Password</Label>
                 <Input
                   id="signUpPassword"
+                  name="password"
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -157,6 +164,7 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
                 <Label htmlFor="signUpConfirmPassword">Confirm password</Label>
                 <Input
                   id="signUpConfirmPassword"
+                  name="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
