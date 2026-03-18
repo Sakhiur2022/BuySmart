@@ -1,10 +1,5 @@
 import Link from 'next/link';
-import { Suspense } from 'react';
-
 import { RecommendationPanel } from '@/components/recommendations/recommendation-panel';
-import { AuthButton } from '@/components/shared/auth-button';
-import { DeployButton } from '@/components/shared/deploy-button';
-import { EnvVarWarning } from '@/components/shared/env-var-warning';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { ConnectSupabaseSteps } from '@/components/shared/tutorial/connect-supabase-steps';
 import { SignUpUserSteps } from '@/components/shared/tutorial/sign-up-user-steps';
@@ -70,44 +65,6 @@ export default async function Home() {
           aria-hidden
           className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(230,57,70,0.15),transparent_65%)]"
         />
-
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-background/80 backdrop-blur">
-          <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-primary">
-                BuySmart
-              </div>
-              <span className="hidden text-xs font-semibold uppercase tracking-[0.4em] text-muted-foreground sm:inline">
-                Commerce AI
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <DeployButton />
-              <ThemeSwitcher />
-              {hasEnvVars ? (
-                <Suspense
-                  fallback={<span className="text-xs text-muted-foreground">Loading auth...</span>}
-                >
-                  <AuthButton />
-                </Suspense>
-              ) : (
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Connect Supabase to enable auth
-                </span>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {!hasEnvVars ? (
-          <div className="border-b border-primary/30 bg-primary/5 px-6 py-3">
-            <div className="mx-auto max-w-6xl">
-              <EnvVarWarning />
-            </div>
-          </div>
-        ) : null}
-
         <section className="relative w-full border-b border-white/5 bg-linear-to-br from-primary/5 via-background to-background">
           <div
             aria-hidden
