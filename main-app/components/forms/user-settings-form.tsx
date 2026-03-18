@@ -70,6 +70,7 @@ function ToggleSwitch({ id, checked, onCheckedChange, disabled }: ToggleSwitchPr
   return (
     <label
       htmlFor={id}
+      aria-label="Toggle setting"
       className={`relative inline-flex h-6 w-11 items-center ${
         disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
       }`}
