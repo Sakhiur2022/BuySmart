@@ -34,8 +34,6 @@ import {
   dialogModalVariants,
   fadeUpReducedVariants,
   fadeUpVariants,
-  inlineMessageReducedVariants,
-  inlineMessageVariants,
   springScaleReducedVariants,
   springScaleVariants,
 } from '@/lib/animations';
@@ -167,7 +165,9 @@ export function UserSettingsForm({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-  const [passwordDialogStatus, setPasswordDialogStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [passwordDialogStatus, setPasswordDialogStatus] = useState<'idle' | 'success' | 'error'>(
+    'idle',
+  );
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
@@ -675,7 +675,10 @@ export function UserSettingsForm({
                   </form>
                   <AnimatePresence mode="wait">
                     {isConfirmDialogOpen && (
-                      <Dialog open={isConfirmDialogOpen} onOpenChange={handlePasswordDialogOpenChange}>
+                      <Dialog
+                        open={isConfirmDialogOpen}
+                        onOpenChange={handlePasswordDialogOpenChange}
+                      >
                         <motion.div
                           key="dialog-modal"
                           variants={dialogModalVar}
@@ -707,15 +710,22 @@ export function UserSettingsForm({
                                   <DialogHeader>
                                     <DialogTitle>Confirm password change</DialogTitle>
                                     <DialogDescription>
-                                      This will update your account password. Make sure you remember it.
+                                      This will update your account password. Make sure you remember
+                                      it.
                                     </DialogDescription>
                                   </DialogHeader>
                                 </motion.div>
 
-                                <motion.div variants={dialogContentItemVariants} className="space-y-3">
-                                  <p className="text-sm font-medium text-foreground">Security Notice</p>
+                                <motion.div
+                                  variants={dialogContentItemVariants}
+                                  className="space-y-3"
+                                >
+                                  <p className="text-sm font-medium text-foreground">
+                                    Security Notice
+                                  </p>
                                   <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                                    Your new password will be immediately active across all your devices.
+                                    Your new password will be immediately active across all your
+                                    devices.
                                   </div>
 
                                   <AnimatePresence mode="wait">
@@ -770,7 +780,11 @@ export function UserSettingsForm({
                                         type="button"
                                         onClick={handleConfirmPasswordUpdate}
                                         disabled={isUpdatingPassword}
-                                        variant={passwordDialogStatus === 'error' ? 'destructive' : 'default'}
+                                        variant={
+                                          passwordDialogStatus === 'error'
+                                            ? 'destructive'
+                                            : 'default'
+                                        }
                                         className="w-full sm:w-auto h-11 sm:h-10"
                                       >
                                         <AnimatePresence mode="wait" initial={false}>
@@ -782,7 +796,10 @@ export function UserSettingsForm({
                                               exit={{ opacity: 0 }}
                                               className="inline-flex items-center gap-2"
                                             >
-                                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                              <Loader2
+                                                className="h-4 w-4 animate-spin"
+                                                aria-hidden="true"
+                                              />
                                               Updating...
                                             </motion.span>
                                           ) : passwordDialogStatus === 'success' ? (
