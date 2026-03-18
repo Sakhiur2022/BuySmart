@@ -3,10 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -51,6 +59,35 @@ const timezoneOptions = [
   { value: 'America/New_York', label: 'America/New_York' },
 ];
 
+type ToggleSwitchProps = {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
+};
+
+function ToggleSwitch({ id, checked, onCheckedChange, disabled }: ToggleSwitchProps) {
+  return (
+    <label
+      htmlFor={id}
+      className={`relative inline-flex h-6 w-11 items-center ${
+        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+      }`}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onCheckedChange(event.target.checked)}
+        disabled={disabled}
+        className="peer sr-only"
+      />
+      <span className="absolute inset-0 rounded-full bg-slate-200 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-red-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-checked:bg-red-500 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 dark:bg-slate-700 dark:peer-checked:bg-red-600" />
+      <span className="relative z-10 h-4 w-4 translate-x-1 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-6" />
+    </label>
+  );
+}
+
 function formatRole(role: string): string {
   if (!role) {
     return 'Buyer';
@@ -87,6 +124,18 @@ export function UserSettingsForm({
   initialUpdatedAt,
   initialPreferences,
 }: UserSettingsFormProps) {
+  const cardMotion = {
+    initial: { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+  };
+
+  const panelMotion = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.25, ease: [0.2, 0.9, 0.3, 1] },
+  };
+
   const router = useRouter();
   const { setTheme } = useTheme();
   const dismissTimerRef = useRef<number | null>(null);
@@ -100,6 +149,7 @@ export function UserSettingsForm({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
@@ -192,8 +242,7 @@ export function UserSettingsForm({
     }
   };
 
-  const handleUpdatePassword = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleUpdatePassword = async () => {
     setIsUpdatingPassword(true);
     setPasswordError(null);
     setPasswordSuccess(null);
@@ -228,9 +277,30 @@ export function UserSettingsForm({
     }
   };
 
+  const handlePasswordSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (
+      isUpdatingPassword ||
+      password.length < 8 ||
+      confirmPassword.length === 0 ||
+      passwordMismatch
+    ) {
+      return;
+    }
+
+    setIsConfirmDialogOpen(true);
+  };
+
+  const handleConfirmPasswordUpdate = async () => {
+    setIsConfirmDialogOpen(false);
+    await handleUpdatePassword();
+  };
+
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-pink-200/80 bg-linear-to-br from-rose-50 via-background to-amber-50/70 shadow-md dark:border-pink-500/30 dark:from-rose-950/25 dark:via-background dark:to-amber-950/20">
+      <motion.div {...cardMotion}>
+        <Card className="overflow-hidden border-pink-200/80 bg-linear-to-br from-rose-50 via-background to-amber-50/70 shadow-md dark:border-pink-500/30 dark:from-rose-950/25 dark:via-background dark:to-amber-950/20">
         <CardHeader className="space-y-4 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_40%)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -294,7 +364,8 @@ export function UserSettingsForm({
             </TabsList>
 
             <TabsContent value="preferences" className="space-y-4">
-              <form className="space-y-6" onSubmit={handleSavePreferences}>
+              <motion.div {...panelMotion}>
+                <form className="space-y-6" onSubmit={handleSavePreferences}>
                 {/* RESPONSIVE: Select fields grid - single column on mobile, 2 columns on tablet+ */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="grid gap-2">
@@ -350,22 +421,10 @@ export function UserSettingsForm({
                   </div>
                 </div>
 
-                {/* RESPONSIVE: Checkbox cards grid - single column on mobile, 2 columns on tablet+, full width touch targets */}
+                {/* RESPONSIVE: Toggle cards grid - single column on mobile, 2 columns on tablet+, full width touch targets */}
                 <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                  <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
-                    <Checkbox
-                      id="emailNotifications"
-                      checked={preferences.emailNotifications}
-                      onCheckedChange={(checked) =>
-                        setPreferences((prev) => ({
-                          ...prev,
-                          emailNotifications: checked === true,
-                        }))
-                      }
-                      disabled={isSavingPreferences || !hasProfileRecord}
-                      className="mt-0.5 sm:mt-1"
-                    />
-                    <span className="space-y-1">
+                  <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
+                    <span className="flex-1 space-y-1">
                       <Label
                         htmlFor="emailNotifications"
                         className="block text-xs sm:text-sm font-medium cursor-pointer"
@@ -376,22 +435,21 @@ export function UserSettingsForm({
                         Receive updates on account activity and important alerts.
                       </span>
                     </span>
-                  </div>
-
-                  <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
-                    <Checkbox
-                      id="productAlerts"
-                      checked={preferences.productAlerts}
+                    <ToggleSwitch
+                      id="emailNotifications"
+                      checked={preferences.emailNotifications}
                       onCheckedChange={(checked) =>
                         setPreferences((prev) => ({
                           ...prev,
-                          productAlerts: checked === true,
+                          emailNotifications: checked,
                         }))
                       }
                       disabled={isSavingPreferences || !hasProfileRecord}
-                      className="mt-0.5 sm:mt-1"
                     />
-                    <span className="space-y-1">
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
+                    <span className="flex-1 space-y-1">
                       <Label
                         htmlFor="productAlerts"
                         className="block text-xs sm:text-sm font-medium cursor-pointer"
@@ -402,22 +460,21 @@ export function UserSettingsForm({
                         Get notified about product updates and recommendation changes.
                       </span>
                     </span>
-                  </div>
-
-                  <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors sm:col-span-2">
-                    <Checkbox
-                      id="marketingEmails"
-                      checked={preferences.marketingEmails}
+                    <ToggleSwitch
+                      id="productAlerts"
+                      checked={preferences.productAlerts}
                       onCheckedChange={(checked) =>
                         setPreferences((prev) => ({
                           ...prev,
-                          marketingEmails: checked === true,
+                          productAlerts: checked,
                         }))
                       }
                       disabled={isSavingPreferences || !hasProfileRecord}
-                      className="mt-0.5 sm:mt-1"
                     />
-                    <span className="space-y-1">
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors sm:col-span-2">
+                    <span className="flex-1 space-y-1">
                       <Label
                         htmlFor="marketingEmails"
                         className="block text-xs sm:text-sm font-medium cursor-pointer"
@@ -428,6 +485,17 @@ export function UserSettingsForm({
                         Receive special offers, campaigns, and newsletter content.
                       </span>
                     </span>
+                    <ToggleSwitch
+                      id="marketingEmails"
+                      checked={preferences.marketingEmails}
+                      onCheckedChange={(checked) =>
+                        setPreferences((prev) => ({
+                          ...prev,
+                          marketingEmails: checked,
+                        }))
+                      }
+                      disabled={isSavingPreferences || !hasProfileRecord}
+                    />
                   </div>
                 </div>
 
@@ -446,25 +514,15 @@ export function UserSettingsForm({
                 >
                   {isSavingPreferences ? 'Saving...' : 'Save preferences'}
                 </Button>
-              </form>
+                </form>
+              </motion.div>
             </TabsContent>
 
             <TabsContent value="privacy" className="space-y-4">
-              <form className="space-y-4" onSubmit={handleSavePreferences}>
-                <div className="flex gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
-                  <Checkbox
-                    id="publicProfile"
-                    checked={preferences.publicProfile}
-                    onCheckedChange={(checked) =>
-                      setPreferences((prev) => ({
-                        ...prev,
-                        publicProfile: checked === true,
-                      }))
-                    }
-                    disabled={isSavingPreferences || !hasProfileRecord}
-                    className="mt-0.5 sm:mt-1"
-                  />
-                  <span className="space-y-1">
+              <motion.div {...panelMotion}>
+                <form className="space-y-4" onSubmit={handleSavePreferences}>
+                <div className="flex items-start justify-between gap-3 rounded-lg border p-3 sm:p-4 hover:bg-accent/50 transition-colors">
+                  <span className="flex-1 space-y-1">
                     <Label
                       htmlFor="publicProfile"
                       className="block text-xs sm:text-sm font-medium cursor-pointer"
@@ -475,6 +533,17 @@ export function UserSettingsForm({
                       Allow your profile to be visible in shared buyer experiences.
                     </span>
                   </span>
+                  <ToggleSwitch
+                    id="publicProfile"
+                    checked={preferences.publicProfile}
+                    onCheckedChange={(checked) =>
+                      setPreferences((prev) => ({
+                        ...prev,
+                        publicProfile: checked,
+                      }))
+                    }
+                    disabled={isSavingPreferences || !hasProfileRecord}
+                  />
                 </div>
 
                 {preferencesError ? (
@@ -491,11 +560,13 @@ export function UserSettingsForm({
                 >
                   {isSavingPreferences ? 'Saving...' : 'Save privacy settings'}
                 </Button>
-              </form>
+                </form>
+              </motion.div>
             </TabsContent>
 
             <TabsContent value="security" className="space-y-4">
-              <form className="space-y-4" onSubmit={handleUpdatePassword}>
+              <motion.div {...panelMotion}>
+                <form className="space-y-4" onSubmit={handlePasswordSubmit}>
                 {/* RESPONSIVE: Password fields grid - single column on mobile, 2 columns on tablet+, 44px touch target height */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="grid gap-2">
@@ -560,11 +631,40 @@ export function UserSettingsForm({
                 >
                   {isUpdatingPassword ? 'Updating...' : 'Update password'}
                 </Button>
-              </form>
+                </form>
+                <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Confirm password change</DialogTitle>
+                      <DialogDescription>
+                        This will update your account password. Make sure you remember it.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsConfirmDialogOpen(false)}
+                        disabled={isUpdatingPassword}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleConfirmPasswordUpdate}
+                        disabled={isUpdatingPassword}
+                      >
+                        Confirm update
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </motion.div>
             </TabsContent>
           </Tabs>
         </CardContent>
-      </Card>
+        </Card>
+      </motion.div>
     </div>
   );
 }
