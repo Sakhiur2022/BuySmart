@@ -5,7 +5,7 @@ import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { AuthButton } from '@/components/shared/auth-button';
 import { hasEnvVars } from '@/lib/utils';
 import { EnvVarWarning } from '@/components/shared/env-var-warning';
-import logo from '../../public/icons/CSE327_Logo_red.jpg';
+import logo from '@/public/icons/CSE327_Logo_red.jpg';
 
 export function Navbar() {
   return (
