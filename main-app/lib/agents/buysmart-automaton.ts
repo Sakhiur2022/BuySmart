@@ -4,7 +4,8 @@ type StateTable = Record<string, StateTransition>;
 interface ValidationResult {
   accepted: boolean;
   path: string[];
-  currentState: string;
+  currentState?: string;
+  error?: string;
 }
 
 export class BuySmartAutomaton {
@@ -22,7 +23,10 @@ export class BuySmartAutomaton {
       q5: { 'A': 'q6' },
       q6: { 'R': 'q7' },
       q7: { 'T': 'q8' },
-      q8: { 'S': 'q9', 'E': 'q10' },
+      q8: {
+        'S': 'q9',
+        'E': 'q10'
+      },
       q9: { 'E': 'q10' },
       q10: { 'R': 'q11' },
       q11: { 'V': 'q12' },
@@ -42,7 +46,15 @@ export class BuySmartAutomaton {
 
     for (const char of chars) {
       const nextState = this.states[currentState]?.[char];
-      if (!nextState) return { accepted: false, path };
+
+      if (!nextState) {
+        return {
+          accepted: false,
+          path,
+          error: `Invalid character '${char}' at state ${currentState}`
+        };
+      }
+
       currentState = nextState;
       path.push(currentState);
     }
