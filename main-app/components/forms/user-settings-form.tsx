@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +26,19 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertCircle, Check, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  dialogContentItemVariants,
+  dialogContentStaggerVariants,
+  dialogModalReducedVariants,
+  dialogModalVariants,
+  fadeUpReducedVariants,
+  fadeUpVariants,
+  inlineMessageReducedVariants,
+  inlineMessageVariants,
+  springScaleReducedVariants,
+  springScaleVariants,
+} from '@/lib/animations';
 import { savePreferences, updatePassword } from '@/lib/actions/settings';
 
 type ThemePreference = 'system' | 'light' | 'dark';
@@ -138,6 +151,10 @@ export function UserSettingsForm({
 
   const router = useRouter();
   const { setTheme } = useTheme();
+  const shouldReduceMotion = useReducedMotion();
+  const fadeVariants = shouldReduceMotion ? fadeUpReducedVariants : fadeUpVariants;
+  const dialogPanelVariants = shouldReduceMotion ? springScaleReducedVariants : springScaleVariants;
+  const dialogModalVar = shouldReduceMotion ? dialogModalReducedVariants : dialogModalVariants;
   const dismissTimerRef = useRef<number | null>(null);
   const [currentTab, setCurrentTab] = useState('preferences');
   const [preferences, setPreferences] = useState<UserSettingsPreferences>(initialPreferences);
@@ -150,6 +167,7 @@ export function UserSettingsForm({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [passwordDialogStatus, setPasswordDialogStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
@@ -244,17 +262,20 @@ export function UserSettingsForm({
 
   const handleUpdatePassword = async () => {
     setIsUpdatingPassword(true);
+    setPasswordDialogStatus('idle');
     setPasswordError(null);
     setPasswordSuccess(null);
 
     if (password.length < 8) {
       setPasswordError('Password must be at least 8 characters long.');
+      setPasswordDialogStatus('error');
       setIsUpdatingPassword(false);
       return;
     }
 
     if (password !== confirmPassword) {
       setPasswordError('Password and confirmation do not match.');
+      setPasswordDialogStatus('error');
       setIsUpdatingPassword(false);
       return;
     }
@@ -271,9 +292,17 @@ export function UserSettingsForm({
       setPassword('');
       setConfirmPassword('');
       setPasswordSuccess('Password updated successfully.');
+      setPasswordDialogStatus('success');
+
+      // Close dialog after success state is visible
+      setTimeout(() => {
+        setIsConfirmDialogOpen(false);
+        setIsUpdatingPassword(false);
+        setPasswordDialogStatus('idle');
+      }, 1500);
     } catch (error: unknown) {
       setPasswordError(getErrorMessage(error));
-    } finally {
+      setPasswordDialogStatus('error');
       setIsUpdatingPassword(false);
     }
   };
@@ -290,12 +319,20 @@ export function UserSettingsForm({
       return;
     }
 
+    setPasswordDialogStatus('idle');
     setIsConfirmDialogOpen(true);
   };
 
   const handleConfirmPasswordUpdate = async () => {
-    setIsConfirmDialogOpen(false);
     await handleUpdatePassword();
+  };
+
+  const handlePasswordDialogOpenChange = (open: boolean) => {
+    setIsConfirmDialogOpen(open);
+
+    if (!open) {
+      setPasswordDialogStatus('idle');
+    }
   };
 
   return (
@@ -636,33 +673,151 @@ export function UserSettingsForm({
                       {isUpdatingPassword ? 'Updating...' : 'Update password'}
                     </Button>
                   </form>
-                  <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Confirm password change</DialogTitle>
-                        <DialogDescription>
-                          This will update your account password. Make sure you remember it.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <DialogFooter>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setIsConfirmDialogOpen(false)}
-                          disabled={isUpdatingPassword}
+                  <AnimatePresence mode="wait">
+                    {isConfirmDialogOpen && (
+                      <Dialog open={isConfirmDialogOpen} onOpenChange={handlePasswordDialogOpenChange}>
+                        <motion.div
+                          key="dialog-modal"
+                          variants={dialogModalVar}
+                          initial="hidden"
+                          animate="visible"
+                          exit="exit"
+                          style={{ willChange: 'transform, opacity' }}
                         >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="button"
-                          onClick={handleConfirmPasswordUpdate}
-                          disabled={isUpdatingPassword}
-                        >
-                          Confirm update
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                          <DialogContent
+                            className="data-[state=open]:animate-none data-[state=closed]:animate-none"
+                            onOpenAutoFocus={(event) => {
+                              event.preventDefault();
+                            }}
+                          >
+                            <motion.div
+                              initial="hidden"
+                              animate="visible"
+                              exit="exit"
+                              variants={dialogPanelVariants}
+                              style={{ willChange: 'transform, opacity' }}
+                            >
+                              <motion.div
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                                variants={dialogContentStaggerVariants}
+                              >
+                                <motion.div variants={dialogContentItemVariants}>
+                                  <DialogHeader>
+                                    <DialogTitle>Confirm password change</DialogTitle>
+                                    <DialogDescription>
+                                      This will update your account password. Make sure you remember it.
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                </motion.div>
+
+                                <motion.div variants={dialogContentItemVariants} className="space-y-3">
+                                  <p className="text-sm font-medium text-foreground">Security Notice</p>
+                                  <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                                    Your new password will be immediately active across all your devices.
+                                  </div>
+
+                                  <AnimatePresence mode="wait">
+                                    {passwordDialogStatus === 'success' ? (
+                                      <motion.p
+                                        key="dialog-success"
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        variants={fadeVariants}
+                                        className="flex items-center gap-2 text-sm text-emerald-600"
+                                      >
+                                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                                        Password updated successfully.
+                                      </motion.p>
+                                    ) : null}
+
+                                    {passwordDialogStatus === 'error' && passwordError ? (
+                                      <motion.p
+                                        key="dialog-error"
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        variants={fadeVariants}
+                                        className="flex items-center gap-2 text-sm text-red-600"
+                                      >
+                                        <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                                        {passwordError}
+                                      </motion.p>
+                                    ) : null}
+                                  </AnimatePresence>
+                                </motion.div>
+
+                                <motion.div variants={dialogContentItemVariants} className="pt-6">
+                                  <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => handlePasswordDialogOpenChange(false)}
+                                      disabled={isUpdatingPassword}
+                                      className="w-full sm:w-auto h-11 sm:h-10"
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <motion.div
+                                      whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
+                                      whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
+                                      transition={{ duration: 0.1 }}
+                                      className="w-full sm:w-auto"
+                                    >
+                                      <Button
+                                        type="button"
+                                        onClick={handleConfirmPasswordUpdate}
+                                        disabled={isUpdatingPassword}
+                                        variant={passwordDialogStatus === 'error' ? 'destructive' : 'default'}
+                                        className="w-full sm:w-auto h-11 sm:h-10"
+                                      >
+                                        <AnimatePresence mode="wait" initial={false}>
+                                          {isUpdatingPassword && passwordDialogStatus === 'idle' ? (
+                                            <motion.span
+                                              key="dialog-updating"
+                                              initial={{ opacity: 0 }}
+                                              animate={{ opacity: 1 }}
+                                              exit={{ opacity: 0 }}
+                                              className="inline-flex items-center gap-2"
+                                            >
+                                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                              Updating...
+                                            </motion.span>
+                                          ) : passwordDialogStatus === 'success' ? (
+                                            <motion.span
+                                              key="dialog-updated"
+                                              initial={{ opacity: 0 }}
+                                              animate={{ opacity: 1 }}
+                                              exit={{ opacity: 0 }}
+                                              className="inline-flex items-center gap-2"
+                                            >
+                                              <Check className="h-4 w-4" aria-hidden="true" />
+                                              Updated!
+                                            </motion.span>
+                                          ) : (
+                                            <motion.span
+                                              key="dialog-confirm"
+                                              initial={{ opacity: 0 }}
+                                              animate={{ opacity: 1 }}
+                                              exit={{ opacity: 0 }}
+                                            >
+                                              Confirm update
+                                            </motion.span>
+                                          )}
+                                        </AnimatePresence>
+                                      </Button>
+                                    </motion.div>
+                                  </DialogFooter>
+                                </motion.div>
+                              </motion.div>
+                            </motion.div>
+                          </DialogContent>
+                        </motion.div>
+                      </Dialog>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               </TabsContent>
             </Tabs>
