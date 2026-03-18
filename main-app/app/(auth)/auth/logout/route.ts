@@ -12,5 +12,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  return NextResponse.redirect(`${origin}/auth/login`);
+  return NextResponse.redirect(`${origin}/`);
 }

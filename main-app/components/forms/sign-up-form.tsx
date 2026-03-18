@@ -15,6 +15,7 @@ import { OAuthProviderButtons } from '@/app/(auth)/components/oauth-provider-but
 
 export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
   const router = useRouter();
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,11 +24,20 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
   const passwordMismatch = confirmPassword.length > 0 && password !== confirmPassword;
   const canSubmit =
-    email.trim().length > 0 && password.length >= 8 && confirmPassword.length > 0 && !passwordMismatch;
+    fullName.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.length >= 8 &&
+    confirmPassword.length > 0 &&
+    !passwordMismatch;
 
   const handleEmailSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    if (!fullName.trim()) {
+      setError('Full name is required.');
+      return;
+    }
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters long.');
@@ -50,6 +60,10 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
         password,
         options: {
           emailRedirectTo: redirectTo,
+          data: {
+            full_name: fullName.trim(),
+            name: fullName.trim(),
+          },
         },
       });
 
@@ -81,6 +95,21 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
         <CardContent>
           <div className="flex flex-col gap-6">
             <form className="flex flex-col gap-4" onSubmit={handleEmailSignUp}>
+              <div className="grid gap-2">
+                <Label htmlFor="signUpFullName">Full name</Label>
+                <Input
+                  id="signUpFullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  placeholder="Your full name"
+                  autoComplete="name"
+                  required
+                  maxLength={255}
+                  disabled={isSubmitting}
+                />
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="signUpEmail">Email</Label>
                 <Input
