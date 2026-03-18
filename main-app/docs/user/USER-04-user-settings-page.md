@@ -1,224 +1,276 @@
 # USER-04: User Settings Page
 
-## Overview
+## 1. Feature Overview
 
-The User Settings Page is a comprehensive account management interface located at `/profile/settings`. It provides users with a centralized hub to manage their preferences, privacy settings, and security configurations.
+- **Feature ID**: USER-04
+- **Feature Name**: User Settings Page
+- **Type**: New Feature
+- **Status**: Completed
+- **Route**: `/profile/settings` (under `(buyer)` layout group)
+- **Access**: Authenticated users only (redirects to `/auth/login` if unauthenticated)
+- **Description**: The settings page lets users manage preferences (theme, timezone, notifications), privacy visibility, and security (password change). It shows account metadata such as email, role, verification status, last updated, and user ID.
 
-## Features
+---
 
-### 1. **Preferences Tab**
-- **Theme Preference**: Switch between System, Light, and Dark modes
-- **Timezone Selection**: Choose from 6 timezone options (UTC, Asia/Dhaka, Asia/Kolkata, Asia/Singapore, Europe/London, America/New_York)
-- **Red Toggle Switches** for:
-  - Email notifications (account activity & alerts)
-  - Product alerts (updates & recommendation changes)
-  - Marketing emails (special offers & campaigns)
+## 2. User Stories Covered
 
-### 2. **Privacy Tab**
-- **Red Toggle Switch** for public profile visibility
-- Control whether your profile appears in shared buyer experiences
+- As an authenticated user, I can view my account email, role, verification status, last updated timestamp, and user ID
+- As a user, I can update theme and timezone preferences
+- As a user, I can toggle email notifications, product alerts, and marketing emails
+- As a user, I can control public profile visibility
+- As a user, I receive inline feedback when preferences save successfully or fail
+- As a user, I can update my password with confirmation and validation
+- As a user, I see validation hints when my password is too short or does not match
+- As a user, success and error messages auto-dismiss after a short delay
 
-### 3. **Security Tab**
-- **Password Update Form** with:
-  - New password field (minimum 8 characters)
-  - Confirm password field
-  - Real-time validation
-  - **Confirmation Dialog** before password change (prevents accidental updates)
+---
 
-### 4. **Account Header**
-Displays:
-- Account email address
-- User role (Buyer/Seller)
-- Email verification status
-- Last updated timestamp
-- User ID
+## 3. Feature Architecture
 
-## UI Components
+### 3a. Route and File Structure
 
-### Toggle Switch (`ToggleSwitch`)
-A custom red-themed toggle component with:
-- Smooth transition animations (Framer Motion)
-- Accessibility support (keyboard focusable, ARIA compliant)
-- Red color scheme when enabled (`bg-red-500` / `bg-red-600` dark)
-- Disabled state with opacity reduction
-- Responsive label integration
-
-**Usage:**
-```tsx
-<ToggleSwitch
-  id="emailNotifications"
-  checked={preferences.emailNotifications}
-  onCheckedChange={(checked) => handleChange(checked)}
-  disabled={isSaving}
-/>
+```
+app/
+├── (buyer)/
+│   └── profile/
+│       └── settings/
+│           └── page.tsx                -> Server Component that fetches user + preferences
+components/
+├── forms/
+│   └── user-settings-form.tsx          -> Client Component for tabs, forms, toggles, dialog
+lib/
+├── actions/
+│   └── settings.ts                     -> Server action to save preferences
+├── supabase/
+│   ├── client.ts                       -> Client-side Supabase instance
+│   └── server.ts                       -> Server-side Supabase instance
 ```
 
-### Confirmation Dialog
-Modal dialog that appears before password update with:
-- Clear warning message
-- Cancel and Confirm buttons
-- Prevents accidental password changes
-- Integrated with Framer Motion for smooth entry
+### 3b. Data Flow
 
-**Triggers:**
-- Form submission in Security tab when all validations pass
-
-## Animations (Framer Motion)
-
-### Card Motion
 ```
-Initial State: opacity 0, translate Y 14px
-Final State: opacity 1, translate Y 0
-Duration: 450ms
-Easing: cubic-bezier(0.22, 1, 0.36, 1) - smooth deceleration
+1. page.tsx            -> Creates server Supabase client
+2. page.tsx            -> Fetches authenticated user; redirects if missing
+3. page.tsx            -> Reads users_profile (role, email_verified, preferences, updated_at)
+4. page.tsx            -> Merges profile preferences with auth metadata fallback
+5. page.tsx            -> Passes initialPreferences to UserSettingsForm
+6. Form                -> User changes preferences and submits
+7. savePreferences     -> Server action updates users_profile.preferences + updated_at
+8. savePreferences     -> Attempts to sync auth metadata (non-blocking)
+9. Form                -> Sets success or error message and refreshes router
+10. Security tab       -> Password submit opens confirmation dialog
+11. Confirm update     -> Client Supabase auth.updateUser({ password })
+12. Form               -> Shows success or error message
 ```
 
-### Tab Panel Motion
-```
-Initial State: opacity 0, translate Y 10px
-Final State: opacity 1, translate Y 0
-Duration: 250ms
-Easing: cubic-bezier(0.2, 0.9, 0.3, 1) - snappy ease-out
-```
+### 3c. Component Breakdown
 
-These animations provide visual feedback that the UI is interactive and enhance perceived responsiveness.
+#### page.tsx -> Server Component
 
-## Mobile Responsiveness
+- **File**: `app/(buyer)/profile/settings/page.tsx`
+- **Type**: Server Component
+- **Props**: None
+- **Responsibilities**: Auth checks, profile fetch, merges preferences from profile + metadata, renders settings form.
 
-### Breakpoints
-- **Mobile (< 640px)**: Single column, full-width buttons (h-11 height for 44px touch targets)
-- **Tablet+ (≥ 640px)**: Two-column grids where applicable, h-10 button height
+#### UserSettingsForm -> Client Component
 
-### Responsive Elements
-1. **Header**
-   - Title: `text-lg sm:text-xl`
-   - Description: `text-xs sm:text-sm`
-   - Badges: Flex-wrap with gap-2
-
-2. **Info Grid** (Account details)
-   - Mobile: Single column
-   - Tablet+: 3-column grid
-   - Consistent padding and typography scaling
-
-3. **Preference/Privacy Cards**
-   - Mobile: Text + toggle on same row with flex wrap
-   - Display: `flex items-start justify-between`
-   - Toggle positioned to the right
-
-4. **Form Fields** (Theme, Timezone, Password)
-   - Preferences: 2-column grid
-   - Mobile: Single column (sm:grid-cols-2)
-   - Input heights: h-11 (mobile), sm:h-10 (tablet+)
-
-## Technical Implementation
-
-### Component File
-**Path:** `main-app/components/forms/user-settings-form.tsx`
-
-### Props Interface
-```tsx
-type UserSettingsFormProps = {
+- **File**: `components/forms/user-settings-form.tsx`
+- **Type**: Client Component (`'use client'`)
+- **Props**:
+  ```ts
   userId: string;
   email: string;
   role: string;
   emailVerified: boolean;
   hasProfileRecord: boolean;
   initialUpdatedAt: string | null;
-  initialPreferences: UserSettingsPreferences;
+  initialPreferences: {
+    emailNotifications: boolean;
+    productAlerts: boolean;
+    marketingEmails: boolean;
+    publicProfile: boolean;
+    theme: 'system' | 'light' | 'dark';
+    timezone: string;
+  };
+  ```
+- **Responsibilities**: Manages tabs, form state, toggles, confirmation dialog, save flows, and feedback states.
+- **State Variables**:
+  ```ts
+  const [currentTab, setCurrentTab];
+  const [preferences, setPreferences];
+  const [updatedAt, setUpdatedAt];
+  const [isSavingPreferences, setIsSavingPreferences];
+  const [preferencesError, setPreferencesError];
+  const [preferencesSuccess, setPreferencesSuccess];
+  const [password, setPassword];
+  const [confirmPassword, setConfirmPassword];
+  const [isUpdatingPassword, setIsUpdatingPassword];
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen];
+  const [passwordError, setPasswordError];
+  const [passwordSuccess, setPasswordSuccess];
+  ```
+
+---
+
+## 4. Form Fields
+
+### Preferences and Privacy
+
+| Field | Type | Values | Saved To | Notes |
+| --- | --- | --- | --- | --- |
+| Theme | Select | system, light, dark | users_profile.preferences.theme + auth metadata | Applied immediately via `setTheme` |
+| Timezone | Select | 6 predefined timezones | users_profile.preferences.timezone + auth metadata | Validated against allowlist |
+| Email notifications | Toggle | boolean | users_profile.preferences.emailNotifications + auth metadata | Defaults to true if missing |
+| Product alerts | Toggle | boolean | users_profile.preferences.productAlerts + auth metadata | Defaults to true if missing |
+| Marketing emails | Toggle | boolean | users_profile.preferences.marketingEmails + auth metadata | Defaults to false if missing |
+| Public profile | Toggle | boolean | users_profile.preferences.publicProfile + auth metadata | Defaults to false if missing |
+
+### Security
+
+| Field | Type | Validation | Saved To | Notes |
+| --- | --- | --- | --- | --- |
+| New password | Password input | min 8 chars | Supabase auth user | Requires confirmation dialog |
+| Confirm password | Password input | must match | Supabase auth user | Inline mismatch hint shown |
+
+---
+
+## 5. Confirmation Dialog
+
+### Trigger Behavior
+
+Dialog opens when the user submits the Security tab form and all validations pass:
+
+1. Password length is at least 8
+2. Confirmation is not empty
+3. Password and confirmation match
+
+### Dialog Content
+
+- **Title**: "Confirm password change"
+- **Description**: "This will update your account password. Make sure you remember it."
+- **Buttons**:
+  - Cancel (outline, closes dialog)
+  - Confirm update (executes `auth.updateUser`)
+
+---
+
+## 6. Loading and Feedback States
+
+| State | Trigger | Where Shown | UI Displayed | Duration |
+| --- | --- | --- | --- | --- |
+| Saving preferences | Preferences or Privacy submit | Preferences/Privacy tab | Button text "Saving..." | Until save completes |
+| Preferences success | Save succeeds | Preferences/Privacy tab | Inline success text in green | Auto-dismiss after 3000ms |
+| Preferences error | Save fails | Preferences/Privacy tab | Inline error text in red | Auto-dismiss after 3000ms |
+| Password too short | Password length < 8 | Security tab | Inline hint in amber | Until length valid |
+| Password mismatch | Passwords differ | Security tab | Inline hint in amber | Until match |
+| Updating password | Confirm update click | Security tab | Button text "Updating..." | Until update completes |
+| Password success | Update succeeds | Security tab | Inline success text in green | Auto-dismiss after 3000ms |
+| Password error | Update fails | Security tab | Inline error text in red | Auto-dismiss after 3000ms |
+| Missing profile record | No profile row | Preferences/Privacy tab | Banner warning message | Persistent |
+
+---
+
+## 7. Affected Files
+
+| File | Status | Purpose |
+| --- | --- | --- |
+| `app/(buyer)/profile/settings/page.tsx` | Created | Server page that loads user + preferences and renders the settings form |
+| `components/forms/user-settings-form.tsx` | Created | Client form with tabs, toggles, validation, and dialog |
+| `lib/actions/settings.ts` | Created | Server action to persist preferences and metadata |
+| `lib/supabase/client.ts` | Existing | Client-side Supabase auth for password updates |
+| `lib/supabase/server.ts` | Existing | Server-side Supabase auth for page data |
+
+---
+
+## 8. Supabase Integration
+
+### Tables and Columns
+
+**users_profile** (Read + Write)
+
+- Read columns: `role`, `email_verified`, `preferences`, `updated_at`
+- Write columns: `preferences`, `updated_at`
+
+### Auth Metadata
+
+`savePreferences` syncs these keys to auth metadata (non-blocking):
+
+- `email_notifications`
+- `product_alerts`
+- `marketing_emails`
+- `public_profile`
+- `theme_preference`
+- `timezone`
+
+### Auth Operations
+
+- Page load: `supabase.auth.getUser()` on the server
+- Password update: `supabase.auth.updateUser({ password })` on the client
+
+---
+
+## 9. Animation Summary
+
+| Element | Animation | Duration | Library | Config |
+| --- | --- | --- | --- | --- |
+| Card container | Fade + translate Y 14 -> 0 | 450ms | Framer Motion | `cardMotion` with easeOut |
+| Tab panel | Fade + translate Y 10 -> 0 | 250ms | Framer Motion | `panelMotion` with easeOut |
+
+---
+
+## 10. How to Modify
+
+### Adding a New Preference Toggle
+
+**Step 1**: Extend the preferences type in both files
+
+```ts
+// app/(buyer)/profile/settings/page.tsx
+type UserSettingsPreferences = {
+  // ...existing fields
+  newPreference: boolean;
 };
 
+// components/forms/user-settings-form.tsx
 type UserSettingsPreferences = {
-  emailNotifications: boolean;
-  productAlerts: boolean;
-  marketingEmails: boolean;
-  publicProfile: boolean;
-  theme: 'system' | 'light' | 'dark';
-  timezone: string;
+  // ...existing fields
+  newPreference: boolean;
 };
 ```
 
-### State Management
-- **Preferences State**: Tracks user preference selections
-- **Password State**: Separate states for password, confirmPassword, isUpdatingPassword
-- **UI State**: Loading flags (isSavingPreferences, isUpdatingPassword), error/success messages
-- **Dialog State**: isConfirmDialogOpen for password confirmation
+**Step 2**: Add a default value in `initialPreferences`
 
-### Key Functions
-1. **`handleSavePreferences`**: Saves preference/privacy settings via server action
-2. **`handlePasswordSubmit`**: Form submission handler that opens confirmation dialog
-3. **`handleUpdatePassword`**: Performs actual password update via Supabase
-4. **`handleConfirmPasswordUpdate`**: Closes dialog and triggers password update
-5. **`getErrorMessage`**: Normalizes error objects for display
+```ts
+const initialPreferences: UserSettingsPreferences = {
+  // ...existing fields
+  newPreference: readBoolean(profilePreferences.newPreference, false),
+};
+```
 
-### Dependencies
-- `next/navigation`: Router for page refresh
-- `next-themes`: Theme management integration
-- `@radix-ui`: Dialog and form UI primitives
-- `framer-motion`: Animation library
-- `lucide-react`: Icon library
-- Supabase: Authentication & password update
+**Step 3**: Add the toggle UI and update state
 
-### Auto-Dismiss Messages
-Success/error messages auto-dismiss after 3 seconds via `setTimeout`. Timer is cleared when:
-- User switches tabs
-- Component unmounts
-- New message appears
+```tsx
+<ToggleSwitch
+  id="newPreference"
+  checked={preferences.newPreference}
+  onCheckedChange={(checked) =>
+    setPreferences((prev) => ({
+      ...prev,
+      newPreference: checked,
+    }))
+  }
+/>
+```
 
-## Validation & Error Handling
+**Step 4**: Update the server action to persist metadata
 
-### Password Validation
-1. Minimum 8 characters required
-2. Password and confirm password must match
-3. Real-time validation feedback with inline messages
-4. Button disabled until all validations pass
+```ts
+await supabase.auth.updateUser({
+  data: {
+    // ...existing metadata
+    new_preference: preferences.newPreference,
+  },
+});
+```
 
-### Error Messages
-- Normalized from various error object types
-- Falls back to generic message if error structure unknown
-- Displayed for 3 seconds then auto-dismissed
-
-## Recent Updates
-
-### v1.1 - Confirmation Dialog & Toggle Switches
-- Added confirmation dialog before password change
-- Replaced checkboxes with red toggle switches
-- Improved mobile layout for toggle cards
-- Enhanced accessibility with label wrapping
-
-### v1.0 - Framer Motion Integration
-- Added entrance animations to settings card
-- Tab panel animations on switch
-- Smooth visual feedback on interaction
-
-## Future Enhancements
-
-1. **Two-Factor Authentication (2FA)**: Add TOTP setup in Security tab
-2. **Session Management**: View active sessions and sign out remotely
-3. **Activity Log**: Display recent account activity
-4. **Download Data**: GDPR compliance - export user data
-5. **Account Deletion**: Safe account removal with confirmation
-6. **Notification Preferences**: Granular control by notification type
-7. **Linked Accounts**: Connect social logins or third-party services
-
-## Testing Checklist
-
-- Preferences save without errors
-- Privacy settings persist across page refresh
-- Password update requires confirmation dialog
-- Toggles work on mobile (44px touch targets)
-- Tab switching clears messages
-- Messages auto-dismiss after 3 seconds
-- Animations play smoothly on all tabs
-- Validation prevents invalid password submission
-- Error messages displayed and cleared correctly
-- Theme change applies immediately
-- Timezone persists on refresh
-
-## Styling Notes
-
-- **Colors**: Rose/pink/amber gradients with red accents for key actions
-- **Dark Mode**: Supported with corresponding color palettes (dark: prefixes)
-- **Spacing**: Consistent use of space-y-4, space-y-6 for vertical rhythm
-- **Border Radius**: sm:rounded-lg for cards, rounded-full for badges
-- **Shadows**: shadow-md for cards, shadow-sm for info boxes
-- **Transitions**: All interactive elements have smooth hover states and transitions
+**Step 5**: Update this documentation (Form Fields, Data Flow, and Supabase Integration)
