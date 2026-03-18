@@ -102,6 +102,8 @@ export function UserSettingsForm({
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
+  const passwordMismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   const lastUpdated = useMemo(() => {
     if (!updatedAt) {
@@ -457,8 +459,14 @@ export function UserSettingsForm({
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="At least 8 characters"
+                      minLength={8}
                       disabled={isUpdatingPassword}
                     />
+                    {passwordNeedsMoreChars ? (
+                      <p className="text-xs text-amber-600" aria-live="polite">
+                        Password must be at least 8 characters ({password.length}/8).
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="grid gap-2">
@@ -469,15 +477,29 @@ export function UserSettingsForm({
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}
                       placeholder="Re-enter new password"
+                      minLength={8}
                       disabled={isUpdatingPassword}
                     />
+                    {passwordMismatch ? (
+                      <p className="text-xs text-amber-600" aria-live="polite">
+                        Password and confirmation do not match yet.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
                 {passwordError ? <p className="text-sm text-red-600">{passwordError}</p> : null}
                 {passwordSuccess ? <p className="text-sm text-emerald-600">{passwordSuccess}</p> : null}
 
-                <Button type="submit" disabled={isUpdatingPassword}>
+                <Button
+                  type="submit"
+                  disabled={
+                    isUpdatingPassword ||
+                    password.length < 8 ||
+                    confirmPassword.length === 0 ||
+                    passwordMismatch
+                  }
+                >
                   {isUpdatingPassword ? 'Updating...' : 'Update password'}
                 </Button>
               </form>
