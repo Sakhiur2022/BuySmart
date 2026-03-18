@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from './logout-button';
@@ -54,6 +55,14 @@ export async function AuthButton() {
         aria-label={`Go to profile: ${userName}`}
       >
         {userName}
+      </Link>
+      <Link
+        href="/profile/settings"
+        className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+        title="Settings"
+        aria-label="Account settings"
+      >
+        <Settings className="h-4 w-4" aria-hidden="true" />
       </Link>
       <LogoutButton />
     </div>

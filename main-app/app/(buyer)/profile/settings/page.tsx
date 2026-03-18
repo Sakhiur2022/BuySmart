@@ -94,13 +94,6 @@ export default async function UserSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
-        <h1 className="text-2xl font-semibold sm:text-3xl">Settings</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-          Manage your account preferences, password, and personalization options.
-        </p>
-      </section>
-
       <UserSettingsForm
         userId={user.id}
         email={user.email ?? 'No email'}

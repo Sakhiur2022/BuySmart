@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { createClient } from '@/lib/supabase/client';
+import { savePreferences } from '@/lib/actions/settings';
 
 type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -86,6 +88,9 @@ export function UserSettingsForm({
   initialPreferences,
 }: UserSettingsFormProps) {
   const router = useRouter();
+  const { setTheme } = useTheme();
+  const dismissTimerRef = useRef<number | null>(null);
+  const [currentTab, setCurrentTab] = useState('preferences');
   const [preferences, setPreferences] = useState<UserSettingsPreferences>(initialPreferences);
   const [updatedAt, setUpdatedAt] = useState<string | null>(initialUpdatedAt);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
@@ -111,6 +116,48 @@ export function UserSettingsForm({
     return date.toLocaleString();
   }, [updatedAt]);
 
+  // Auto-dismiss messages after 3 seconds
+  useEffect(() => {
+    const hasMessage = preferencesError || preferencesSuccess || passwordError || passwordSuccess;
+    if (!hasMessage) {
+      return;
+    }
+
+    if (dismissTimerRef.current) {
+      window.clearTimeout(dismissTimerRef.current);
+    }
+
+    dismissTimerRef.current = window.setTimeout(() => {
+      setPreferencesError(null);
+      setPreferencesSuccess(null);
+      setPasswordError(null);
+      setPasswordSuccess(null);
+    }, 3000);
+
+    return () => {
+      if (dismissTimerRef.current) {
+        window.clearTimeout(dismissTimerRef.current);
+      }
+    };
+  }, [preferencesError, preferencesSuccess, passwordError, passwordSuccess]);
+
+  // Clear messages when switching tabs
+  useEffect(() => {
+    setPreferencesError(null);
+    setPreferencesSuccess(null);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+  }, [currentTab]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current) {
+        window.clearTimeout(dismissTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleSavePreferences = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSavingPreferences(true);
@@ -124,49 +171,15 @@ export function UserSettingsForm({
     }
 
     try {
-      const supabase = createClient();
-      const now = new Date().toISOString();
+      const result = await savePreferences(userId, preferences);
 
-      const { data: updatedRows, error: profileError } = await supabase
-        .from('users_profile')
-        .update({
-          preferences,
-          updated_at: now,
-        })
-        .eq('user_id', userId)
-        .select('user_id');
-
-      if (profileError) {
-        throw profileError;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save preferences');
       }
 
-      if (!updatedRows || updatedRows.length === 0) {
-        setPreferencesError('Profile record is not initialized yet. Please sign out and sign in again.');
-        setIsSavingPreferences(false);
-        return;
-      }
-
-      const { error: metadataError } = await supabase.auth.updateUser({
-        data: {
-          email_notifications: preferences.emailNotifications,
-          product_alerts: preferences.productAlerts,
-          marketing_emails: preferences.marketingEmails,
-          public_profile: preferences.publicProfile,
-          theme_preference: preferences.theme,
-          timezone: preferences.timezone,
-        },
-      });
-
-      setUpdatedAt(now);
-
-      if (metadataError) {
-        setPreferencesSuccess(
-          'Preferences saved, but auth metadata sync failed. Please refresh and try again.',
-        );
-      } else {
-        setPreferencesSuccess('Preferences saved successfully.');
-      }
-
+      setUpdatedAt(result.updatedAt);
+      setTheme(preferences.theme);
+      setPreferencesSuccess('Preferences saved successfully.');
       router.refresh();
     } catch (error: unknown) {
       setPreferencesError(getErrorMessage(error));
@@ -213,31 +226,38 @@ export function UserSettingsForm({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="space-y-4">
+      <Card className="overflow-hidden border-pink-200/80 bg-linear-to-br from-rose-50 via-background to-amber-50/70 shadow-md dark:border-pink-500/30 dark:from-rose-950/25 dark:via-background dark:to-amber-950/20">
+        <CardHeader className="space-y-4 bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_40%)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="text-xl">Account Settings</CardTitle>
+              <CardTitle className="text-xl text-rose-700 dark:text-rose-200">
+                Account Settings
+              </CardTitle>
               <CardDescription>Update your preferences and secure your account.</CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary">{formatRole(role)}</Badge>
-              <Badge variant={emailVerified ? 'default' : 'outline'}>
+              <Badge
+                variant="secondary"
+                className="rounded-full border-pink-200 bg-pink-100/80 text-rose-700 dark:border-pink-500/40 dark:bg-rose-900/30 dark:text-rose-200"
+              >
+                {formatRole(role)}
+              </Badge>
+              <Badge variant={emailVerified ? 'default' : 'outline'} className="rounded-full">
                 {emailVerified ? 'Email verified' : 'Email not verified'}
               </Badge>
             </div>
           </div>
 
           <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-            <div>
+            <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
               <p className="text-xs uppercase tracking-wide">Account Email</p>
               <p className="mt-1 font-medium text-foreground">{email}</p>
             </div>
-            <div>
+            <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
               <p className="text-xs uppercase tracking-wide">Last Updated</p>
               <p className="mt-1 font-medium text-foreground">{lastUpdated}</p>
             </div>
-            <div>
+            <div className="rounded-xl border border-pink-100 bg-white/70 px-3 py-2 shadow-sm dark:border-pink-500/20 dark:bg-rose-950/10">
               <p className="text-xs uppercase tracking-wide">User ID</p>
               <p className="mt-1 truncate font-medium text-foreground">{userId}</p>
             </div>
@@ -253,7 +273,7 @@ export function UserSettingsForm({
             </div>
           ) : null}
 
-          <Tabs defaultValue="preferences" className="space-y-6">
+          <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
             <TabsList>
               <TabsTrigger value="preferences">Preferences</TabsTrigger>
               <TabsTrigger value="privacy">Privacy</TabsTrigger>
