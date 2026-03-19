@@ -4,12 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 export default async function ProtectedPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('users_profile')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profile?.role === 'seller') {
+      redirect('/seller');
+    }
+  }
 
   const isAuthenticated = Boolean(user);
   const buyerName =

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { OAuthProviderButtons } from '@/app/(auth)/components/oauth-provider-buttons';
-import { Suspense } from 'react';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,7 +49,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
 
     try {
       const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -59,7 +58,24 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         throw signInError;
       }
 
-      router.replace('/');
+      const roleFromMetadata = data.user?.user_metadata?.role;
+      const normalizedRole =
+        roleFromMetadata === 'seller' || roleFromMetadata === 'buyer'
+          ? roleFromMetadata
+          : null;
+
+      if (data.user?.id && normalizedRole) {
+        const { error: profileError } = await supabase
+          .from('users_profile')
+          .upsert({ user_id: data.user.id, role: normalizedRole }, { onConflict: 'user_id' });
+
+        if (profileError) {
+          console.warn('Profile bootstrap failed:', profileError.message);
+        }
+      }
+
+      const nextPath = normalizedRole === 'seller' ? '/seller' : '/';
+      router.replace(nextPath);
       router.refresh();
     } catch (signInError: unknown) {
       setError(getLoginErrorMessage(signInError));

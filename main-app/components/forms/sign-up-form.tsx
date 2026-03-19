@@ -1,23 +1,41 @@
 'use client';
 
-import { Suspense } from 'react';
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
 import { OAuthProviderButtons } from '@/app/(auth)/components/oauth-provider-buttons';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
+type SignUpFormProps = React.ComponentPropsWithoutRef<'div'> & {
+  defaultRole?: 'buyer' | 'seller';
+  hideRoleSelect?: boolean;
+};
+
+export function SignUpForm({
+  className,
+  defaultRole,
+  hideRoleSelect,
+  ...props
+}: SignUpFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState<'buyer' | 'seller'>(defaultRole ?? 'buyer');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,9 +52,27 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
     confirmPassword.length > 0 &&
     !passwordMismatch;
 
+  useEffect(() => {
+    if (defaultRole) {
+      setRole(defaultRole);
+      return;
+    }
+
+    const roleParam = searchParams.get('role');
+    if (roleParam === 'seller') {
+      setRole('seller');
+      return;
+    }
+    if (roleParam === 'buyer') {
+      setRole('buyer');
+    }
+  }, [defaultRole, searchParams]);
+
   const handleEmailSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+
+    const normalizedRole = role === 'seller' ? 'seller' : 'buyer';
 
     if (!fullName.trim()) {
       setError('Full name is required.');
@@ -57,7 +93,8 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
 
     try {
       const supabase = createClient();
-      const redirectTo = `${window.location.origin}/auth/confirm?next=/`;
+      const nextPath = normalizedRole === 'seller' ? '/seller' : '/';
+      const redirectTo = `${window.location.origin}/auth/confirm?next=${nextPath}`;
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
@@ -67,6 +104,7 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
           data: {
             full_name: fullName.trim(),
             name: fullName.trim(),
+            role: normalizedRole,
           },
         },
       });
@@ -75,8 +113,16 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
         throw signUpError;
       }
 
-      if (data.session) {
-        router.replace('/');
+      if (data.session && data.user?.id) {
+        const { error: profileError } = await supabase
+          .from('users_profile')
+          .upsert({ user_id: data.user.id, role: normalizedRole }, { onConflict: 'user_id' });
+
+        if (profileError) {
+          console.warn('Profile bootstrap failed:', profileError.message);
+        }
+
+        router.replace(nextPath);
       } else {
         router.replace('/auth/sign-up-success');
       }
@@ -114,6 +160,26 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
                   disabled={isSubmitting}
                 />
               </div>
+
+              {!hideRoleSelect ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="signUpRole">Account type</Label>
+                  <Select
+                    value={role}
+                    onValueChange={(value) =>
+                      setRole(value === 'seller' ? 'seller' : 'buyer')
+                    }
+                  >
+                    <SelectTrigger id="signUpRole">
+                      <SelectValue placeholder="Choose a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="buyer">Buyer</SelectItem>
+                      <SelectItem value="seller">Seller</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
 
               <div className="grid gap-2">
                 <Label htmlFor="signUpEmail">Email</Label>

@@ -1,12 +1,11 @@
 import Link from 'next/link';
-import { LayoutDashboard, Package, PlusCircle, Settings } from 'lucide-react';
+import { LayoutDashboard, Package, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const sellerNav = [
   { href: '/seller', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/seller/products', label: 'My Products', icon: Package },
   { href: '/seller/products/new', label: 'Add Product', icon: PlusCircle },
-  { href: '/seller/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
