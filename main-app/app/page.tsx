@@ -54,6 +54,7 @@ export default async function Home() {
     userDisplayName =
       (user?.user_metadata?.full_name as string | undefined) ??
       (user?.user_metadata?.name as string | undefined);
+
   }
 
   const isAuthenticated = Boolean(userEmail);
@@ -99,6 +100,17 @@ export default async function Home() {
                   Review the integration plan
                 </Link>
               </div>
+              {!isAuthenticated ? (
+                <p className="text-sm text-muted-foreground">
+                  Want to sell on BuySmart?{' '}
+                  <Link
+                    href="/auth/seller-sign-up"
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    Sign up as a seller
+                  </Link>
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-1 flex-col gap-4 rounded-3xl border border-white/10 bg-background/80 p-6 shadow-xl shadow-primary/10">

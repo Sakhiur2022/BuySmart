@@ -50,7 +50,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
 
     try {
       const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -59,7 +59,24 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         throw signInError;
       }
 
-      router.replace('/');
+      const roleFromMetadata = data.user?.user_metadata?.role;
+      const normalizedRole =
+        roleFromMetadata === 'seller' || roleFromMetadata === 'buyer'
+          ? roleFromMetadata
+          : null;
+
+      if (data.user?.id && normalizedRole) {
+        const { error: profileError } = await supabase
+          .from('users_profile')
+          .upsert({ user_id: data.user.id, role: normalizedRole }, { onConflict: 'user_id' });
+
+        if (profileError) {
+          console.warn('Profile bootstrap failed:', profileError.message);
+        }
+      }
+
+      const nextPath = normalizedRole === 'seller' ? '/seller' : '/';
+      router.replace(nextPath);
       router.refresh();
     } catch (signInError: unknown) {
       setError(getLoginErrorMessage(signInError));
