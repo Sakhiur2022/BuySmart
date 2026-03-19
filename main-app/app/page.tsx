@@ -101,14 +101,32 @@ export default async function Home() {
                 </Link>
               </div>
               {!isAuthenticated ? (
-                <p className="text-sm text-muted-foreground">
-                  Want to sell on BuySmart?{' '}
-                  <Link
-                    href="/auth/seller-sign-up"
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    Sign up as a seller
-                  </Link>
+                <p className="flex items-center gap-2 text-base font-medium text-muted-foreground">
+                  <span className="inline-flex items-center justify-center rounded-full border border-primary/20 bg-primary/10 p-1 text-primary" aria-hidden>
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 10h18" />
+                      <path d="M4 10l2-6h12l2 6" />
+                      <path d="M5 10v8h14v-8" />
+                      <path d="M9 18v-6h6v6" />
+                    </svg>
+                  </span>
+                  <span>
+                    Want to sell on BuySmart?{' '}
+                    <Link
+                      href="/auth/seller-sign-up"
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Sign up as a seller
+                    </Link>
+                  </span>
                 </p>
               ) : null}
             </div>
