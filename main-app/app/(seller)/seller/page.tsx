@@ -70,7 +70,7 @@ export default async function SellerPage() {
 
   const { data: productsData } = await supabase
     .from('products')
-    .select('product_id, name, price, inventory_quantity, status, images, created_at')
+    .select('product_id, name, price, inventory_quantity, status, images, created_at, category_id')
     .eq('seller_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -311,7 +311,7 @@ export default async function SellerPage() {
                   </thead>
                   <tbody>
                     {recentOrders.map((order) => {
-                      const profile = order.orders?.users_profile ?? null;
+                      const profile = order.orders?.users_profile?.[0] ?? null;
                       const orderNumber = order.orders?.order_number ?? order.order_id;
                       const createdAt = order.orders?.created_at ?? order.created_at;
 
