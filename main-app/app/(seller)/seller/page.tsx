@@ -265,8 +265,10 @@ export default async function SellerPage() {
                           </td>
                           <td className="px-3 py-4">
                             <div className="flex justify-end gap-2">
-                              <Button size="xs" variant="outline">
-                                Edit
+                              <Button asChild size="xs" variant="outline">
+                                <Link href={`/seller/products/${product.product_id}/edit`}>
+                                  Edit
+                                </Link>
                               </Button>
                               <Button size="xs" variant="destructive">
                                 Delete
