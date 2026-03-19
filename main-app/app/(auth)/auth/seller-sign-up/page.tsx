@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { SignUpForm } from '@/components/forms/sign-up-form';
 
 const BENEFITS = [
@@ -53,7 +54,9 @@ export default function SellerSignUpPage() {
         </section>
 
         <section className="w-full max-w-sm justify-self-center lg:justify-self-end">
-          <SignUpForm defaultRole="seller" hideRoleSelect />
+          <Suspense fallback={<p className="text-center text-muted-foreground">Loading...</p>}>
+            <SignUpForm defaultRole="seller" hideRoleSelect />
+          </Suspense>
         </section>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -137,10 +138,12 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
                         <td className="px-3 py-4">
                           <div className="flex items-center gap-3">
                             {imageUrl ? (
-                              <img
+                              <Image
                                 src={imageUrl}
                                 alt={product.name}
-                                className="h-10 w-10 rounded-md object-cover"
+                                width={40}
+                                height={40}
+                                className="rounded-md object-cover"
                               />
                             ) : (
                               <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
@@ -161,6 +164,9 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
                           <div className="flex justify-end gap-2">
                             <Button asChild size="xs" variant="outline">
                               <Link href={`/seller/products/${product.product_id}/edit`}>Edit</Link>
+                            </Button>
+                            <Button size="xs" variant="destructive">
+                              Delete
                             </Button>
                           </div>
                         </td>

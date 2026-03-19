@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,17 @@ import {
   type SalesOverviewPoint,
 } from '@/components/seller/sales-overview-chart';
 import { createClient } from '@/lib/supabase/server';
+
+type RecentOrderItem = {
+  order_item_id: string;
+  order_id: string;
+  total_price: number;
+  status: string;
+  created_at: string;
+  products?: Array<{ name: string; images?: unknown }> | null;
+  users_profile?: Array<{ full_name: string | null; display_name: string | null }> | null;
+  order_number?: string;
+};
 
 const STAT_DELTAS = {
   revenue: '+12.5%',
@@ -242,10 +254,12 @@ export default async function SellerPage() {
                           <td className="px-3 py-4">
                             <div className="flex items-center gap-3">
                               {imageUrl ? (
-                                <img
+                                <Image
                                   src={imageUrl}
                                   alt={product.name}
-                                  className="h-10 w-10 rounded-md object-cover"
+                                  width={40}
+                                  height={40}
+                                  className="rounded-md object-cover"
                                 />
                               ) : (
                                 <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
@@ -310,10 +324,10 @@ export default async function SellerPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentOrders.map((order) => {
-                      const profile = order.orders?.users_profile?.[0] ?? null;
-                      const orderNumber = order.orders?.order_number ?? order.order_id;
-                      const createdAt = order.orders?.created_at ?? order.created_at;
+                    {recentOrders.map((order: RecentOrderItem) => {
+                      const profile = order.users_profile?.[0] ?? null;
+                      const orderNumber = order.order_number ?? order.order_id;
+                      const createdAt = order.created_at;
 
                       return (
                         <tr key={order.order_item_id} className="border-b last:border-b-0">
@@ -321,7 +335,7 @@ export default async function SellerPage() {
                             {orderNumber}
                           </td>
                           <td className="px-3 py-4">{resolveCustomerName(profile)}</td>
-                          <td className="px-3 py-4">{order.products?.name ?? 'Product'}</td>
+                          <td className="px-3 py-4">{order.products?.[0]?.name ?? 'Product'}</td>
                           <td className="px-3 py-4">{formatCurrency(order.total_price)}</td>
                           <td className="px-3 py-4">
                             <Badge className="border-amber-200 bg-amber-100 text-amber-700">
