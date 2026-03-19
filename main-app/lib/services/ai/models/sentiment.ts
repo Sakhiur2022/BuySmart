@@ -87,7 +87,7 @@ Guidelines:
       rawLabel: parsed.sentiment,
       model: aiModels.chat.id,
     };
-  } catch (e) {
+  } catch {
     throw new AIResponseError(`Failed to parse Groq sentiment response: ${responseText}`);
   }
 }
