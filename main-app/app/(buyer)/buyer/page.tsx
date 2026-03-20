@@ -6,11 +6,38 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-export default async function ProtectedPage() {
+type BuyerPageProps = {
+  searchParams?: Promise<{
+    mode?: string | string[];
+  }>;
+};
+
+function getSearchValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+function isBuyerMode(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return value === 'buyer' || value === '1' || value === 'true';
+}
+
+export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const resolvedSearchParams = await searchParams;
+  const buyerMode = getSearchValue(resolvedSearchParams?.mode);
+  const allowSellerView = isBuyerMode(buyerMode);
+  let role: string | null = null;
 
   if (user) {
     const { data: profile } = await supabase
@@ -19,7 +46,9 @@ export default async function ProtectedPage() {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (profile?.role === 'seller') {
+    role = profile?.role ?? null;
+
+    if (role === 'seller' && !allowSellerView) {
       redirect('/seller');
     }
   }
@@ -31,8 +60,18 @@ export default async function ProtectedPage() {
     user?.email ||
     'Guest Buyer';
 
+  const showBuyerModeBanner = role === 'seller' && allowSellerView;
+
   return (
     <div className="space-y-8">
+      {showBuyerModeBanner ? (
+        <div className="rounded-lg border border-rose-200 bg-linear-to-r from-rose-100 via-pink-100 to-amber-100 px-4 py-3 text-sm text-rose-700 shadow-sm">
+          <span className="font-semibold">Buyer mode</span> enabled. Enjoy the storefront view.{' '}
+          <Link href="/seller" className="font-semibold underline underline-offset-2">
+            Back to seller dashboard
+          </Link>
+        </div>
+      ) : null}
       <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
