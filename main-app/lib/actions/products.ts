@@ -20,9 +20,13 @@ function getNumber(formData: FormData, key: string): number {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+function appendQueryParam(basePath: string, key: string, value: string): string {
+  const separator = basePath.includes('?') ? '&' : '?';
+  return `${basePath}${separator}${key}=${encodeURIComponent(value)}`;
+}
+
 function buildErrorPath(basePath: string, message: string): never {
-  const query = encodeURIComponent(message);
-  redirect(`${basePath}?error=${query}`);
+  redirect(appendQueryParam(basePath, 'error', message));
 }
 
 async function requireSeller() {
@@ -174,4 +178,39 @@ export async function updateProductAction(formData: FormData) {
   revalidatePath('/seller/products');
   revalidatePath(`/seller/products/${productId}/edit`);
   redirect('/seller/products?updated=1');
+}
+
+export async function deleteProductAction(formData: FormData) {
+  const { supabase, userId } = await requireSeller();
+  const serviceRoleClient = getServiceRoleSupabase();
+  const writeClient = serviceRoleClient ?? supabase;
+
+  const productId = getString(formData, 'product_id');
+  const returnTo = getString(formData, 'return_to') || '/seller/products';
+
+  if (!productId) {
+    buildErrorPath(returnTo, 'Product id is missing.');
+  }
+
+  const { error } = await writeClient
+    .from('products')
+    .delete()
+    .eq('product_id', productId)
+    .eq('seller_id', userId);
+
+  if (error) {
+    if (!serviceRoleClient && /row-level security/i.test(error.message)) {
+      buildErrorPath(
+        returnTo,
+        'Product deletion is blocked by RLS. Add SUPABASE_SERVICE_ROLE_KEY in your server env or update your RLS policy.',
+      );
+    }
+
+    buildErrorPath(returnTo, error.message);
+  }
+
+  revalidatePath('/seller');
+  revalidatePath('/seller/products');
+  revalidatePath(`/seller/products/${productId}/edit`);
+  redirect(appendQueryParam(returnTo, 'deleted', '1'));
 }

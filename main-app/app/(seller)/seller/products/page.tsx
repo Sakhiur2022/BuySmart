@@ -40,6 +40,7 @@ type ProductsPageProps = {
   searchParams?: Promise<{
     saved?: string | string[];
     updated?: string | string[];
+    deleted?: string | string[];
     error?: string | string[];
   }>;
 };
@@ -74,6 +75,7 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
   const products = productsData ?? [];
   const saved = getSearchValue(resolvedSearchParams?.saved);
   const updated = getSearchValue(resolvedSearchParams?.updated);
+  const deleted = getSearchValue(resolvedSearchParams?.deleted);
   const error = getSearchValue(resolvedSearchParams?.error);
 
   return (
@@ -100,6 +102,11 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
       {updated ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           Product updated successfully.
+        </div>
+      ) : null}
+      {deleted ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Product deleted successfully.
         </div>
       ) : null}
       {error ? (
@@ -165,9 +172,13 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
                             <Button asChild size="xs" variant="outline">
                               <Link href={`/seller/products/${product.product_id}/edit`}>Edit</Link>
                             </Button>
-                            <Button size="xs" variant="destructive">
-                              Delete
-                            </Button>
+                            <form action="/seller/products/delete" method="post" className="inline-flex">
+                              <input type="hidden" name="product_id" value={product.product_id} />
+                              <input type="hidden" name="return_to" value="/seller/products" />
+                              <Button type="submit" size="xs" variant="destructive">
+                                Delete
+                              </Button>
+                            </form>
                           </div>
                         </td>
                       </tr>

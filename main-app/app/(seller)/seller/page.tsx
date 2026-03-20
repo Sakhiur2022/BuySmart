@@ -30,6 +30,13 @@ const STAT_DELTAS = {
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
 
+type SellerPageProps = {
+  searchParams?: Promise<{
+    deleted?: string | string[];
+    error?: string | string[];
+  }>;
+};
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -56,11 +63,19 @@ function pickImage(images: unknown): string | null {
   return null;
 }
 
+function getSearchValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
 function resolveCustomerName(profile: { full_name: string | null; display_name: string | null } | null) {
   return profile?.display_name || profile?.full_name || 'Customer';
 }
 
-export default async function SellerPage() {
+export default async function SellerPage({ searchParams }: SellerPageProps) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -103,6 +118,10 @@ export default async function SellerPage() {
   const products = productsData ?? [];
   const orderItems = orderItemsData ?? [];
   const recentOrders = recentOrderItemsData ?? [];
+
+  const resolvedSearchParams = await searchParams;
+  const deleted = getSearchValue(resolvedSearchParams?.deleted);
+  const error = getSearchValue(resolvedSearchParams?.error);
 
   const totalRevenue = orderItems.reduce(
     (sum, item) => sum + (item.total_price ?? 0),
@@ -161,6 +180,17 @@ export default async function SellerPage() {
           </Button>
         </div>
       </section>
+
+      {deleted ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Product deleted successfully.
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -284,9 +314,13 @@ export default async function SellerPage() {
                                   Edit
                                 </Link>
                               </Button>
-                              <Button size="xs" variant="destructive">
-                                Delete
-                              </Button>
+                              <form action="/seller/products/delete" method="post" className="inline-flex">
+                                <input type="hidden" name="product_id" value={product.product_id} />
+                                <input type="hidden" name="return_to" value="/seller" />
+                                <Button type="submit" size="xs" variant="destructive">
+                                  Delete
+                                </Button>
+                              </form>
                             </div>
                           </td>
                         </tr>
