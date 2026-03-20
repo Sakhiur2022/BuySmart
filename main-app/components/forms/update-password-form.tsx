@@ -20,9 +20,11 @@ export function UpdatePasswordForm({
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
+  const passwordMismatch = confirmPassword.length > 0 && password !== confirmPassword;
   const router = useRouter();
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -37,11 +39,18 @@ export function UpdatePasswordForm({
       return;
     }
 
+    if (password !== confirmPassword) {
+      setError("Password and confirmation do not match.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
+      // Redirect to the home page and refresh to sync auth state.
+      router.replace("/");
+      router.refresh();
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -78,8 +87,34 @@ export function UpdatePasswordForm({
                   </p>
                 ) : null}
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Re-enter your password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                {passwordMismatch ? (
+                  <p className="text-xs text-amber-600" aria-live="polite">
+                    Password and confirmation do not match yet.
+                  </p>
+                ) : null}
+              </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading || password.length < 8}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  isLoading ||
+                  password.length < 8 ||
+                  confirmPassword.length < 8 ||
+                  passwordMismatch
+                }
+              >
                 {isLoading ? "Saving..." : "Save new password"}
               </Button>
             </div>
