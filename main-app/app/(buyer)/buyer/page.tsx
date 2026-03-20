@@ -2,6 +2,7 @@ import { RecommendationPanel } from '@/components/recommendations/recommendation
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ProductCandidate } from '@/lib/agents/recommendation/types';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -65,6 +66,21 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
 
   const showBuyerModeBanner = role === 'seller' && allowSellerView;
 
+  const { data: products } = await supabase
+    .from('products')
+    .select('product_id, name, category_id, price, tags')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  const candidates: ProductCandidate[] = (products ?? []).map((product) => ({
+    id: product.product_id,
+    title: product.name,
+    category_id: product.category_id ?? undefined,
+    price: product.price,
+    tags: product.tags ?? undefined,
+  }));
+
   return (
     <div className="space-y-8">
       {showBuyerModeBanner ? (
@@ -108,6 +124,7 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
         isAuthenticated={isAuthenticated}
         userEmail={user?.email ?? null}
         userDisplayName={buyerName}
+        candidates={candidates}
       />
 
       <section className="grid gap-4 md:grid-cols-3">
