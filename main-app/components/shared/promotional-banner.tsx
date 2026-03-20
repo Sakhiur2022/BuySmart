@@ -67,27 +67,6 @@ export function PromotionalBanner({ visiblePaths }: PromotionalBannerProps) {
           </div>
         </div>
       </div>
-      <style jsx>{`
-        .banner-marquee {
-          animation: banner-marquee 22s linear infinite;
-        }
-
-        @keyframes banner-marquee {
-          from {
-            transform: translateX(0);
-          }
-          to {
-            transform: translateX(-50%);
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .banner-marquee {
-            animation: none;
-            transform: none;
-          }
-        }
-      `}</style>
     </div>
   );
 }
