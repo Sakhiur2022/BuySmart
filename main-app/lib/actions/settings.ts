@@ -11,6 +11,21 @@ type UserSettingsPreferences = {
   timezone: string;
 };
 
+type SellerSettings = {
+  storeName: string;
+  tagline: string;
+  supportEmail: string;
+  supportPhone: string;
+  shippingOrigin: string;
+  returnWindowDays: number;
+  returnPolicy: string;
+  lowStockThreshold: number;
+  autoPublish: boolean;
+  orderNotifications: boolean;
+  marketingTips: boolean;
+  vacationMode: boolean;
+};
+
 export async function savePreferences(userId: string, preferences: UserSettingsPreferences) {
   try {
     const supabase = await createClient();
@@ -101,6 +116,65 @@ export async function updatePassword(newPassword: string) {
     return {
       success: false,
       error: message,
+    };
+  }
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+export async function saveSellerSettings(userId: string, settings: SellerSettings) {
+  try {
+    const supabase = await createClient();
+    const now = new Date().toISOString();
+
+    const { data: profile, error: profileError } = await supabase
+      .from('users_profile')
+      .select('preferences')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      throw profileError;
+    }
+
+    const currentPreferences = toRecord(profile?.preferences);
+    const nextPreferences = {
+      ...currentPreferences,
+      sellerSettings: {
+        ...settings,
+        updatedAt: now,
+      },
+    };
+
+    const { error: updateError } = await supabase
+      .from('users_profile')
+      .update({
+        preferences: nextPreferences,
+        updated_at: now,
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return {
+      success: true,
+      updatedAt: now,
+      error: null,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to save seller settings';
+    return {
+      success: false,
+      error: message,
+      updatedAt: null,
     };
   }
 }

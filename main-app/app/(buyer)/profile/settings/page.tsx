@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { SellerSettingsForm } from '@/components/forms/seller-settings-form';
 import { UserSettingsForm } from '../../../../components/forms/user-settings-form';
 import { createClient } from '@/lib/supabase/server';
 
@@ -11,6 +12,21 @@ type UserSettingsPreferences = {
   publicProfile: boolean;
   theme: ThemePreference;
   timezone: string;
+};
+
+type SellerSettings = {
+  storeName: string;
+  tagline: string;
+  supportEmail: string;
+  supportPhone: string;
+  shippingOrigin: string;
+  returnWindowDays: number;
+  returnPolicy: string;
+  lowStockThreshold: number;
+  autoPublish: boolean;
+  orderNotifications: boolean;
+  marketingTips: boolean;
+  vacationMode: boolean;
 };
 
 const ALLOWED_THEMES = new Set<ThemePreference>(['system', 'light', 'dark']);
@@ -33,6 +49,14 @@ function toRecord(value: unknown): Record<string, unknown> {
 
 function readBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function readString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function readNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 function readTheme(value: unknown): ThemePreference {
@@ -69,7 +93,9 @@ export default async function UserSettingsPage() {
 
   const hasProfileRecord = Boolean(profile);
   const profilePreferences = toRecord(profile?.preferences);
+  const sellerPreferences = toRecord(profilePreferences.sellerSettings);
   const metadata = toRecord(user.user_metadata ?? {});
+  const role = (profile?.role as string | null) ?? 'buyer';
 
   const initialPreferences: UserSettingsPreferences = {
     emailNotifications: readBoolean(
@@ -92,17 +118,41 @@ export default async function UserSettingsPage() {
     timezone: readTimezone(profilePreferences.timezone ?? metadata.timezone),
   };
 
+  const initialSellerSettings: SellerSettings = {
+    storeName: readString(sellerPreferences.storeName, ''),
+    tagline: readString(sellerPreferences.tagline, ''),
+    supportEmail: readString(sellerPreferences.supportEmail, user.email ?? ''),
+    supportPhone: readString(sellerPreferences.supportPhone, ''),
+    shippingOrigin: readString(sellerPreferences.shippingOrigin, ''),
+    returnWindowDays: readNumber(sellerPreferences.returnWindowDays, 30),
+    returnPolicy: readString(sellerPreferences.returnPolicy, ''),
+    lowStockThreshold: readNumber(sellerPreferences.lowStockThreshold, 5),
+    autoPublish: readBoolean(sellerPreferences.autoPublish, false),
+    orderNotifications: readBoolean(sellerPreferences.orderNotifications, true),
+    marketingTips: readBoolean(sellerPreferences.marketingTips, true),
+    vacationMode: readBoolean(sellerPreferences.vacationMode, false),
+  };
+
   return (
     <div className="space-y-6">
       <UserSettingsForm
         userId={user.id}
         email={user.email ?? 'No email'}
-        role={(profile?.role as string | null) ?? 'buyer'}
+        role={role}
         emailVerified={profile?.email_verified ?? Boolean(user.email_confirmed_at)}
         hasProfileRecord={hasProfileRecord}
         initialUpdatedAt={(profile?.updated_at as string | null) ?? null}
         initialPreferences={initialPreferences}
       />
+      {role === 'seller' ? (
+        <div className="pt-6">
+          <SellerSettingsForm
+            userId={user.id}
+            initialSettings={initialSellerSettings}
+            initialUpdatedAt={(profile?.updated_at as string | null) ?? null}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
