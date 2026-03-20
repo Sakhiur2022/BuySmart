@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { RecommendationPanel } from '@/components/recommendations/recommendation-panel';
+import { SellerUpgradeCta } from '@/components/shared/seller-upgrade-cta';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { ConnectSupabaseSteps } from '@/components/shared/tutorial/connect-supabase-steps';
 import { SignUpUserSteps } from '@/components/shared/tutorial/sign-up-user-steps';
@@ -45,6 +46,7 @@ export default async function Home() {
   let userEmail: string | null = null;
   let userDisplayName: string | undefined;
   let userRole: string | null = null;
+  let userId: string | null = null;
 
   if (hasEnvVars) {
     const supabase = await createClient();
@@ -52,6 +54,7 @@ export default async function Home() {
     const user = authData?.user;
 
     userEmail = user?.email ?? null;
+    userId = user?.id ?? null;
     userDisplayName =
       (user?.user_metadata?.full_name as string | undefined) ??
       (user?.user_metadata?.name as string | undefined);
@@ -132,12 +135,7 @@ export default async function Home() {
                   </span>
                   <span>
                     Want to sell on BuySmart?{' '}
-                    <Link
-                      href="/auth/seller-sign-up"
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Sign up as a seller
-                    </Link>
+                    <SellerUpgradeCta isAuthenticated={isAuthenticated} userId={userId} />
                   </span>
                 </p>
               ) : null}
