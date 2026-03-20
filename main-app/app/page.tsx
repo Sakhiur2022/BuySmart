@@ -44,6 +44,7 @@ const SIGNALS = [
 export default async function Home() {
   let userEmail: string | null = null;
   let userDisplayName: string | undefined;
+  let userRole: string | null = null;
 
   if (hasEnvVars) {
     const supabase = await createClient();
@@ -55,9 +56,20 @@ export default async function Home() {
       (user?.user_metadata?.full_name as string | undefined) ??
       (user?.user_metadata?.name as string | undefined);
 
+    // Fetch user role from profile
+    if (user?.id) {
+      const { data: profile } = await supabase
+        .from('users_profile')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+      userRole = profile?.role ?? null;
+    }
   }
 
   const isAuthenticated = Boolean(userEmail);
+  const isSeller = userRole === 'seller';
+  const shouldShowSellerCTA = !isSeller;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -100,8 +112,8 @@ export default async function Home() {
                   Review the integration plan
                 </Link>
               </div>
-              {!isAuthenticated ? (
-                <p className="flex items-center gap-2 text-base font-medium text-muted-foreground">
+              {shouldShowSellerCTA ? (
+                <p className="flex items-center gap-2 text-lg font-medium text-muted-foreground">
                   <span className="inline-flex items-center justify-center rounded-full border border-primary/20 bg-primary/10 p-1 text-primary" aria-hidden>
                     <svg
                       viewBox="0 0 24 24"
