@@ -8,6 +8,7 @@ import {
   SalesOverviewChart,
   type SalesOverviewPoint,
 } from '@/components/seller/sales-overview-chart';
+import { DeleteProductForm } from '@/components/seller/delete-product-form';
 import { createClient } from '@/lib/supabase/server';
 
 type RecentOrderItem = {
@@ -314,13 +315,11 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
                                   Edit
                                 </Link>
                               </Button>
-                              <form action="/seller/products/delete" method="post" className="inline-flex">
-                                <input type="hidden" name="product_id" value={product.product_id} />
-                                <input type="hidden" name="return_to" value="/seller" />
-                                <Button type="submit" size="xs" variant="destructive">
-                                  Delete
-                                </Button>
-                              </form>
+                              <DeleteProductForm
+                                productId={product.product_id}
+                                productName={product.name}
+                                returnTo="/seller"
+                              />
                             </div>
                           </td>
                         </tr>

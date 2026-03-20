@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DeleteProductForm } from '@/components/seller/delete-product-form';
 import { createClient } from '@/lib/supabase/server';
 
 function formatCurrency(value: number) {
@@ -172,13 +173,11 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
                             <Button asChild size="xs" variant="outline">
                               <Link href={`/seller/products/${product.product_id}/edit`}>Edit</Link>
                             </Button>
-                            <form action="/seller/products/delete" method="post" className="inline-flex">
-                              <input type="hidden" name="product_id" value={product.product_id} />
-                              <input type="hidden" name="return_to" value="/seller/products" />
-                              <Button type="submit" size="xs" variant="destructive">
-                                Delete
-                              </Button>
-                            </form>
+                            <DeleteProductForm
+                              productId={product.product_id}
+                              productName={product.name}
+                              returnTo="/seller/products"
+                            />
                           </div>
                         </td>
                       </tr>
