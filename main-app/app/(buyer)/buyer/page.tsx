@@ -38,15 +38,17 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
   const buyerMode = getSearchValue(resolvedSearchParams?.mode);
   const allowSellerView = isBuyerMode(buyerMode);
   let role: string | null = null;
+  let profileName: string | null = null;
 
   if (user) {
     const { data: profile } = await supabase
       .from('users_profile')
-      .select('role')
+      .select('role, display_name, full_name')
       .eq('user_id', user.id)
       .maybeSingle();
 
     role = profile?.role ?? null;
+    profileName = profile?.display_name || profile?.full_name || null;
 
     if (role === 'seller' && !allowSellerView) {
       redirect('/seller');
@@ -55,6 +57,7 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
 
   const isAuthenticated = Boolean(user);
   const buyerName =
+    profileName ||
     (user?.user_metadata?.full_name as string | undefined) ||
     (user?.user_metadata?.name as string | undefined) ||
     user?.email ||
