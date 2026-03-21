@@ -1,6 +1,8 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { handleAvatarRemove, handleAvatarUpload } from '@/lib/services/avatar-service';
 
 type UserSettingsPreferences = {
   emailNotifications: boolean;
@@ -175,6 +177,127 @@ export async function saveSellerSettings(userId: string, settings: SellerSetting
       success: false,
       error: message,
       updatedAt: null,
+    };
+  }
+}
+
+export async function uploadAvatarAction(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return {
+        success: false,
+        avatarUrl: null,
+        error: 'Session expired. Please log in again.',
+      };
+    }
+
+    const userId = formData.get('userId');
+    const file = formData.get('avatarFile');
+    const previousStoragePath = formData.get('previousStoragePath');
+
+    if (typeof userId !== 'string' || userId !== user.id) {
+      return {
+        success: false,
+        avatarUrl: null,
+        error: 'Unauthorized avatar upload request.',
+      };
+    }
+
+    if (!(file instanceof File)) {
+      return {
+        success: false,
+        avatarUrl: null,
+        error: 'Please choose an image file before uploading.',
+      };
+    }
+
+    const uploadResult = await handleAvatarUpload({
+      userId,
+      file,
+      previousStoragePath: typeof previousStoragePath === 'string' ? previousStoragePath : null,
+    });
+
+    if (!uploadResult.success) {
+      return {
+        success: false,
+        avatarUrl: null,
+        error: uploadResult.error,
+      };
+    }
+
+    revalidatePath('/profile/settings');
+    revalidatePath('/seller/settings');
+    revalidatePath('/');
+
+    return {
+      success: true,
+      avatarUrl: uploadResult.avatarUrl,
+      error: null,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to upload avatar';
+    return {
+      success: false,
+      avatarUrl: null,
+      error: message,
+    };
+  }
+}
+
+export async function removeAvatarAction(userId: string) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return {
+        success: false,
+        avatarUrl: null,
+        error: 'Session expired. Please log in again.',
+      };
+    }
+
+    if (user.id !== userId) {
+      return {
+        success: false,
+        avatarUrl: null,
+        error: 'Unauthorized avatar removal request.',
+      };
+    }
+
+    const removeResult = await handleAvatarRemove(userId);
+    if (!removeResult.success) {
+      return {
+        success: false,
+        avatarUrl: null,
+        error: removeResult.error,
+      };
+    }
+
+    revalidatePath('/profile/settings');
+    revalidatePath('/seller/settings');
+    revalidatePath('/');
+
+    return {
+      success: true,
+      avatarUrl: null,
+      error: null,
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to remove avatar';
+    return {
+      success: false,
+      avatarUrl: null,
+      error: message,
     };
   }
 }

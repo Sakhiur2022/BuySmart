@@ -38,6 +38,7 @@ import {
   springScaleVariants,
 } from '@/lib/animations';
 import { savePreferences, updatePassword } from '@/lib/actions/settings';
+import { AvatarUploadWidget } from '@/components/forms/avatar-upload-widget';
 
 type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -54,6 +55,8 @@ type UserSettingsFormProps = {
   userId: string;
   email: string;
   role: string;
+  initialAvatarUrl: string | null;
+  displayName: string;
   emailVerified: boolean;
   hasProfileRecord: boolean;
   initialUpdatedAt: string | null;
@@ -130,6 +133,8 @@ export function UserSettingsForm({
   userId,
   email,
   role,
+  initialAvatarUrl,
+  displayName,
   emailVerified,
   hasProfileRecord,
   initialUpdatedAt,
@@ -393,6 +398,14 @@ export function UserSettingsForm({
                 Profile record is not initialized yet. Please sign out and sign in again.
               </div>
             ) : null}
+
+            <div className="mb-6">
+              <AvatarUploadWidget
+                userId={userId}
+                initialAvatarUrl={initialAvatarUrl}
+                displayName={displayName}
+              />
+            </div>
 
             <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
               <TabsList>

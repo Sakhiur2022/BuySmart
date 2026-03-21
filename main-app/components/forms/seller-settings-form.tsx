@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { saveSellerSettings } from '@/lib/actions/settings';
+import { AvatarUploadWidget } from '@/components/forms/avatar-upload-widget';
 
 type SellerSettings = {
   storeName: string;
@@ -25,6 +26,8 @@ type SellerSettings = {
 
 type SellerSettingsFormProps = {
   userId: string;
+  initialAvatarUrl: string | null;
+  displayName: string;
   initialSettings: SellerSettings;
   initialUpdatedAt: string | null;
 };
@@ -70,6 +73,8 @@ function toNumber(value: string, fallback: number) {
 
 export function SellerSettingsForm({
   userId,
+  initialAvatarUrl,
+  displayName,
   initialSettings,
   initialUpdatedAt,
 }: SellerSettingsFormProps) {
@@ -132,6 +137,12 @@ export function SellerSettingsForm({
           {success}
         </div>
       ) : null}
+
+      <AvatarUploadWidget
+        userId={userId}
+        initialAvatarUrl={initialAvatarUrl}
+        displayName={displayName}
+      />
 
       <Card>
         <CardHeader>
@@ -286,9 +297,7 @@ export function SellerSettingsForm({
           <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-2">
             <div>
               <p className="text-sm font-medium">Order notifications</p>
-              <p className="text-xs text-muted-foreground">
-                Get an alert for every new order.
-              </p>
+              <p className="text-xs text-muted-foreground">Get an alert for every new order.</p>
             </div>
             <ToggleSwitch
               id="orderNotifications"
@@ -318,9 +327,7 @@ export function SellerSettingsForm({
           <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-2">
             <div>
               <p className="text-sm font-medium">Vacation mode</p>
-              <p className="text-xs text-muted-foreground">
-                Pause new orders while you are away.
-              </p>
+              <p className="text-xs text-muted-foreground">Pause new orders while you are away.</p>
             </div>
             <ToggleSwitch
               id="vacationMode"
