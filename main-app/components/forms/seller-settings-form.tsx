@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { saveSellerSettings } from '@/lib/actions/settings';
-import { AvatarUploadWidget } from '@/components/forms/avatar-upload-widget';
+import { AvatarUploadWidget } from '@/components/shared/avatar-upload-widget';
 
 type SellerSettings = {
   storeName: string;
@@ -137,12 +137,6 @@ export function SellerSettingsForm({
           {success}
         </div>
       ) : null}
-
-      <AvatarUploadWidget
-        userId={userId}
-        initialAvatarUrl={initialAvatarUrl}
-        displayName={displayName}
-      />
 
       <Card>
         <CardHeader>
