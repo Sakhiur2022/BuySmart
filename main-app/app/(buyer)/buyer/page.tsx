@@ -2,37 +2,95 @@ import { RecommendationPanel } from '@/components/recommendations/recommendation
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ProductCandidate } from '@/lib/agents/recommendation/types';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-export default async function ProtectedPage() {
+type BuyerPageProps = {
+  searchParams?: Promise<{
+    mode?: string | string[];
+  }>;
+};
+
+function getSearchValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+function isBuyerMode(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return value === 'buyer' || value === '1' || value === 'true';
+}
+
+export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const resolvedSearchParams = await searchParams;
+  const buyerMode = getSearchValue(resolvedSearchParams?.mode);
+  const allowSellerView = isBuyerMode(buyerMode);
+  let role: string | null = null;
+  let profileName: string | null = null;
+
   if (user) {
     const { data: profile } = await supabase
       .from('users_profile')
-      .select('role')
+      .select('role, display_name, full_name')
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (profile?.role === 'seller') {
+    role = profile?.role ?? null;
+    profileName = profile?.display_name || profile?.full_name || null;
+
+    if (role === 'seller' && !allowSellerView) {
       redirect('/seller');
     }
   }
 
   const isAuthenticated = Boolean(user);
   const buyerName =
+    profileName ||
     (user?.user_metadata?.full_name as string | undefined) ||
     (user?.user_metadata?.name as string | undefined) ||
     user?.email ||
     'Guest Buyer';
 
+  const showBuyerModeBanner = role === 'seller' && allowSellerView;
+
+  const { data: products } = await supabase
+    .from('products')
+    .select('product_id, name, category_id, price, tags')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  const candidates: ProductCandidate[] = (products ?? []).map((product) => ({
+    id: product.product_id,
+    title: product.name,
+    category_id: product.category_id ?? undefined,
+    price: product.price,
+    tags: product.tags ?? undefined,
+  }));
+
   return (
     <div className="space-y-8">
+      {showBuyerModeBanner ? (
+        <div className="rounded-lg border border-rose-200 bg-linear-to-r from-rose-100 via-pink-100 to-amber-100 px-4 py-3 text-sm text-rose-700 shadow-sm">
+          <span className="font-semibold">Buyer mode</span> enabled. Enjoy the storefront view.{' '}
+          <Link href="/seller" className="font-semibold underline underline-offset-2">
+            Back to seller dashboard
+          </Link>
+        </div>
+      ) : null}
       <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
@@ -66,6 +124,7 @@ export default async function ProtectedPage() {
         isAuthenticated={isAuthenticated}
         userEmail={user?.email ?? null}
         userDisplayName={buyerName}
+        candidates={candidates}
       />
 
       <section className="grid gap-4 md:grid-cols-3">

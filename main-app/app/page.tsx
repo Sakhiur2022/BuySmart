@@ -3,6 +3,7 @@ import { RecommendationPanel } from '@/components/recommendations/recommendation
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { ConnectSupabaseSteps } from '@/components/shared/tutorial/connect-supabase-steps';
 import { SignUpUserSteps } from '@/components/shared/tutorial/sign-up-user-steps';
+import type { ProductCandidate } from '@/lib/agents/recommendation/types';
 import { createClient } from '@/lib/supabase/server';
 import { hasEnvVars } from '@/lib/utils';
 
@@ -44,6 +45,8 @@ const SIGNALS = [
 export default async function Home() {
   let userEmail: string | null = null;
   let userDisplayName: string | undefined;
+  let userRole: string | null = null;
+  let candidates: ProductCandidate[] = [];
 
   if (hasEnvVars) {
     const supabase = await createClient();
@@ -55,9 +58,35 @@ export default async function Home() {
       (user?.user_metadata?.full_name as string | undefined) ??
       (user?.user_metadata?.name as string | undefined);
 
+    // Fetch user role from profile
+    if (user?.id) {
+      const { data: profile } = await supabase
+        .from('users_profile')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+      userRole = profile?.role ?? null;
+    }
+
+    const { data: products } = await supabase
+      .from('products')
+      .select('product_id, name, category_id, price, tags')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    candidates = (products ?? []).map((product) => ({
+      id: product.product_id,
+      title: product.name,
+      category_id: product.category_id ?? undefined,
+      price: product.price,
+      tags: product.tags ?? undefined,
+    }));
   }
 
   const isAuthenticated = Boolean(userEmail);
+  const isSeller = userRole === 'seller';
+  const shouldShowSellerCTA = !isSeller;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -100,15 +129,33 @@ export default async function Home() {
                   Review the integration plan
                 </Link>
               </div>
-              {!isAuthenticated ? (
-                <p className="text-sm text-muted-foreground">
-                  Want to sell on BuySmart?{' '}
-                  <Link
-                    href="/auth/seller-sign-up"
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    Sign up as a seller
-                  </Link>
+              {shouldShowSellerCTA ? (
+                <p className="flex items-center gap-2 text-lg font-medium text-muted-foreground">
+                  <span className="inline-flex items-center justify-center rounded-full border border-primary/20 bg-primary/10 p-1 text-primary" aria-hidden>
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 10h18" />
+                      <path d="M4 10l2-6h12l2 6" />
+                      <path d="M5 10v8h14v-8" />
+                      <path d="M9 18v-6h6v6" />
+                    </svg>
+                  </span>
+                  <span>
+                    Want to sell on BuySmart?{' '}
+                    <Link
+                      href="/auth/seller-sign-up"
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Sign up as a seller
+                    </Link>
+                  </span>
                 </p>
               ) : null}
             </div>
@@ -178,6 +225,7 @@ export default async function Home() {
                 isAuthenticated={isAuthenticated}
                 userEmail={userEmail}
                 userDisplayName={userDisplayName}
+                candidates={candidates}
               />
             </div>
           </div>

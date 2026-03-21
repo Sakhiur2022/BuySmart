@@ -60,7 +60,7 @@ export async function AuthButton() {
         href="/profile/settings"
         className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
         title="Settings"
-        aria-label="Account settings"
+        aria-label="Settings"
       >
         <Settings className="h-4 w-4" aria-hidden="true" />
       </Link>

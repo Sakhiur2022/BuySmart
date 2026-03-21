@@ -37,49 +37,6 @@ interface RecommendationPanelProps {
   candidates?: ProductCandidate[];
 }
 
-const SAMPLE_CANDIDATES: ProductCandidate[] = [
-  {
-    id: 'p-101',
-    title: 'Noise-Cancelling Headphones X9',
-    category_id: 12,
-    brand: 'SonicPeak',
-    price: 149.99,
-    tags: ['audio', 'wireless', 'travel'],
-  },
-  {
-    id: 'p-102',
-    title: 'Smartwatch Pulse 4',
-    category_id: 7,
-    brand: 'NovaWear',
-    price: 199,
-    tags: ['fitness', 'wearable', 'health'],
-  },
-  {
-    id: 'p-103',
-    title: 'USB-C Fast Charger 65W',
-    category_id: 18,
-    brand: 'VoltCore',
-    price: 39.5,
-    tags: ['charger', 'accessory', 'portable'],
-  },
-  {
-    id: 'p-104',
-    title: 'Mechanical Keyboard K80',
-    category_id: 4,
-    brand: 'TypeForge',
-    price: 89,
-    tags: ['keyboard', 'gaming', 'office'],
-  },
-  {
-    id: 'p-105',
-    title: '4K Webcam Studio Lite',
-    category_id: 9,
-    brand: 'FrameFocus',
-    price: 119,
-    tags: ['camera', 'streaming', 'remote-work'],
-  },
-];
-
 const MAX_RESULTS_OPTIONS = ['2', '3', '4', '5', '6'];
 
 const MAX_RESULTS_BY_MODE = {
@@ -121,7 +78,7 @@ export function RecommendationPanel({
   isAuthenticated,
   userEmail,
   userDisplayName,
-  candidates = SAMPLE_CANDIDATES,
+  candidates = [],
 }: RecommendationPanelProps) {
   const [userIntent, setUserIntent] = useState('I need gear for remote work and travel under $200');
   const [contextSummary, setContextSummary] = useState(
@@ -145,8 +102,14 @@ export function RecommendationPanel({
   const maxAllowedResults = isAuthenticated
     ? MAX_RESULTS_BY_MODE.member
     : MAX_RESULTS_BY_MODE.guest;
+  const hasCandidates = candidates.length > 0;
 
   const generateRecommendations = async () => {
+    if (!hasCandidates) {
+      setErrorMessage('No catalog products are available yet. Add active products first.');
+      return;
+    }
+
     const trimmedIntent = userIntent.trim();
     if (trimmedIntent.length < 3) {
       setErrorMessage('Please provide a clearer intent (at least 3 characters).');
@@ -322,7 +285,11 @@ export function RecommendationPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" onClick={generateRecommendations} disabled={isLoading}>
+          <Button
+            type="button"
+            onClick={generateRecommendations}
+            disabled={isLoading || !hasCandidates}
+          >
             {isLoading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
@@ -331,7 +298,11 @@ export function RecommendationPanel({
             ) : (
               <>
                 <WandSparkles className="size-4" />
-                {isAuthenticated ? 'Generate Recommendations' : 'Generate Guest Recommendations'}
+                {hasCandidates
+                  ? isAuthenticated
+                    ? 'Generate Recommendations'
+                    : 'Generate Guest Recommendations'
+                  : 'No Products Available'}
               </>
             )}
           </Button>
@@ -360,6 +331,12 @@ export function RecommendationPanel({
         {errorMessage ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {errorMessage}
+          </div>
+        ) : null}
+
+        {!hasCandidates ? (
+          <div className="rounded-lg border border-amber-300/70 bg-amber-100/60 px-3 py-2 text-sm text-amber-900 dark:border-amber-600/70 dark:bg-amber-950/40 dark:text-amber-200">
+            No active products were loaded from the catalog. Add products in seller mode to enable recommendations.
           </div>
         ) : null}
 

@@ -1,0 +1,65 @@
+
+> build
+> next build
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of c:\Users\User-PC\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * c:\Users\User-PC\BuySmart\main-app\package-lock.json
+
+   ▲ Next.js 15.5.12
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 9.4s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/29) ...
+   Generating static pages (7/29) 
+   Generating static pages (14/29) 
+   Generating static pages (21/29) 
+ ✓ Generating static pages (29/29)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                    6.53 kB         163 kB
+├ ƒ /_not-found                             1 kB         103 kB
+├ ƒ /admin                                 165 B         102 kB
+├ ƒ /api/ai/health                         165 B         102 kB
+├ ƒ /api/ai/probe                          165 B         102 kB
+├ ƒ /api/recommendations                   165 B         102 kB
+├ ○ /apple-icon.png                          0 B            0 B
+├ ƒ /auth/confirm                          165 B         102 kB
+├ ƒ /auth/error                             1 kB         111 kB
+├ ƒ /auth/forgot-password                3.67 kB         173 kB
+├ ƒ /auth/login                           1.8 kB         175 kB
+├ ƒ /auth/logout                           165 B         102 kB
+├ ƒ /auth/oauth                            165 B         102 kB
+├ ƒ /auth/seller-sign-up                   147 B         205 kB
+├ ƒ /auth/sign-up                          147 B         205 kB
+├ ƒ /auth/sign-up-success                  165 B         102 kB
+├ ƒ /auth/update-password                 3.5 kB         169 kB
+├ ƒ /buyer                               2.75 kB         198 kB
+├ ○ /icon.png                                0 B            0 B
+├ ƒ /profile                             9.07 kB         230 kB
+├ ƒ /profile/settings                    10.9 kB         201 kB
+├ ƒ /seller                               106 kB         302 kB
+├ ƒ /seller/products                     2.88 kB         199 kB
+├ ƒ /seller/products/[productId]/edit    1.73 kB         192 kB
+├ ƒ /seller/products/delete                165 B         102 kB
+├ ƒ /seller/products/new                 1.73 kB         192 kB
+└ ƒ /seller/settings                     2.04 kB         116 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/1255-ad409e5887c155b0.js      45.7 kB
+  ├ chunks/4bd1b696-100b9d70ed4e49c1.js  54.2 kB
+  └ other shared chunks (total)          2.06 kB
+
+
+ƒ Middleware                               82 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

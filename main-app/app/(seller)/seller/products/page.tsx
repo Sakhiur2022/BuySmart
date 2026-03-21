@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DeleteProductForm } from '@/components/seller/delete-product-form';
 import { createClient } from '@/lib/supabase/server';
 
 function formatCurrency(value: number) {
@@ -40,6 +41,7 @@ type ProductsPageProps = {
   searchParams?: Promise<{
     saved?: string | string[];
     updated?: string | string[];
+    deleted?: string | string[];
     error?: string | string[];
   }>;
 };
@@ -74,6 +76,7 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
   const products = productsData ?? [];
   const saved = getSearchValue(resolvedSearchParams?.saved);
   const updated = getSearchValue(resolvedSearchParams?.updated);
+  const deleted = getSearchValue(resolvedSearchParams?.deleted);
   const error = getSearchValue(resolvedSearchParams?.error);
 
   return (
@@ -100,6 +103,11 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
       {updated ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           Product updated successfully.
+        </div>
+      ) : null}
+      {deleted ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Product deleted successfully.
         </div>
       ) : null}
       {error ? (
@@ -165,9 +173,11 @@ export default async function SellerProductsPage({ searchParams }: ProductsPageP
                             <Button asChild size="xs" variant="outline">
                               <Link href={`/seller/products/${product.product_id}/edit`}>Edit</Link>
                             </Button>
-                            <Button size="xs" variant="destructive">
-                              Delete
-                            </Button>
+                            <DeleteProductForm
+                              productId={product.product_id}
+                              productName={product.name}
+                              returnTo="/seller/products"
+                            />
                           </div>
                         </td>
                       </tr>
