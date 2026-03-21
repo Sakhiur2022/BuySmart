@@ -87,7 +87,7 @@ export default async function UserSettingsPage() {
 
   const { data: profile } = await supabase
     .from('users_profile')
-    .select('role, email_verified, preferences, updated_at')
+    .select('role, email_verified, preferences, updated_at, avatar_url')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -96,6 +96,15 @@ export default async function UserSettingsPage() {
   const sellerPreferences = toRecord(profilePreferences.sellerSettings);
   const metadata = toRecord(user.user_metadata ?? {});
   const role = (profile?.role as string | null) ?? 'buyer';
+  const initialAvatarUrl =
+    (profile?.avatar_url as string | undefined) ||
+    (metadata.avatar_url as string | undefined) ||
+    (metadata.picture as string | undefined) ||
+    null;
+  const displayName =
+    (metadata.full_name as string | undefined) ||
+    (metadata.name as string | undefined) ||
+    (user.email ?? 'User');
 
   const initialPreferences: UserSettingsPreferences = {
     emailNotifications: readBoolean(
@@ -139,6 +148,8 @@ export default async function UserSettingsPage() {
         userId={user.id}
         email={user.email ?? 'No email'}
         role={role}
+        initialAvatarUrl={initialAvatarUrl}
+        displayName={displayName}
         emailVerified={profile?.email_verified ?? Boolean(user.email_confirmed_at)}
         hasProfileRecord={hasProfileRecord}
         initialUpdatedAt={(profile?.updated_at as string | null) ?? null}
@@ -148,6 +159,8 @@ export default async function UserSettingsPage() {
         <div className="pt-6">
           <SellerSettingsForm
             userId={user.id}
+            initialAvatarUrl={initialAvatarUrl}
+            displayName={displayName}
             initialSettings={initialSellerSettings}
             initialUpdatedAt={(profile?.updated_at as string | null) ?? null}
           />

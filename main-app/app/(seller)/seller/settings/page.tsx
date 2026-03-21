@@ -49,7 +49,7 @@ export default async function SellerSettingsPage() {
 
   const { data: profile } = await supabase
     .from('users_profile')
-    .select('role, preferences, updated_at')
+    .select('role, preferences, updated_at, avatar_url')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -59,6 +59,16 @@ export default async function SellerSettingsPage() {
 
   const preferences = toRecord(profile?.preferences);
   const sellerSettings = toRecord(preferences.sellerSettings);
+  const metadata = toRecord(user.user_metadata ?? {});
+  const initialAvatarUrl =
+    (profile?.avatar_url as string | undefined) ||
+    (metadata.avatar_url as string | undefined) ||
+    (metadata.picture as string | undefined) ||
+    null;
+  const displayName =
+    (metadata.full_name as string | undefined) ||
+    (metadata.name as string | undefined) ||
+    (user.email ?? 'User');
 
   const initialSettings: SellerSettings = {
     storeName: readString(sellerSettings.storeName, ''),
@@ -79,6 +89,8 @@ export default async function SellerSettingsPage() {
     <div className="space-y-6">
       <SellerSettingsForm
         userId={user.id}
+        initialAvatarUrl={initialAvatarUrl}
+        displayName={displayName}
         initialSettings={initialSettings}
         initialUpdatedAt={profile?.updated_at ?? null}
       />
