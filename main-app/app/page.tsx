@@ -1,10 +1,14 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RecommendationPanel } from '@/components/recommendations/recommendation-panel';
+import { SellerUpgradeCta } from '@/components/shared/seller-upgrade-cta';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { ConnectSupabaseSteps } from '@/components/shared/tutorial/connect-supabase-steps';
 import { SignUpUserSteps } from '@/components/shared/tutorial/sign-up-user-steps';
 import type { ProductCandidate } from '@/lib/agents/recommendation/types';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/client';
 import { hasEnvVars } from '@/lib/utils';
 
 const STAT_BLOCKS = [
@@ -42,47 +46,77 @@ const SIGNALS = [
   'Post-purchase sentiment',
 ];
 
-export default async function Home() {
-  let userEmail: string | null = null;
-  let userDisplayName: string | undefined;
-  let userRole: string | null = null;
-  let candidates: ProductCandidate[] = [];
+export default function Home() {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<ProductCandidate[]>([]);
 
-  if (hasEnvVars) {
-    const supabase = await createClient();
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-
-    userEmail = user?.email ?? null;
-    userDisplayName =
-      (user?.user_metadata?.full_name as string | undefined) ??
-      (user?.user_metadata?.name as string | undefined);
-
-    // Fetch user role from profile
-    if (user?.id) {
-      const { data: profile } = await supabase
-        .from('users_profile')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-      userRole = profile?.role ?? null;
+  useEffect(() => {
+    if (!hasEnvVars) {
+      return;
     }
 
-    const { data: products } = await supabase
-      .from('products')
-      .select('product_id, name, category_id, price, tags')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(100);
+    const supabase = createClient();
+    let isMounted = true;
 
-    candidates = (products ?? []).map((product) => ({
-      id: product.product_id,
-      title: product.name,
-      category_id: product.category_id ?? undefined,
-      price: product.price,
-      tags: product.tags ?? undefined,
-    }));
-  }
+    const hydrateHome = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+
+      if (!isMounted) {
+        return;
+      }
+
+      setUserId(user?.id ?? null);
+      setUserEmail(user?.email ?? null);
+      setUserDisplayName(
+        (user?.user_metadata?.full_name as string | undefined) ??
+          (user?.user_metadata?.name as string | undefined) ??
+          null,
+      );
+
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('users_profile')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+
+        if (isMounted) {
+          setUserRole(profile?.role ?? null);
+        }
+      } else {
+        setUserRole(null);
+      }
+
+      const { data: products } = await supabase
+        .from('products')
+        .select('product_id, name, category_id, price, tags')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (isMounted) {
+        setCandidates(
+          (products ?? []).map((product) => ({
+            id: product.product_id,
+            title: product.name,
+            category_id: product.category_id ?? undefined,
+            price: product.price,
+            tags: product.tags ?? undefined,
+          })),
+        );
+      }
+    };
+
+    void hydrateHome();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const isAuthenticated = Boolean(userEmail);
   const isSeller = userRole === 'seller';
@@ -131,7 +165,10 @@ export default async function Home() {
               </div>
               {shouldShowSellerCTA ? (
                 <p className="flex items-center gap-2 text-lg font-medium text-muted-foreground">
-                  <span className="inline-flex items-center justify-center rounded-full border border-primary/20 bg-primary/10 p-1 text-primary" aria-hidden>
+                  <span
+                    className="inline-flex items-center justify-center rounded-full border border-primary/20 bg-primary/10 p-1 text-primary"
+                    aria-hidden
+                  >
                     <svg
                       viewBox="0 0 24 24"
                       className="h-4 w-4"
@@ -149,12 +186,7 @@ export default async function Home() {
                   </span>
                   <span>
                     Want to sell on BuySmart?{' '}
-                    <Link
-                      href="/auth/seller-sign-up"
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Sign up as a seller
-                    </Link>
+                    <SellerUpgradeCta isAuthenticated={isAuthenticated} userId={userId} />
                   </span>
                 </p>
               ) : null}
@@ -224,7 +256,7 @@ export default async function Home() {
               <RecommendationPanel
                 isAuthenticated={isAuthenticated}
                 userEmail={userEmail}
-                userDisplayName={userDisplayName}
+                userDisplayName={userDisplayName ?? undefined}
                 candidates={candidates}
               />
             </div>
