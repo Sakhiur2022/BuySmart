@@ -44,6 +44,13 @@ export async function handleAvatarUpload(input: AvatarUploadInput): Promise<Avat
     };
   }
 
+  const currentMetadata = await getCurrentAvatarMetadata();
+  const currentStoragePath = currentMetadata.success
+    ? parseStoragePathFromAvatarUrl(currentMetadata.avatarUrl)
+    : null;
+  const fallbackStoragePath = input.previousStoragePath ?? null;
+  const oldStoragePath = currentStoragePath ?? fallbackStoragePath;
+
   const uploadResult = await uploadAvatarToStorage(input);
   if (!uploadResult.success || !uploadResult.avatarUrl || !uploadResult.storagePath) {
     return uploadResult;
@@ -60,7 +67,6 @@ export async function handleAvatarUpload(input: AvatarUploadInput): Promise<Avat
     };
   }
 
-  const oldStoragePath = input.previousStoragePath;
   if (oldStoragePath && oldStoragePath !== uploadResult.storagePath) {
     await deleteAvatarFromStorage(input.userId, oldStoragePath);
   }
