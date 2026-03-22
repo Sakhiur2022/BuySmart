@@ -91,9 +91,12 @@ export async function updateCategoryAction(
   try {
     await requireAdmin();
 
+    const normalizedDescription =
+      input.description === undefined ? undefined : normalizeTextField(input.description);
+
     const parsed = UpdateCategorySchema.safeParse({
       ...input,
-      description: normalizeTextField(input.description),
+      description: normalizedDescription,
     });
 
     if (!parsed.success) {

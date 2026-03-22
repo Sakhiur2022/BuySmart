@@ -45,10 +45,15 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = pathname.startsWith('/auth');
   const isPublicRoute = pathname === '/' || isAuthRoute;
 
-  const redirectTo = (targetPath: string) => {
+  const redirectTo = (targetPath: string, params?: Record<string, string>) => {
     const url = request.nextUrl.clone();
     url.pathname = targetPath;
     url.search = '';
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+      });
+    }
     const redirectResponse = NextResponse.redirect(url);
     response.cookies.getAll().forEach(({ name, value }) => {
       redirectResponse.cookies.set(name, value);
@@ -83,6 +88,18 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isSellerRoute && profile?.role !== 'seller') {
+      const isAdminOrModerator = profile?.role === 'admin' || profile?.role === 'moderator';
+
+      if (pathname === '/seller' && isAdminOrModerator) {
+        return response;
+      }
+
+      if (isAdminOrModerator) {
+        return redirectTo('/auth/login', {
+          seller_error: 'admin_or_moderator_cannot_be_seller',
+        });
+      }
+
       return redirectTo('/auth/login');
     }
   }
