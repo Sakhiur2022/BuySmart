@@ -64,21 +64,56 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         throw signInError;
       }
 
+      const userId = data.user?.id;
       const roleFromMetadata = data.user?.user_metadata?.role;
-      const normalizedRole =
+      const normalizedMetadataRole =
         roleFromMetadata === 'seller' || roleFromMetadata === 'buyer' ? roleFromMetadata : null;
+      let resolvedRole: string | null = null;
 
-      if (data.user?.id && normalizedRole) {
-        const { error: profileError } = await supabase
+      if (userId) {
+        const { data: existingProfile } = await supabase
           .from('users_profile')
-          .upsert({ user_id: data.user.id, role: normalizedRole }, { onConflict: 'user_id' });
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-        if (profileError) {
-          console.warn('Profile bootstrap failed:', profileError.message);
+        resolvedRole = existingProfile?.role ?? null;
+      }
+
+      const shouldPromoteBuyerToSeller =
+        resolvedRole === 'buyer' && normalizedMetadataRole === 'seller';
+
+      if (shouldPromoteBuyerToSeller && userId) {
+        const { error: promoteError } = await supabase
+          .from('users_profile')
+          .update({ role: 'seller' })
+          .eq('user_id', userId);
+
+        if (promoteError) {
+          console.warn('Buyer to seller promotion failed:', promoteError.message);
+        } else {
+          resolvedRole = 'seller';
         }
       }
 
-      const nextPath = normalizedRole === 'seller' ? '/seller' : '/';
+      if (!resolvedRole && userId && normalizedMetadataRole) {
+        const { error: profileError } = await supabase
+          .from('users_profile')
+          .upsert({ user_id: userId, role: normalizedMetadataRole }, { onConflict: 'user_id' });
+
+        if (profileError) {
+          console.warn('Profile bootstrap failed:', profileError.message);
+        } else {
+          resolvedRole = normalizedMetadataRole;
+        }
+      }
+
+      const nextPath =
+        resolvedRole === 'admin' || resolvedRole === 'moderator'
+          ? '/admin'
+          : resolvedRole === 'seller'
+            ? '/seller'
+            : '/';
       router.replace(nextPath);
       router.refresh();
     } catch (signInError: unknown) {

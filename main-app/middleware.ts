@@ -88,13 +88,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isSellerRoute && profile?.role !== 'seller') {
-      const isAdminOrModerator = profile?.role === 'admin' || profile?.role === 'moderator';
-
-      if (pathname === '/seller' && isAdminOrModerator) {
-        return response;
+      if (profile?.role === 'admin') {
+        return redirectTo('/admin');
       }
 
-      if (isAdminOrModerator) {
+      if (profile?.role === 'moderator') {
         return redirectTo('/auth/login', {
           seller_error: 'admin_or_moderator_cannot_be_seller',
         });
