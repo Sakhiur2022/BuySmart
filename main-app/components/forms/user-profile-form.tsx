@@ -61,15 +61,15 @@ function toNull(value: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function getInitials(value: string): string {
-  const parts = value.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+// function getInitials(value: string): string {
+//   const parts = value.trim().split(/\s+/).filter(Boolean).slice(0, 2);
 
-  if (parts.length === 0) {
-    return 'BS';
-  }
+//   if (parts.length === 0) {
+//     return 'BS';
+//   }
 
-  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('');
-}
+//   return parts.map((part) => part[0]?.toUpperCase() ?? '').join('');
+// }
 
 function formatRole(role: string): string {
   if (!role) {
@@ -132,7 +132,6 @@ export function UserProfileForm({
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
 
   const identityName = displayName.trim() || fullName.trim() || email;
-  const initials = getInitials(identityName);
 
   const lastUpdated = useMemo(() => {
     if (!updatedAt) {
