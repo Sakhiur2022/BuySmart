@@ -57,6 +57,23 @@ export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaPr
         resolvedUserId = data.user.id;
       }
 
+      const { data: existingProfile, error: existingProfileError } = await supabase
+        .from('users_profile')
+        .select('role')
+        .eq('user_id', resolvedUserId)
+        .maybeSingle();
+
+      if (existingProfileError) {
+        throw existingProfileError;
+      }
+
+      if (existingProfile?.role === 'admin' || existingProfile?.role === 'moderator') {
+        setIsOpen(false);
+        router.replace('/');
+        router.refresh();
+        return;
+      }
+
       const { error: profileError } = await supabase
         .from('users_profile')
         .upsert({ user_id: resolvedUserId, role: 'seller' }, { onConflict: 'user_id' });
@@ -92,11 +109,7 @@ export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaPr
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="link"
-          className="h-auto p-0 font-semibold text-primary"
-        >
+        <Button type="button" variant="link" className="h-auto p-0 font-semibold text-primary">
           Sign up as a seller
         </Button>
       </DialogTrigger>

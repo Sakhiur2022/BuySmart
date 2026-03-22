@@ -72,7 +72,9 @@ function getSearchValue(value: string | string[] | undefined): string | null {
   return value ?? null;
 }
 
-function resolveCustomerName(profile: { full_name: string | null; display_name: string | null } | null) {
+function resolveCustomerName(
+  profile: { full_name: string | null; display_name: string | null } | null,
+) {
   return profile?.display_name || profile?.full_name || 'Customer';
 }
 
@@ -92,7 +94,34 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (profile?.role && profile.role !== 'seller') {
+  const role = profile?.role ?? null;
+
+  if (role === 'admin' || role === 'moderator') {
+    return (
+      <div className="space-y-6">
+        <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
+          <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">Seller Dashboard</h1>
+          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+            Admin or moderator can&apos;t be a seller.
+          </p>
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            Your account role is <span className="font-semibold">{role}</span>. Seller tools are
+            unavailable for admin and moderator accounts.
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/buyer">Go to Buyer</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/admin">Open Admin Dashboard</Link>
+            </Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (role && role !== 'seller') {
     redirect('/buyer');
   }
 
@@ -124,10 +153,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
   const deleted = getSearchValue(resolvedSearchParams?.deleted);
   const error = getSearchValue(resolvedSearchParams?.error);
 
-  const totalRevenue = orderItems.reduce(
-    (sum, item) => sum + (item.total_price ?? 0),
-    0,
-  );
+  const totalRevenue = orderItems.reduce((sum, item) => sum + (item.total_price ?? 0), 0);
   const totalOrders = new Set(orderItems.map((item) => item.order_id)).size;
   const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
   const productsListed = products.length;
@@ -169,9 +195,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
       <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">
-              Seller Dashboard
-            </h1>
+            <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">Seller Dashboard</h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
               Manage your products and track your sales
             </p>
@@ -364,9 +388,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
 
                       return (
                         <tr key={order.order_item_id} className="border-b last:border-b-0">
-                          <td className="px-3 py-4 font-medium text-foreground">
-                            {orderNumber}
-                          </td>
+                          <td className="px-3 py-4 font-medium text-foreground">{orderNumber}</td>
                           <td className="px-3 py-4">{resolveCustomerName(profile)}</td>
                           <td className="px-3 py-4">{order.products?.[0]?.name ?? 'Product'}</td>
                           <td className="px-3 py-4">{formatCurrency(order.total_price)}</td>
