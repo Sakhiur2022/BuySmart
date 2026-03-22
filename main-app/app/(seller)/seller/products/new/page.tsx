@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ProductForm } from '@/components/forms/product-form';
+import { getActiveCategories } from '@/lib/controllers/category.controller';
 import { createProductAction } from '@/lib/actions/products';
 import { createClient } from '@/lib/supabase/server';
 
@@ -39,6 +40,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
 
   const resolvedSearchParams = await searchParams;
   const error = getSearchValue(resolvedSearchParams?.error);
+  const activeCategories = await getActiveCategories();
 
   return (
     <div className="space-y-6">
@@ -52,6 +54,7 @@ export default async function NewProductPage({ searchParams }: NewProductPagePro
         description="Create a new listing for your storefront."
         submitLabel="Create Product"
         action={createProductAction}
+        categories={activeCategories}
       />
     </div>
   );

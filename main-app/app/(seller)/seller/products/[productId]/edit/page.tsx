@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ProductForm } from '@/components/forms/product-form';
+import { getActiveCategories } from '@/lib/controllers/category.controller';
 import { updateProductAction } from '@/lib/actions/products';
 import { createClient } from '@/lib/supabase/server';
 
@@ -59,7 +60,9 @@ export default async function EditProductPage({ params, searchParams }: EditProd
 
   const { data: product } = await supabase
     .from('products')
-    .select('product_id, name, price, inventory_quantity, status, short_description, description, images')
+    .select(
+      'product_id, name, price, inventory_quantity, status, short_description, description, images, category_id',
+    )
     .eq('product_id', resolvedParams.productId)
     .eq('seller_id', user.id)
     .maybeSingle();
@@ -69,6 +72,7 @@ export default async function EditProductPage({ params, searchParams }: EditProd
   }
 
   const error = getSearchValue(resolvedSearchParams?.error);
+  const activeCategories = await getActiveCategories();
 
   return (
     <div className="space-y-6">
@@ -82,8 +86,10 @@ export default async function EditProductPage({ params, searchParams }: EditProd
         description="Update your listing information and inventory details."
         submitLabel="Save Changes"
         action={updateProductAction}
+        categories={activeCategories}
         values={{
           productId: product.product_id,
+          categoryId: product.category_id ?? null,
           name: product.name,
           price: product.price,
           inventoryQuantity: product.inventory_quantity,
