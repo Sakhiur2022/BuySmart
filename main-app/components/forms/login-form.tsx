@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -34,10 +34,16 @@ function getLoginErrorMessage(error: unknown): string {
 
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sellerErrorCode = searchParams.get('seller_error');
+  const sellerAccessMessage =
+    sellerErrorCode === 'admin_or_moderator_cannot_be_seller'
+      ? "Admin or moderator can't be a seller."
+      : null;
   const emailIsInvalid = email.length > 0 && !EMAIL_REGEX.test(email.trim());
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
   const canSubmit = !emailIsInvalid && password.length >= 8;
@@ -60,9 +66,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
 
       const roleFromMetadata = data.user?.user_metadata?.role;
       const normalizedRole =
-        roleFromMetadata === 'seller' || roleFromMetadata === 'buyer'
-          ? roleFromMetadata
-          : null;
+        roleFromMetadata === 'seller' || roleFromMetadata === 'buyer' ? roleFromMetadata : null;
 
       if (data.user?.id && normalizedRole) {
         const { error: profileError } = await supabase
@@ -89,10 +93,18 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Sign in with email and password or continue with social.</CardDescription>
+          <CardDescription>
+            Sign in with email and password or continue with social.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-6">
+            {sellerAccessMessage ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                {sellerAccessMessage}
+              </div>
+            ) : null}
+
             <form className="flex flex-col gap-4" onSubmit={handleEmailLogin} autoComplete="on">
               <div className="grid gap-2">
                 <Label htmlFor="loginEmail">Email</Label>

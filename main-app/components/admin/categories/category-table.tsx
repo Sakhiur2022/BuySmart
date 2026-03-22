@@ -213,7 +213,7 @@ export function CategoryTable({ categories }: CategoryTableProps) {
                           }}
                         >
                           <Power className="h-4 w-4" />
-                          {category.is_active ? 'Toggle Inactive' : 'Toggle Active'}
+                          {category.is_active ? 'Deactivate' : 'Activate'}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
