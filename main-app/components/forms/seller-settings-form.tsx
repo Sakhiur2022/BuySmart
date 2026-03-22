@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { saveSellerSettings } from '@/lib/actions/settings';
-import { AvatarUploadWidget } from '@/components/shared/avatar-upload-widget';
 
 type SellerSettings = {
   storeName: string;
@@ -73,8 +72,6 @@ function toNumber(value: string, fallback: number) {
 
 export function SellerSettingsForm({
   userId,
-  initialAvatarUrl,
-  displayName,
   initialSettings,
   initialUpdatedAt,
 }: SellerSettingsFormProps) {

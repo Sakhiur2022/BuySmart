@@ -1,12 +1,24 @@
+'use client';
+
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import type { Category } from '@/lib/models/category.model';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 type ProductFormValues = {
   productId?: string;
+  categoryId?: number | null;
   name: string;
   price: number;
   inventoryQuantity: number;
@@ -21,6 +33,7 @@ type ProductFormProps = {
   description: string;
   submitLabel: string;
   action: (formData: FormData) => void | Promise<void>;
+  categories: Category[];
   values?: Partial<ProductFormValues>;
 };
 
@@ -34,11 +47,26 @@ const DEFAULT_VALUES: ProductFormValues = {
   imageUrl: '',
 };
 
-export function ProductForm({ title, description, submitLabel, action, values }: ProductFormProps) {
+export function ProductForm({
+  title,
+  description,
+  submitLabel,
+  action,
+  categories,
+  values,
+}: ProductFormProps) {
   const formValues = {
     ...DEFAULT_VALUES,
     ...values,
   };
+  const [selectedCategoryId, setSelectedCategoryId] = useState(
+    formValues.categoryId ? String(formValues.categoryId) : 'none',
+  );
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((category) => ({ id: String(category.category_id), label: category.name })),
+    [categories],
+  );
 
   return (
     <Card className="shadow-sm">
@@ -51,6 +79,11 @@ export function ProductForm({ title, description, submitLabel, action, values }:
           {formValues.productId ? (
             <input type="hidden" name="product_id" value={formValues.productId} />
           ) : null}
+          <input
+            type="hidden"
+            name="category_id"
+            value={selectedCategoryId === 'none' ? '' : selectedCategoryId}
+          />
 
           <div className="grid gap-2">
             <Label htmlFor="name">Product Name</Label>
@@ -90,6 +123,23 @@ export function ProductForm({ title, description, submitLabel, action, values }:
                 required
               />
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="category_id">Category</Label>
+            <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+              <SelectTrigger id="category_id">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No category</SelectItem>
+                {categoryOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-2">
