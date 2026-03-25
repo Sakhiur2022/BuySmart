@@ -181,12 +181,6 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
           ) : null}
 
           <section className="space-y-6">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold">Browse All Products</h2>
-              <p className="text-muted-foreground">
-                Explore our complete catalog with filtering and pagination
-              </p>
-            </div>
             <ProductListingPage
               initialProducts={[]}
               initialPagination={{

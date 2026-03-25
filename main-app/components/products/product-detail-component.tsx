@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -11,6 +11,7 @@ import {
   ShoppingCart,
   ArrowRight,
   MessageSquare,
+  Sparkles,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -82,11 +83,7 @@ function RatingStars({ rating, size = 'default' }: { rating: number; size?: 'sm'
   );
 }
 
-function RatingDistribution({
-  distribution,
-}: {
-  distribution: { [key: string]: number };
-}) {
+function RatingDistribution({ distribution }: { distribution: { [key: string]: number } }) {
   const total = Object.values(distribution).reduce((a, b) => a + b, 0);
 
   return (
@@ -104,9 +101,7 @@ function RatingDistribution({
                 style={{ width: `${percentage}%` }}
               />
             </div>
-            <span className="text-sm text-zinc-600 dark:text-zinc-400 w-8 text-right">
-              {count}
-            </span>
+            <span className="text-sm text-zinc-600 dark:text-zinc-400 w-8 text-right">{count}</span>
           </div>
         );
       })}
@@ -118,13 +113,93 @@ function RatingDistribution({
 // MAIN COMPONENT
 // ============================================================================
 
+interface RecommendedItem {
+  productId: string;
+  title: string;
+  reason: string;
+  score: number;
+  price?: number;
+}
+
+interface RecommendationEventDetail {
+  summary: string;
+  items: RecommendedItem[];
+}
+
 export default function ProductDetailComponent({ productData }: ProductDetailComponentProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
 
+  // AI Recommendation State
+  const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
+  const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
+  const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onRecommendations = (event: Event) => {
+      const customEvent = event as CustomEvent<RecommendationEventDetail>;
+      const payload = customEvent.detail;
+      setIsGeneratingRecommendations(false);
+
+      if (!payload || !Array.isArray(payload.items)) {
+        return;
+      }
+
+      setRecommendationSummary(payload.summary || null);
+      setRecommendedItems(payload.items);
+    };
+
+    const onRecommendationsLoading = () => {
+      setIsGeneratingRecommendations(true);
+      setRecommendationSummary(null);
+      setRecommendedItems([]);
+    };
+
+    const onRecommendationsError = () => {
+      setIsGeneratingRecommendations(false);
+    };
+
+    window.addEventListener('buysmart:recommendations', onRecommendations);
+    window.addEventListener('buysmart:recommendations:loading', onRecommendationsLoading);
+    window.addEventListener('buysmart:recommendations:error', onRecommendationsError);
+
+    return () => {
+      window.removeEventListener('buysmart:recommendations', onRecommendations);
+      window.removeEventListener('buysmart:recommendations:loading', onRecommendationsLoading);
+      window.removeEventListener('buysmart:recommendations:error', onRecommendationsError);
+    };
+  }, []);
+
   const { product, reviews, relatedProducts } = productData;
   const selectedImage = product.images[selectedImageIndex];
+
+  // Merge image data for recommendations
+  const recommendedCardItems = useMemo(() => {
+    if (!recommendedItems.length) return [];
+
+    const productsById = new Map();
+    // Use the main product if it's recommended
+    productsById.set(product.product_id, {
+      image: product.images?.[0],
+      name: product.name,
+      price: product.price,
+    });
+    // Use related products
+    relatedProducts.forEach((p) => {
+      productsById.set(p.product_id, { image: p.image, name: p.name, price: p.price });
+    });
+
+    return recommendedItems.map((item) => {
+      const match = productsById.get(item.productId);
+      return {
+        ...item,
+        image: match?.image,
+        name: match?.name ?? item.title,
+        productPrice: match?.price ?? item.price,
+      };
+    });
+  }, [recommendedItems, product, relatedProducts]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -208,9 +283,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                   <Badge variant="secondary">{product.category.name}</Badge>
                 </Link>
               )}
-              <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-                {product.name}
-              </h1>
+              <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{product.name}</h1>
             </div>
 
             {/* Rating */}
@@ -232,9 +305,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
 
             {/* Price */}
             <div className="space-y-2">
-              <div className="text-4xl font-bold text-emerald-600">
-                ${product.price.toFixed(2)}
-              </div>
+              <div className="text-4xl font-bold text-emerald-600">${product.price.toFixed(2)}</div>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 Free shipping on orders over $50
               </p>
@@ -285,9 +356,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                   onClick={() => setIsWishlisted(!isWishlisted)}
                   className="flex-1"
                 >
-                  <Heart
-                    className={`h-5 w-5 ${isWishlisted ? 'fill-red-500 text-red-500' : ''}`}
-                  />
+                  <Heart className={`h-5 w-5 ${isWishlisted ? 'fill-red-500 text-red-500' : ''}`} />
                 </Button>
                 <Button variant="outline" size="icon" className="flex-1">
                   <Share2 className="h-5 w-5" />
@@ -349,15 +418,15 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>Free shipping on orders over $50</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>30-day returns</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>1-year warranty</span>
               </div>
             </CardContent>
@@ -391,45 +460,169 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
         </Card>
       )}
 
-      {/* Related Products */}
-      {relatedProducts.length > 0 && (
+      {/* AI Recommendation Section */}
+      {isGeneratingRecommendations ? (
         <div className="mt-8 space-y-4">
-          <h2 className="text-2xl font-bold">Related Products</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {relatedProducts.map((relatedProduct) => (
-              <Link
-                key={relatedProduct.product_id}
-                href={`/buyer/products/${relatedProduct.product_id}`}
-              >
-                <Card className="group overflow-hidden transition-all hover:shadow-lg h-full">
-                  <div className="relative aspect-square overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                    {relatedProduct.image ? (
-                      <Image
-                        src={relatedProduct.image}
-                        alt={relatedProduct.name}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-zinc-400">
-                        No image
+          <Card className="relative overflow-hidden border-primary/30 bg-primary/5">
+            <div className="absolute inset-0 bg-linear-to-r from-transparent via-primary/10 to-transparent animate-pulse" />
+            <CardHeader className="pb-3 text-center">
+              <CardTitle className="text-2xl flex items-center justify-center gap-2 text-primary font-bold">
+                <Sparkles className="h-6 w-6 animate-pulse" />
+                Curating Your Magical Matches...
+              </CardTitle>
+              <div className="text-sm text-muted-foreground mt-2 animate-pulse">
+                Analyzing your intent and exploring our catalog for the perfect fit...
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <Card key={i} className="overflow-hidden border-border/40 opacity-80 h-full">
+                    <div className="aspect-square bg-muted animate-pulse" />
+                    <CardContent className="space-y-3 p-3">
+                      <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+                      <div className="space-y-2">
+                        <div className="h-3 w-full bg-muted animate-pulse rounded" />
+                        <div className="h-3 w-5/6 bg-muted animate-pulse rounded" />
                       </div>
-                    )}
-                  </div>
-                  <CardContent className="p-3">
-                    <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-emerald-600 transition-colors">
-                      {relatedProduct.name}
-                    </h3>
-                    <p className="mt-2 font-bold text-emerald-600">
-                      ${relatedProduct.price.toFixed(2)}
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
+                      <div className="h-4 w-1/4 bg-muted animate-pulse rounded mt-2" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      )}
+      ) : recommendedCardItems.length > 0 ? (
+        <div className="mt-8 space-y-4">
+          <Card className="border-primary/20 bg-primary/5 shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-2xl flex items-center gap-2 text-primary font-bold">
+                <Sparkles className="h-6 w-6" />
+                Handpicked For You
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {recommendationSummary && (
+                <div className="relative rounded-lg bg-background/50 p-4 border border-primary/10">
+                  <p className="text-sm leading-relaxed text-foreground/80 italic">
+                    &quot;{recommendationSummary}&quot;
+                  </p>
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {recommendedCardItems.map((item) => {
+                  const confidence = Math.round(Math.max(0, Math.min(1, item.score)) * 100);
+                  let confidenceColor = 'bg-primary/90 text-primary-foreground';
+                  if (confidence > 85) confidenceColor = 'bg-emerald-500 text-white';
+                  else if (confidence < 50) confidenceColor = 'bg-amber-500 text-white';
+
+                  return (
+                    <Link
+                      key={`${item.productId}-${item.title}`}
+                      href={`/buyer/products/${item.productId}`}
+                      className="group block"
+                    >
+                      <Card className="h-full overflow-hidden border-border/60 transition-all duration-300 hover:shadow-xl hover:border-primary/40 hover:-translate-y-1">
+                        <div className="relative aspect-square w-full overflow-hidden bg-muted/30">
+                          {item.image ? (
+                            <Image
+                              src={item.image}
+                              alt={item.name}
+                              fill
+                              className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-muted-foreground p-4 text-center">
+                              No image
+                            </div>
+                          )}
+
+                          {/* Gradient Overlay for legibility */}
+                          <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                          {/* Confidence Badge */}
+                          <div className="absolute right-2 top-2 z-10">
+                            <Badge
+                              className={`px-2 py-0.5 text-xs font-bold shadow-sm ${confidenceColor} border-none`}
+                            >
+                              {confidence}% Match
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <CardContent className="space-y-2.5 p-4 flex flex-col justify-between">
+                          <div>
+                            <h3 className="line-clamp-1 text-sm font-semibold group-hover:text-primary transition-colors">
+                              {item.name}
+                            </h3>
+                            <p className="line-clamp-2 text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                              {item.reason}
+                            </p>
+                          </div>
+                          {item.productPrice !== undefined ? (
+                            <div className="pt-2 flex items-center justify-between">
+                              <span className="text-sm font-bold text-foreground">
+                                ${item.productPrice.toFixed(2)}
+                              </span>
+                              <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                                View &rarr;
+                              </span>
+                            </div>
+                          ) : null}
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {/* Related Products */}
+      {relatedProducts.length > 0 &&
+        !isGeneratingRecommendations &&
+        recommendedCardItems.length === 0 && (
+          <div className="mt-8 space-y-4">
+            <h2 className="text-2xl font-bold">Related Products</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {relatedProducts.map((relatedProduct) => (
+                <Link
+                  key={relatedProduct.product_id}
+                  href={`/buyer/products/${relatedProduct.product_id}`}
+                >
+                  <Card className="group overflow-hidden transition-all hover:shadow-lg h-full">
+                    <div className="relative aspect-square overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                      {relatedProduct.image ? (
+                        <Image
+                          src={relatedProduct.image}
+                          alt={relatedProduct.name}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-zinc-400">
+                          No image
+                        </div>
+                      )}
+                    </div>
+                    <CardContent className="p-3">
+                      <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-emerald-600 transition-colors">
+                        {relatedProduct.name}
+                      </h3>
+                      <p className="mt-2 font-bold text-emerald-600">
+                        ${relatedProduct.price.toFixed(2)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
     </div>
   );
 }
