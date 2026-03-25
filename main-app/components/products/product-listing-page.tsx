@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Grid3x3, List, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Grid3x3, List, ChevronLeft, ChevronRight, X, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -104,6 +104,8 @@ export default function ProductListingPage({
   const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
   const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
 
+  const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
+
   // Calculate total pages from pagination
   const totalPages = pagination.totalPages;
   const totalCount = pagination.totalCount;
@@ -152,6 +154,7 @@ export default function ProductListingPage({
     const onRecommendations = (event: Event) => {
       const customEvent = event as CustomEvent<RecommendationEventDetail>;
       const payload = customEvent.detail;
+      setIsGeneratingRecommendations(false);
 
       if (!payload || !Array.isArray(payload.items)) {
         return;
@@ -161,10 +164,24 @@ export default function ProductListingPage({
       setRecommendedItems(payload.items);
     };
 
+    const onRecommendationsLoading = () => {
+      setIsGeneratingRecommendations(true);
+      setRecommendationSummary(null);
+      setRecommendedItems([]);
+    };
+
+    const onRecommendationsError = () => {
+      setIsGeneratingRecommendations(false);
+    };
+
     window.addEventListener('buysmart:recommendations', onRecommendations);
+    window.addEventListener('buysmart:recommendations:loading', onRecommendationsLoading);
+    window.addEventListener('buysmart:recommendations:error', onRecommendationsError);
 
     return () => {
       window.removeEventListener('buysmart:recommendations', onRecommendations);
+      window.removeEventListener('buysmart:recommendations:loading', onRecommendationsLoading);
+      window.removeEventListener('buysmart:recommendations:error', onRecommendationsError);
     };
   }, []);
 
@@ -297,57 +314,118 @@ export default function ProductListingPage({
 
         {/* Products Section */}
         <div className="lg:col-span-3 space-y-4">
-          {recommendedItems.length > 0 ? (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Recommended for you</CardTitle>
+          {isGeneratingRecommendations ? (
+            <Card className="relative overflow-hidden border-primary/30 bg-primary/5">
+              <div className="absolute inset-0 bg-linear-to-r from-transparent via-primary/10 to-transparent animate-pulse" />
+              <CardHeader className="pb-3 text-center">
+                <CardTitle className="text-lg flex items-center justify-center gap-2 text-primary">
+                  <Sparkles className="h-5 w-5 animate-pulse" />
+                  Curating Your Magical Matches...
+                </CardTitle>
+                <div className="text-sm text-muted-foreground mt-2 animate-pulse">
+                  Analyzing your intent and exploring our catalog for the perfect fit...
+                </div>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {[1, 2, 3].map((i) => (
+                    <Card key={i} className="overflow-hidden border-border/40 opacity-80">
+                      <div className="aspect-video bg-muted animate-pulse" />
+                      <CardContent className="space-y-3 p-3">
+                        <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+                        <div className="space-y-2">
+                          <div className="h-3 w-full bg-muted animate-pulse rounded" />
+                          <div className="h-3 w-5/6 bg-muted animate-pulse rounded" />
+                        </div>
+                        <div className="h-4 w-1/4 bg-muted animate-pulse rounded mt-2" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : recommendedItems.length > 0 ? (
+            <Card className="border-primary/20 bg-primary/5 shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2 text-primary font-semibold">
+                  <Sparkles className="h-5 w-5" />
+                  Handpicked For You
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {recommendationSummary ? (
-                  <p className="text-sm text-muted-foreground">{recommendationSummary}</p>
+                  <div className="relative rounded-lg bg-background/50 p-4 border border-primary/10">
+                    <p className="text-sm leading-relaxed text-foreground/80 italic">
+                      &quot;{recommendationSummary}&quot;
+                    </p>
+                  </div>
                 ) : null}
 
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {recommendedCardItems.map((item) => (
-                    <Link
-                      key={`${item.productId}-${item.title}`}
-                      href={`/buyer/products/${item.productId}`}
-                      className="group block"
-                    >
-                      <Card className="h-full overflow-hidden border-border/70 transition-all hover:shadow-md">
-                        <div className="relative aspect-video overflow-hidden bg-muted">
-                          {item.image ? (
-                            <Image
-                              src={item.image}
-                              alt={item.name}
-                              fill
-                              className="object-cover transition-transform group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                              No image
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {recommendedCardItems.map((item) => {
+                    const confidence = Math.round(Math.max(0, Math.min(1, item.score)) * 100);
+                    let confidenceColor = 'bg-primary/90 text-primary-foreground';
+                    if (confidence > 85) confidenceColor = 'bg-emerald-500 text-white';
+                    else if (confidence < 50) confidenceColor = 'bg-amber-500 text-white';
+
+                    return (
+                      <Link
+                        key={`${item.productId}-${item.title}`}
+                        href={`/buyer/products/${item.productId}`}
+                        className="group block"
+                      >
+                        <Card className="h-full overflow-hidden border-border/60 transition-all duration-300 hover:shadow-xl hover:border-primary/40 hover:-translate-y-1">
+                          <div className="relative aspect-4/3 w-full overflow-hidden bg-muted/30">
+                            {item.image ? (
+                              <Image
+                                src={item.image}
+                                alt={item.name}
+                                fill
+                                className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                                No image
+                              </div>
+                            )}
+
+                            {/* Gradient Overlay for legibility */}
+                            <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                            {/* Confidence Badge */}
+                            <div className="absolute right-2 top-2 z-10">
+                              <Badge
+                                className={`px-2 py-0.5 text-xs font-bold shadow-sm ${confidenceColor} border-none`}
+                              >
+                                {confidence}% Match
+                              </Badge>
                             </div>
-                          )}
+                          </div>
 
-                          <Badge variant="secondary" className="absolute right-2 top-2">
-                            {Math.round(Math.max(0, Math.min(1, item.score)) * 100)}%
-                          </Badge>
-                        </div>
-
-                        <CardContent className="space-y-2 p-3">
-                          <p className="line-clamp-1 text-sm font-medium">{item.name}</p>
-                          <p className="line-clamp-2 text-xs text-muted-foreground">
-                            {item.reason}
-                          </p>
-                          {item.productPrice !== undefined ? (
-                            <p className="text-sm font-semibold text-primary">
-                              ${item.productPrice.toFixed(2)}
-                            </p>
-                          ) : null}
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
+                          <CardContent className="space-y-2.5 p-4 flex flex-col justify-between">
+                            <div>
+                              <h3 className="line-clamp-1 text-base font-semibold group-hover:text-primary transition-colors">
+                                {item.name}
+                              </h3>
+                              <p className="line-clamp-2 text-sm text-muted-foreground mt-1.5 leading-relaxed">
+                                {item.reason}
+                              </p>
+                            </div>
+                            {item.productPrice !== undefined ? (
+                              <div className="pt-2 flex items-center justify-between">
+                                <span className="text-base font-bold text-foreground">
+                                  ${item.productPrice.toFixed(2)}
+                                </span>
+                                <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                                  View Details &rarr;
+                                </span>
+                              </div>
+                            ) : null}
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
