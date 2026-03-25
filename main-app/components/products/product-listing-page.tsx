@@ -54,6 +54,25 @@ interface ProductListingPageProps {
   initialFilters?: InitialFilters;
 }
 
+interface RecommendedItem {
+  productId: string;
+  title: string;
+  reason: string;
+  score: number;
+  price?: number;
+}
+
+interface RecommendedCardItem extends RecommendedItem {
+  image?: string;
+  name: string;
+  productPrice?: number;
+}
+
+interface RecommendationEventDetail {
+  summary: string;
+  items: RecommendedItem[];
+}
+
 type ViewMode = 'grid' | 'list';
 
 /**
@@ -69,13 +88,21 @@ export default function ProductListingPage({
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [currentPage, setCurrentPage] = useState(initialPagination.page);
   const [pageSize, setPageSize] = useState(initialPagination.pageSize);
-  const [priceMin, setPriceMin] = useState<string>(initialFilters.priceMin ? String(initialFilters.priceMin) : '');
-  const [priceMax, setPriceMax] = useState<string>(initialFilters.priceMax ? String(initialFilters.priceMax) : '');
-  const [categoryId, setCategoryId] = useState<string>(initialFilters.categoryId ? String(initialFilters.categoryId) : 'all');
+  const [priceMin, setPriceMin] = useState<string>(
+    initialFilters.priceMin ? String(initialFilters.priceMin) : '',
+  );
+  const [priceMax, setPriceMax] = useState<string>(
+    initialFilters.priceMax ? String(initialFilters.priceMax) : '',
+  );
+  const [categoryId, setCategoryId] = useState<string>(
+    initialFilters.categoryId ? String(initialFilters.categoryId) : 'all',
+  );
   const [products, setProducts] = useState(initialProducts);
   const [pagination, setPagination] = useState(initialPagination);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
+  const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
 
   // Calculate total pages from pagination
   const totalPages = pagination.totalPages;
@@ -121,6 +148,26 @@ export default function ProductListingPage({
     loadProducts();
   }, [loadProducts]);
 
+  useEffect(() => {
+    const onRecommendations = (event: Event) => {
+      const customEvent = event as CustomEvent<RecommendationEventDetail>;
+      const payload = customEvent.detail;
+
+      if (!payload || !Array.isArray(payload.items)) {
+        return;
+      }
+
+      setRecommendationSummary(payload.summary || null);
+      setRecommendedItems(payload.items);
+    };
+
+    window.addEventListener('buysmart:recommendations', onRecommendations);
+
+    return () => {
+      window.removeEventListener('buysmart:recommendations', onRecommendations);
+    };
+  }, []);
+
   // Active filter display
   const activeFilters = useMemo(() => {
     const filters = [];
@@ -140,6 +187,45 @@ export default function ProductListingPage({
     setCategoryId('all');
     setCurrentPage(1);
   };
+
+  const displayProducts = useMemo(() => {
+    if (!recommendedItems.length) {
+      return products;
+    }
+
+    const priorityMap = new Map<string, number>(
+      recommendedItems.map((item, index) => [item.productId, index]),
+    );
+
+    return [...products].sort((a, b) => {
+      const aRank = priorityMap.get(a.product_id);
+      const bRank = priorityMap.get(b.product_id);
+
+      if (aRank === undefined && bRank === undefined) return 0;
+      if (aRank === undefined) return 1;
+      if (bRank === undefined) return -1;
+      return aRank - bRank;
+    });
+  }, [products, recommendedItems]);
+
+  const recommendedCardItems = useMemo<RecommendedCardItem[]>(() => {
+    if (!recommendedItems.length) {
+      return [];
+    }
+
+    const productsById = new Map(products.map((product) => [product.product_id, product]));
+
+    return recommendedItems.map((item) => {
+      const product = productsById.get(item.productId);
+
+      return {
+        ...item,
+        image: product?.image,
+        name: product?.name ?? item.title,
+        productPrice: product?.price ?? item.price,
+      };
+    });
+  }, [products, recommendedItems]);
 
   return (
     <div className="space-y-6">
@@ -211,6 +297,62 @@ export default function ProductListingPage({
 
         {/* Products Section */}
         <div className="lg:col-span-3 space-y-4">
+          {recommendedItems.length > 0 ? (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Recommended for you</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recommendationSummary ? (
+                  <p className="text-sm text-muted-foreground">{recommendationSummary}</p>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {recommendedCardItems.map((item) => (
+                    <Link
+                      key={`${item.productId}-${item.title}`}
+                      href={`/buyer/products/${item.productId}`}
+                      className="group block"
+                    >
+                      <Card className="h-full overflow-hidden border-border/70 transition-all hover:shadow-md">
+                        <div className="relative aspect-video overflow-hidden bg-muted">
+                          {item.image ? (
+                            <Image
+                              src={item.image}
+                              alt={item.name}
+                              fill
+                              className="object-cover transition-transform group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                              No image
+                            </div>
+                          )}
+
+                          <Badge variant="secondary" className="absolute right-2 top-2">
+                            {Math.round(Math.max(0, Math.min(1, item.score)) * 100)}%
+                          </Badge>
+                        </div>
+
+                        <CardContent className="space-y-2 p-3">
+                          <p className="line-clamp-1 text-sm font-medium">{item.name}</p>
+                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                            {item.reason}
+                          </p>
+                          {item.productPrice !== undefined ? (
+                            <p className="text-sm font-semibold text-primary">
+                              ${item.productPrice.toFixed(2)}
+                            </p>
+                          ) : null}
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* Top Bar: View Mode Toggle + Page Size */}
           <div className="flex items-center justify-between gap-4 bg-muted/50 rounded-lg p-4">
             <div className="flex items-center gap-2">
@@ -279,12 +421,7 @@ export default function ProductListingPage({
             <div className="rounded-lg border border-dashed bg-muted/50 p-12 text-center">
               <p className="text-muted-foreground">No products found matching your filters.</p>
               {activeFilters.length > 0 && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="mt-2"
-                  onClick={handleClearFilters}
-                >
+                <Button variant="link" size="sm" className="mt-2" onClick={handleClearFilters}>
                   Try clearing filters
                 </Button>
               )}
@@ -292,12 +429,10 @@ export default function ProductListingPage({
           ) : (
             <div
               className={
-                viewMode === 'grid'
-                  ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
-                  : 'space-y-3'
+                viewMode === 'grid' ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' : 'space-y-3'
               }
             >
-              {products.map((product) => (
+              {displayProducts.map((product) => (
                 <ProductCard
                   key={product.product_id}
                   product={product}
@@ -374,7 +509,7 @@ function ProductCard({ product, isListView }: ProductCardProps) {
         <Card className="transition-all hover:shadow-md">
           <CardContent className="p-4">
             <div className="flex gap-4">
-              <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-md bg-muted">
+              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-md bg-muted">
                 {product.image ? (
                   <Image
                     src={product.image}

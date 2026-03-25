@@ -1,4 +1,9 @@
-import { RecommendationPanel } from '@/components/recommendations/recommendation-panel';
+/**
+ * Buyer landing page layout refactor.
+ * Moves recommendations into a responsive sticky sidebar (lg+) and mobile strip below products.
+ */
+
+import { RecommendationSidebar } from '@/components/recommendations/RecommendationSidebar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +12,7 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import ProductListingPage from '@/components/products/product-listing-page';
+import { Suspense } from 'react';
 
 type BuyerPageProps = {
   searchParams?: Promise<{
@@ -67,12 +73,16 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
 
   const showBuyerModeBanner = role === 'seller' && allowSellerView;
 
-  const { data: products } = await supabase
+  const { data: products, error: productsError } = await supabase
     .from('products')
-    .select('product_id, name, category_id, price, tags')
+    .select('product_id, name, category_id, price, tags, images, short_description')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(100);
+
+  if (productsError) {
+    console.error('Failed to load recommendation candidates:', productsError);
+  }
 
   const candidates: ProductCandidate[] = (products ?? []).map((product) => ({
     id: product.product_id,
@@ -81,6 +91,22 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
     price: product.price,
     tags: product.tags ?? undefined,
   }));
+
+  const recommendationProducts = (products ?? []).map((product) => {
+    const productImages = Array.isArray(product.images) ? product.images : [];
+    const firstImage =
+      productImages.length > 0 && typeof productImages[0] === 'string'
+        ? productImages[0]
+        : undefined;
+
+    return {
+      productId: product.product_id,
+      name: product.name,
+      price: product.price,
+      image: firstImage,
+      shortDescription: product.short_description,
+    };
+  });
 
   // Fetch categories for product listing
   const { data: categoriesData } = await supabase
@@ -135,75 +161,75 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
         </div>
       </section>
 
-      <RecommendationPanel
-        isAuthenticated={isAuthenticated}
-        userEmail={user?.email ?? null}
-        userDisplayName={buyerName}
-        candidates={candidates}
-      />
+      <div className="mx-auto flex max-w-screen-2xl flex-col items-start gap-6 px-4 py-6 lg:flex-row">
+        <main className="min-w-0 w-full space-y-8 lg:basis-4/5">
+          {!isAuthenticated ? (
+            <Card className="border-primary/20 bg-secondary/30">
+              <CardHeader>
+                <CardTitle className="text-lg">Continue as guest, upgrade anytime</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Guest mode stays open for exploration. Create an account when you want to save
+                  activity, sync devices, and receive improved personalization.
+                </p>
+                <Button asChild className="w-full sm:w-auto">
+                  <Link href="/auth/sign-up">Unlock full buyer features</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Intent-Driven Matching</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Explain what you need in plain language and get ranked product matches.
-          </CardContent>
-        </Card>
+          <section className="space-y-6">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">Browse All Products</h2>
+              <p className="text-muted-foreground">
+                Explore our complete catalog with filtering and pagination
+              </p>
+            </div>
+            <ProductListingPage
+              initialProducts={[]}
+              initialPagination={{
+                page: 1,
+                pageSize: 12,
+                totalCount: 0,
+                totalPages: 0,
+              }}
+              categories={categories}
+            />
+          </section>
+        </main>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Budget-Aware Results</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Apply budget ranges and result limits to keep recommendations practical.
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Transparent Reasoning</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Every recommendation includes a short rationale and confidence score.
-          </CardContent>
-        </Card>
-      </section>
-
-      {!isAuthenticated ? (
-        <Card className="border-primary/20 bg-secondary/30">
-          <CardHeader>
-            <CardTitle className="text-lg">Continue as guest, upgrade anytime</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted-foreground">
-              Guest mode stays open for exploration. Create an account when you want to save
-              activity, sync devices, and receive improved personalization.
-            </p>
-            <Button asChild className="w-full sm:w-auto">
-              <Link href="/auth/sign-up">Unlock full buyer features</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <section className="space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold">Browse All Products</h2>
-          <p className="text-zinc-600 dark:text-zinc-400">Explore our complete catalog with filtering and pagination</p>
+        <div className="w-full lg:basis-1/5 lg:shrink-0">
+          <Suspense
+            fallback={
+              <section className="space-y-3" aria-label="Product recommendations">
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div
+                      key={`recommendation-fallback-${index}`}
+                      className="border border-border rounded-xl bg-background p-4"
+                    >
+                      <div className="h-4 w-10/12 animate-pulse rounded bg-muted" />
+                      <div className="mt-2 h-4 w-8/12 animate-pulse rounded bg-muted" />
+                      <div className="mt-4 h-8 w-full animate-pulse rounded bg-muted" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            }
+          >
+            <RecommendationSidebar
+              isAuthenticated={isAuthenticated}
+              userEmail={user?.email ?? null}
+              userDisplayName={buyerName}
+              candidates={candidates}
+              products={recommendationProducts}
+            />
+          </Suspense>
         </div>
-        <ProductListingPage
-          initialProducts={[]}
-          initialPagination={{
-            page: 1,
-            pageSize: 12,
-            totalCount: 0,
-            totalPages: 0,
-          }}
-          categories={categories}
-        />
-      </section>
+      </div>
     </div>
   );
 }
