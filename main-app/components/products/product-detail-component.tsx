@@ -463,10 +463,10 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       {/* AI Recommendation Section */}
       {isGeneratingRecommendations ? (
         <div className="mt-8 space-y-4">
-          <Card className="relative overflow-hidden border-primary/30 bg-primary/5">
-            <div className="absolute inset-0 bg-linear-to-r from-transparent via-primary/10 to-transparent animate-pulse" />
+          <Card className="relative overflow-hidden border-red-500/30 bg-red-500/5 shadow-lg shadow-red-500/10">
+            <div className="absolute inset-0 bg-linear-to-r from-transparent via-red-500/20 to-transparent animate-pulse" />
             <CardHeader className="pb-3 text-center">
-              <CardTitle className="text-2xl flex items-center justify-center gap-2 text-primary font-bold">
+              <CardTitle className="text-2xl flex items-center justify-center gap-2 text-red-500 font-bold drop-shadow-sm">
                 <Sparkles className="h-6 w-6 animate-pulse" />
                 Curating Your Magical Matches...
               </CardTitle>
@@ -475,8 +475,8 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
                   <Card key={i} className="overflow-hidden border-border/40 opacity-80 h-full">
                     <div className="aspect-square bg-muted animate-pulse" />
                     <CardContent className="space-y-3 p-3">
@@ -511,7 +511,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                 </div>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
                 {recommendedCardItems.map((item) => {
                   const confidence = Math.round(Math.max(0, Math.min(1, item.score)) * 100);
                   let confidenceColor = 'bg-primary/90 text-primary-foreground';

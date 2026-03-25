@@ -125,6 +125,10 @@ export function RecommendationPanel({
       return;
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('buysmart:recommendations:loading'));
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -152,6 +156,9 @@ export function RecommendationPanel({
         const fallbackError = 'Recommendation request failed. Please try again.';
         setHasGenerated(false);
         setErrorMessage(data.errorMessage ?? data.error ?? fallbackError);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('buysmart:recommendations:error'));
+        }
         return;
       }
 
@@ -180,6 +187,9 @@ export function RecommendationPanel({
     } catch {
       setHasGenerated(false);
       setErrorMessage('Unable to connect to recommendation service right now.');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('buysmart:recommendations:error'));
+      }
     } finally {
       setIsLoading(false);
     }

@@ -315,10 +315,10 @@ export default function ProductListingPage({
         {/* Products Section */}
         <div className="lg:col-span-3 space-y-4">
           {isGeneratingRecommendations ? (
-            <Card className="relative overflow-hidden border-primary/30 bg-primary/5">
-              <div className="absolute inset-0 bg-linear-to-r from-transparent via-primary/10 to-transparent animate-pulse" />
+            <Card className="relative overflow-hidden border-red-500/30 bg-red-500/5 shadow-lg shadow-red-500/10">
+              <div className="absolute inset-0 bg-linear-to-r from-transparent via-red-500/20 to-transparent animate-pulse" />
               <CardHeader className="pb-3 text-center">
-                <CardTitle className="text-lg flex items-center justify-center gap-2 text-primary">
+                <CardTitle className="text-lg flex items-center justify-center gap-2 text-red-500 drop-shadow-sm">
                   <Sparkles className="h-5 w-5 animate-pulse" />
                   Curating Your Magical Matches...
                 </CardTitle>
@@ -328,7 +328,7 @@ export default function ProductListingPage({
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {[1, 2, 3].map((i) => (
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
                     <Card key={i} className="overflow-hidden border-border/40 opacity-80">
                       <div className="aspect-video bg-muted animate-pulse" />
                       <CardContent className="space-y-3 p-3">
