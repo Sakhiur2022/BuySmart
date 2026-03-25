@@ -161,7 +161,7 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
         </div>
       </section>
 
-      <div className="mx-auto flex max-w-screen-2xl flex-col items-start gap-6 px-4 py-6 lg:flex-row">
+      <div className="mx-auto flex max-w-screen-2xl flex-col-reverse items-start gap-6 px-4 py-6 lg:flex-row">
         <main className="min-w-0 w-full space-y-8 lg:basis-4/5">
           {!isAuthenticated ? (
             <Card className="border-primary/20 bg-secondary/30">
