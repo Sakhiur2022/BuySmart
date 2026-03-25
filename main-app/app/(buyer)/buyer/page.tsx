@@ -6,6 +6,7 @@ import type { ProductCandidate } from '@/lib/agents/recommendation/types';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import ProductListingPage from '@/components/products/product-listing-page';
 
 type BuyerPageProps = {
   searchParams?: Promise<{
@@ -81,6 +82,18 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
     tags: product.tags ?? undefined,
   }));
 
+  // Fetch categories for product listing
+  const { data: categoriesData } = await supabase
+    .from('categories')
+    .select('category_id, name, slug')
+    .order('name', { ascending: true });
+
+  const categories = (categoriesData ?? []).map((cat) => ({
+    category_id: cat.category_id as number,
+    name: cat.name as string,
+    slug: cat.slug as string,
+  }));
+
   return (
     <div className="space-y-8">
       {showBuyerModeBanner ? (
@@ -107,16 +120,18 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
             </p>
           </div>
 
-          {!isAuthenticated ? (
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button asChild variant="outline" size="sm">
-                <Link href="/auth/login">Sign in</Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href="/auth/sign-up">Create account</Link>
-              </Button>
-            </div>
-          ) : null}
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {!isAuthenticated ? (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/auth/login">Sign in</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/auth/sign-up">Create account</Link>
+                </Button>
+              </>
+            ) : null}
+          </div>
         </div>
       </section>
 
@@ -172,6 +187,23 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
           </CardContent>
         </Card>
       ) : null}
+
+      <section className="space-y-6">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">Browse All Products</h2>
+          <p className="text-zinc-600 dark:text-zinc-400">Explore our complete catalog with filtering and pagination</p>
+        </div>
+        <ProductListingPage
+          initialProducts={[]}
+          initialPagination={{
+            page: 1,
+            pageSize: 12,
+            totalCount: 0,
+            totalPages: 0,
+          }}
+          categories={categories}
+        />
+      </section>
     </div>
   );
 }

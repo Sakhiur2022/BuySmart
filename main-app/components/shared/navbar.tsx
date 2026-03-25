@@ -43,6 +43,9 @@ export async function Navbar() {
 
           {/* Main Nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+            <Link href="/buyer" className="hover:text-emerald-600 transition-colors">
+              Products
+            </Link>
             <SellerNavLink role={role} />
           </nav>
 
