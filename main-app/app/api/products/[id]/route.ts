@@ -1,32 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import type { Database } from '@/lib/types/database.types';
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
-
-interface ProductDetail {
-  product_id: string;
-  name: string;
-  price: number;
-  description: string | null;
-  short_description: string | null;
-  images: unknown;
-  category_id: number | null;
-  status: string;
-  seller_id: string;
-  created_at: string;
-  category?: {
-    category_id: number;
-    name: string;
-  } | null;
-  seller?: {
-    user_id: string;
-    full_name: string | null;
-    avatar_url: string | null;
-  } | null;
-}
 
 interface ReviewStats {
   average_rating: number;
@@ -119,7 +96,7 @@ export async function GET(
       .eq('product_id', id)
       .in('status', ['approved', 'verified']);
 
-    let reviewStats: ReviewStats = {
+    const reviewStats: ReviewStats = {
       average_rating: 0,
       total_reviews: 0,
       rating_distribution: {

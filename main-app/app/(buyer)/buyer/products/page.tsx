@@ -1,7 +1,6 @@
 import { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import ProductListingPage from '@/components/products/product-listing-page';
-import type { Database } from '@/lib/types/database.types';
 
 // ============================================================================
 // TYPES
@@ -90,18 +89,7 @@ export default async function BuyerProductsPage({ searchParams }: PageProps) {
 
     if (!productsResponse.ok) {
       console.error('Failed to fetch products:', productsResponse.statusText);
-      return (
-        <div className="min-h-screen bg-zinc-50 px-4 py-8 dark:bg-zinc-900">
-          <div className="mx-auto max-w-7xl">
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              Products
-            </h1>
-            <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-              Failed to load products. Please try again later.
-            </p>
-          </div>
-        </div>
-      );
+      throw new Error('Failed to fetch products');
     }
 
     const productsData = await productsResponse.json();
@@ -121,17 +109,6 @@ export default async function BuyerProductsPage({ searchParams }: PageProps) {
     );
   } catch (error) {
     console.error('Error loading products page:', error);
-    return (
-      <div className="min-h-screen bg-zinc-50 px-4 py-8 dark:bg-zinc-900">
-        <div className="mx-auto max-w-7xl">
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            Products
-          </h1>
-          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-            An error occurred while loading products. Please try again later.
-          </p>
-        </div>
-      </div>
-    );
+    throw error;
   }
 }

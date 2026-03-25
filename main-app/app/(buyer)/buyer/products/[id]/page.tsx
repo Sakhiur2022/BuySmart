@@ -52,8 +52,7 @@ interface ProductData {
 // ============================================================================
 
 export async function generateMetadata(
-  { params }: PageProps,
-  parent: ResolvingMetadata
+  { params }: PageProps
 ): Promise<Metadata> {
   const { id } = await params;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

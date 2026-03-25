@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import type { Database } from '@/lib/types/database.types';
 
 // ============================================================================
 // TYPE DEFINITIONS & CONSTANTS
