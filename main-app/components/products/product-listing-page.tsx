@@ -143,11 +143,6 @@ export default function ProductListingPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Browse Products</h1>
-        <p className="text-muted-foreground">Find the perfect product from our catalog</p>
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-4">
         {/* Filters Sidebar */}
         <div className="lg:col-span-1">

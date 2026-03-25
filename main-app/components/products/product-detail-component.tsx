@@ -133,15 +133,11 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
         <Link href="/buyer" className="hover:text-zinc-900 dark:hover:text-zinc-200">
           Home
         </Link>
-        <span>/</span>
-        <Link href="/buyer/products" className="hover:text-zinc-900 dark:hover:text-zinc-200">
-          Products
-        </Link>
         {product.category && (
           <>
             <span>/</span>
             <Link
-              href={`/buyer/products?categoryId=${product.category.category_id}`}
+              href={`/buyer?categoryId=${product.category.category_id}`}
               className="hover:text-zinc-900 dark:hover:text-zinc-200"
             >
               {product.category.name}
