@@ -283,6 +283,13 @@ create policy "categories_public_read" on categories
   for select
   using (true);
 
+-- Admin full write access to categories
+create policy "categories_admin_write"
+  on categories
+  for all
+  using (is_admin(auth.uid()))
+  with check (is_admin(auth.uid()));
+
 -- Products (public read; sellers manage own)
 create policy "products_public_read" on products
   for select

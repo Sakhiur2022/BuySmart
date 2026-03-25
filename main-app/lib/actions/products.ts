@@ -20,6 +20,27 @@ function getNumber(formData: FormData, key: string): number {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+function getOptionalCategoryId(formData: FormData, key: string): number | null {
+  const value = formData.get(key);
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return NaN;
+  }
+
+  return parsed;
+}
+
 function appendQueryParam(basePath: string, key: string, value: string): string {
   const separator = basePath.includes('?') ? '&' : '?';
   return `${basePath}${separator}${key}=${encodeURIComponent(value)}`;
@@ -68,6 +89,7 @@ export async function createProductAction(formData: FormData) {
   const name = getString(formData, 'name');
   const price = getNumber(formData, 'price');
   const inventoryQuantity = Math.trunc(getNumber(formData, 'inventory_quantity'));
+  const categoryId = getOptionalCategoryId(formData, 'category_id');
   const status = parseStatus(getString(formData, 'status'), 'active');
   const shortDescription = getString(formData, 'short_description');
   const description = getString(formData, 'description');
@@ -85,8 +107,13 @@ export async function createProductAction(formData: FormData) {
     buildErrorPath('/seller/products/new', 'Stock must be a valid non-negative number.');
   }
 
+  if (Number.isNaN(categoryId)) {
+    buildErrorPath('/seller/products/new', 'Category must be a valid selection.');
+  }
+
   const { error } = await writeClient.from('products').insert({
     seller_id: userId,
+    category_id: categoryId,
     name,
     price,
     inventory_quantity: inventoryQuantity,
@@ -122,6 +149,7 @@ export async function updateProductAction(formData: FormData) {
   const name = getString(formData, 'name');
   const price = getNumber(formData, 'price');
   const inventoryQuantity = Math.trunc(getNumber(formData, 'inventory_quantity'));
+  const categoryId = getOptionalCategoryId(formData, 'category_id');
   const status = parseStatus(getString(formData, 'status'), 'active');
   const shortDescription = getString(formData, 'short_description');
   const description = getString(formData, 'description');
@@ -149,9 +177,14 @@ export async function updateProductAction(formData: FormData) {
     );
   }
 
+  if (Number.isNaN(categoryId)) {
+    buildErrorPath(`/seller/products/${productId}/edit`, 'Category must be a valid selection.');
+  }
+
   const { error } = await writeClient
     .from('products')
     .update({
+      category_id: categoryId,
       name,
       price,
       inventory_quantity: inventoryQuantity,
