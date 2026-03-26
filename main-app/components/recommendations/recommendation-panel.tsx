@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Loader2, Sparkles, WandSparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -81,12 +81,6 @@ export function RecommendationPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
-
-  const candidateLookup = useMemo(
-    () =>
-      new Map<string, ProductCandidate>(candidates.map((candidate) => [candidate.id, candidate])),
-    [candidates],
-  );
 
   const maxAllowedResults = isAuthenticated
     ? MAX_RESULTS_BY_MODE.member
@@ -303,11 +297,12 @@ export function RecommendationPanel({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2">
           <Button
             type="button"
             onClick={generateRecommendations}
             disabled={isLoading || !hasCandidates}
+            className="w-full sm:w-auto self-start"
           >
             {isLoading ? (
               <>
@@ -325,28 +320,7 @@ export function RecommendationPanel({
               </>
             )}
           </Button>
-
-          <span className="text-xs text-muted-foreground">
-            Candidates available: {candidates.length}
-          </span>
         </div>
-
-        {isLoading ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, index) => (
-              <div
-                key={`skeleton-${index}`}
-                className="space-y-3 rounded-lg border bg-card p-4 shadow-sm"
-              >
-                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-full animate-pulse rounded bg-muted" />
-                <div className="h-3 w-10/12 animate-pulse rounded bg-muted" />
-                <div className="h-2 w-full animate-pulse rounded bg-muted" />
-              </div>
-            ))}
-          </div>
-        ) : null}
-
         {errorMessage ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {errorMessage}
@@ -364,12 +338,6 @@ export function RecommendationPanel({
           <div className="rounded-lg border border-border/70 bg-muted/25 p-4 text-sm text-muted-foreground">
             Enter your intent and constraints, then generate recommendations to see AI-ranked
             results.
-          </div>
-        ) : null}
-
-        {hasGenerated && !errorMessage ? (
-          <div className="rounded-lg border border-primary/30 bg-primary/10 p-4 text-sm text-foreground">
-            Recommendations were generated and applied to the product listing section.
           </div>
         ) : null}
       </CardContent>

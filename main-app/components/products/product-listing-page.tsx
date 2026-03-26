@@ -315,29 +315,34 @@ export default function ProductListingPage({
         {/* Products Section */}
         <div className="lg:col-span-3 space-y-4">
           {isGeneratingRecommendations ? (
-            <Card className="relative overflow-hidden border-red-500/30 bg-red-500/5 shadow-lg shadow-red-500/10">
-              <div className="absolute inset-0 bg-linear-to-r from-transparent via-red-500/20 to-transparent animate-pulse" />
-              <CardHeader className="pb-3 text-center">
-                <CardTitle className="text-lg flex items-center justify-center gap-2 text-red-500 drop-shadow-sm">
-                  <Sparkles className="h-5 w-5 animate-pulse" />
+            <Card className="relative overflow-hidden border-primary/20 bg-background/50 shadow-lg shadow-primary/10">
+              <div className="absolute inset-0 bg-linear-to-r from-red-500/15 via-purple-500/15 to-amber-500/15 bg-size-[200%_200%] animate-magical-gradient" />
+              <CardHeader className="pb-3 text-center relative z-10">
+                <CardTitle className="text-lg flex items-center justify-center gap-2 bg-linear-to-r from-red-500 via-purple-500 to-amber-500 bg-clip-text text-transparent font-bold drop-shadow-sm">
+                  <Sparkles className="h-5 w-5 text-purple-500 animate-pulse" />
                   Curating Your Magical Matches...
                 </CardTitle>
-                <div className="text-sm text-muted-foreground mt-2 animate-pulse">
+                <div className="text-sm text-muted-foreground mt-2 font-medium">
                   Analyzing your intent and exploring our catalog for the perfect fit...
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative z-10">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <Card key={i} className="overflow-hidden border-border/40 opacity-80">
-                      <div className="aspect-video bg-muted animate-pulse" />
+                    <Card
+                      key={i}
+                      className="relative overflow-hidden border-border/40 bg-card/60 backdrop-blur-sm"
+                    >
+                      {/* Shimmer effect */}
+                      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-zinc-400/10 dark:via-zinc-100/10 to-transparent animate-shimmer" />
+                      <div className="aspect-video bg-muted/40" />
                       <CardContent className="space-y-3 p-3">
-                        <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+                        <div className="h-4 w-3/4 bg-muted/60 rounded" />
                         <div className="space-y-2">
-                          <div className="h-3 w-full bg-muted animate-pulse rounded" />
-                          <div className="h-3 w-5/6 bg-muted animate-pulse rounded" />
+                          <div className="h-3 w-full bg-muted/60 rounded" />
+                          <div className="h-3 w-5/6 bg-muted/60 rounded" />
                         </div>
-                        <div className="h-4 w-1/4 bg-muted animate-pulse rounded mt-2" />
+                        <div className="h-4 w-1/4 bg-muted/60 rounded mt-2" />
                       </CardContent>
                     </Card>
                   ))}
