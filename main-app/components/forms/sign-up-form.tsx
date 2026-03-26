@@ -116,7 +116,15 @@ export function SignUpForm({
       if (data.session && data.user?.id) {
         const { error: profileError } = await supabase
           .from('users_profile')
-          .upsert({ user_id: data.user.id, role: normalizedRole }, { onConflict: 'user_id' });
+          .upsert(
+            {
+              user_id: data.user.id,
+              role: normalizedRole,
+              full_name: fullName.trim(),
+              display_name: fullName.trim(),
+            },
+            { onConflict: 'user_id' },
+          );
 
         if (profileError) {
           console.warn('Profile bootstrap failed:', profileError.message);
