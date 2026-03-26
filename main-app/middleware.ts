@@ -43,7 +43,8 @@ export async function middleware(request: NextRequest) {
   const claims = (claimsData?.claims ?? null) as Record<string, unknown> | null;
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith('/auth');
-  const isPublicRoute = pathname === '/' || isAuthRoute;
+  const isPublicProductApi = pathname.startsWith('/api/products');
+  const isPublicRoute = pathname === '/' || isAuthRoute || isPublicProductApi;
 
   const redirectTo = (targetPath: string, params?: Record<string, string>) => {
     const url = request.nextUrl.clone();

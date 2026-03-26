@@ -9,7 +9,6 @@ import {
   Share2,
   Check,
   ShoppingCart,
-  ArrowRight,
   MessageSquare,
   Sparkles,
 } from 'lucide-react';
@@ -395,13 +394,6 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                     <p className="text-xs text-zinc-600 dark:text-zinc-400">Verified Seller</p>
                   </div>
                 </div>
-
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href={`/seller/${product.seller.user_id}`}>
-                    View Store
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
 
                 <Button variant="outline" className="w-full">
                   <MessageSquare className="mr-2 h-4 w-4" />

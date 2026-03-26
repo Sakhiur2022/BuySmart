@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import ProductDetailComponent from '@/components/products/product-detail-component';
@@ -55,7 +56,10 @@ export async function generateMetadata(
   { params }: PageProps
 ): Promise<Metadata> {
   const { id } = await params;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const requestHeaders = await headers();
+  const host = requestHeaders.get('host') || 'localhost:3000';
+  const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
+  const appUrl = `${protocol}://${host}`;
 
   try {
     const response = await fetch(`${appUrl}/api/products/${id}`, {
@@ -68,6 +72,15 @@ export async function generateMetadata(
       return {
         title: 'Product Not Found | BuySmart',
         description: 'The product you are looking for does not exist.',
+      };
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Invalid content type from API:', contentType);
+      return {
+        title: 'Product | BuySmart',
+        description: 'View product details on BuySmart',
       };
     }
 
@@ -105,7 +118,10 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const { id } = await params;
 
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const requestHeaders = await headers();
+    const host = requestHeaders.get('host') || 'localhost:3000';
+    const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
+    const appUrl = `${protocol}://${host}`;
 
     // Fetch product detail data
     const response = await fetch(`${appUrl}/api/products/${id}`, {
@@ -118,7 +134,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
       if (response.status === 404) {
         notFound();
       }
-      throw new Error('Failed to fetch product');
+      throw new Error(`API returned status ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Invalid content type from API:', contentType, 'for product:', id);
+      throw new Error('API returned non-JSON response');
     }
 
     const data: ProductData = await response.json();

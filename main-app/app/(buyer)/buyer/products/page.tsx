@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import ProductListingPage from '@/components/products/product-listing-page';
 
@@ -78,7 +79,10 @@ export default async function BuyerProductsPage({ searchParams }: PageProps) {
     if (params.categoryId) queryParams.append('categoryId', params.categoryId);
     if (params.search) queryParams.append('search', params.search);
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const requestHeaders = await headers();
+    const host = requestHeaders.get('host') || 'localhost:3000';
+    const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
+    const appUrl = `${protocol}://${host}`;
     const productsUrl = `${appUrl}/api/products?${queryParams.toString()}`;
 
     const productsResponse = await fetch(productsUrl, {

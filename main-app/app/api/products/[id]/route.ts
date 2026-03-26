@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getServiceRoleSupabase } from '@/lib/supabase/service-role';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -48,7 +49,8 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Fetch product with category info
+    // Fetch base product record first. Keep this query simple so missing
+    // foreign key relationships do not cause false "not found" responses.
     const { data: product, error: productError } = await supabase
       .from('products')
       .select(
@@ -62,8 +64,7 @@ export async function GET(
         category_id,
         status,
         seller_id,
-        created_at,
-        categories!inner(category_id, name)
+        created_at
         `
       )
       .eq('product_id', id)
@@ -78,15 +79,55 @@ export async function GET(
       );
     }
 
+    // Fetch optional category info separately to avoid hard dependency on
+    // Supabase relation metadata in the main product query.
+    let category: { category_id: number; name: string } | null = null;
+    if (product.category_id) {
+      const { data: categoryData, error: categoryError } = await supabase
+        .from('categories')
+        .select('category_id, name')
+        .eq('category_id', product.category_id)
+        .maybeSingle();
+
+      if (categoryError) {
+        console.error('Category fetch error:', categoryError);
+      } else if (categoryData) {
+        category = {
+          category_id: categoryData.category_id,
+          name: categoryData.name,
+        };
+      }
+    }
+
     // Fetch seller info
     const { data: seller, error: sellerError } = await supabase
       .from('users_profile')
-      .select('user_id, full_name, avatar_url')
+      .select('user_id, full_name, display_name, avatar_url')
       .eq('user_id', product.seller_id)
-      .single();
+      .maybeSingle();
 
     if (sellerError) {
       console.error('Seller fetch error:', sellerError);
+    }
+
+    // If profile names are empty, try auth metadata as a secondary source.
+    let sellerNameFromAuth: string | null = null;
+    if (!seller?.full_name?.trim() && !seller?.display_name?.trim()) {
+      const serviceRole = getServiceRoleSupabase();
+      if (serviceRole) {
+        const { data: authUserData, error: authUserError } =
+          await serviceRole.auth.admin.getUserById(product.seller_id);
+
+        if (authUserError) {
+          console.error('Seller auth metadata fetch error:', authUserError);
+        } else {
+          const metadata = authUserData.user?.user_metadata ?? {};
+          const fullName =
+            typeof metadata.full_name === 'string' ? metadata.full_name.trim() : '';
+          const name = typeof metadata.name === 'string' ? metadata.name.trim() : '';
+          sellerNameFromAuth = fullName || name || null;
+        }
+      }
     }
 
     // Fetch review statistics
@@ -170,13 +211,15 @@ export async function GET(
         Array.isArray(product.images) && product.images.every((img) => typeof img === 'string')
           ? product.images
           : [],
-      category: Array.isArray(product.categories)
-        ? product.categories[0]
-        : product.categories,
+      category,
       seller: seller
         ? {
             user_id: seller.user_id,
-            full_name: seller.full_name || 'Unknown Seller',
+            full_name:
+              seller.full_name?.trim() ||
+              seller.display_name?.trim() ||
+              sellerNameFromAuth ||
+              `Seller ${seller.user_id.slice(0, 8)}`,
             avatar_url: seller.avatar_url,
           }
         : null,
