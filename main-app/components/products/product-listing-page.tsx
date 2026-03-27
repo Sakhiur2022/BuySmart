@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Grid3x3, List, ChevronLeft, ChevronRight, X, Sparkles } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Grid3x3, List, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import ProductSearchInput from '@/components/products/product-search-input';
 
 interface Product {
   product_id: string;
@@ -31,7 +33,6 @@ interface Product {
 interface Category {
   category_id: number;
   name: string;
-  slug: string;
 }
 
 interface Pagination {
@@ -45,6 +46,7 @@ interface InitialFilters {
   priceMin?: number;
   priceMax?: number;
   categoryId?: number;
+  query?: string;
 }
 
 interface ProductListingPageProps {
@@ -85,9 +87,12 @@ export default function ProductListingPage({
   initialPagination,
   initialFilters = {},
 }: ProductListingPageProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [currentPage, setCurrentPage] = useState(initialPagination.page);
-  const [pageSize, setPageSize] = useState(initialPagination.pageSize);
+  const [currentPage, setCurrentPage] = useState<number>(initialPagination.page);
+  const [pageSize, setPageSize] = useState<number>(initialPagination.pageSize);
   const [priceMin, setPriceMin] = useState<string>(
     initialFilters.priceMin ? String(initialFilters.priceMin) : '',
   );
@@ -97,58 +102,64 @@ export default function ProductListingPage({
   const [categoryId, setCategoryId] = useState<string>(
     initialFilters.categoryId ? String(initialFilters.categoryId) : 'all',
   );
-  const [products, setProducts] = useState(initialProducts);
-  const [pagination, setPagination] = useState(initialPagination);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>(initialFilters.query ?? '');
   const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
   const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
 
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
 
-  // Calculate total pages from pagination
+  const products = initialProducts;
+  const pagination = initialPagination;
   const totalPages = pagination.totalPages;
   const totalCount = pagination.totalCount;
 
-  // Load products with current filters
-  const loadProducts = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  useEffect(() => {
+    setCurrentPage(initialPagination.page);
+    setPageSize(initialPagination.pageSize);
+    setPriceMin(initialFilters.priceMin ? String(initialFilters.priceMin) : '');
+    setPriceMax(initialFilters.priceMax ? String(initialFilters.priceMax) : '');
+    setCategoryId(initialFilters.categoryId ? String(initialFilters.categoryId) : 'all');
+    setSearchQuery(initialFilters.query ?? '');
+  }, [initialPagination, initialFilters]);
 
-    try {
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        pageSize: pageSize.toString(),
-      });
+  const updateUrl = (next: {
+    page?: number;
+    pageSize?: number;
+    priceMin?: string;
+    priceMax?: string;
+    categoryId?: string;
+  }) => {
+    const params = new URLSearchParams();
 
-      if (priceMin) params.append('priceMin', priceMin);
-      if (priceMax) params.append('priceMax', priceMax);
-      if (categoryId && categoryId !== 'all') params.append('categoryId', categoryId);
+    const nextPage = next.page ?? currentPage;
+    const nextPageSize = next.pageSize ?? pageSize;
+    const nextPriceMin = next.priceMin ?? priceMin;
+    const nextPriceMax = next.priceMax ?? priceMax;
+    const nextCategoryId = next.categoryId ?? categoryId;
 
-      const response = await fetch(`/api/products?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch products');
+    params.set('page', String(nextPage));
+    params.set('pageSize', String(nextPageSize));
 
-      const data = (await response.json()) as {
-        products: Product[];
-        pagination: Pagination;
-      };
-      setProducts(data.products);
-      setPagination(data.pagination);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load products');
-    } finally {
-      setIsLoading(false);
+    if (nextPriceMin.trim()) {
+      params.set('priceMin', nextPriceMin.trim());
     }
-  }, [currentPage, pageSize, priceMin, priceMax, categoryId]);
 
-  // Load products when filters change
-  useEffect(() => {
-    setCurrentPage(1); // Reset to first page when filters change
-  }, [priceMin, priceMax, categoryId, pageSize]);
+    if (nextPriceMax.trim()) {
+      params.set('priceMax', nextPriceMax.trim());
+    }
 
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    if (nextCategoryId && nextCategoryId !== 'all') {
+      params.set('categoryId', nextCategoryId);
+    }
+
+    if (searchQuery.trim()) {
+      params.set('q', searchQuery.trim());
+    }
+
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
+  };
 
   useEffect(() => {
     const onRecommendations = (event: Event) => {
@@ -188,6 +199,9 @@ export default function ProductListingPage({
   // Active filter display
   const activeFilters = useMemo(() => {
     const filters = [];
+    if (searchQuery.trim()) {
+      filters.push(`Search: ${searchQuery.trim()}`);
+    }
     if (priceMin || priceMax) {
       filters.push(`Price: $${priceMin || '0'} - $${priceMax || '∞'}`);
     }
@@ -196,13 +210,19 @@ export default function ProductListingPage({
       filters.push(`Category: ${selectedCategory.name}`);
     }
     return filters;
-  }, [priceMin, priceMax, categoryId, categories]);
+  }, [searchQuery, priceMin, priceMax, categoryId, categories]);
 
   const handleClearFilters = () => {
     setPriceMin('');
     setPriceMax('');
     setCategoryId('all');
     setCurrentPage(1);
+    updateUrl({
+      page: 1,
+      priceMin: '',
+      priceMax: '',
+      categoryId: 'all',
+    });
   };
 
   const displayProducts = useMemo(() => {
@@ -263,6 +283,10 @@ export default function ProductListingPage({
                     placeholder="Min price"
                     value={priceMin}
                     onChange={(e) => setPriceMin(e.target.value)}
+                    onBlur={() => {
+                      setCurrentPage(1);
+                      updateUrl({ page: 1, priceMin });
+                    }}
                     className="text-sm"
                   />
                   <Input
@@ -270,6 +294,10 @@ export default function ProductListingPage({
                     placeholder="Max price"
                     value={priceMax}
                     onChange={(e) => setPriceMax(e.target.value)}
+                    onBlur={() => {
+                      setCurrentPage(1);
+                      updateUrl({ page: 1, priceMax });
+                    }}
                     className="text-sm"
                   />
                 </div>
@@ -280,7 +308,14 @@ export default function ProductListingPage({
               {/* Category Filter */}
               <div className="space-y-3">
                 <Label className="font-semibold">Category</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
+                <Select
+                  value={categoryId}
+                  onValueChange={(value) => {
+                    setCategoryId(value);
+                    setCurrentPage(1);
+                    updateUrl({ page: 1, categoryId: value });
+                  }}
+                >
                   <SelectTrigger className="text-sm">
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
@@ -294,6 +329,21 @@ export default function ProductListingPage({
                   </SelectContent>
                 </Select>
               </div>
+
+              <Separator />
+
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  setCurrentPage(1);
+                  updateUrl({ page: 1, priceMin, priceMax, categoryId });
+                }}
+                disabled={isPending}
+              >
+                Apply filters
+              </Button>
 
               <Separator />
 
@@ -314,6 +364,8 @@ export default function ProductListingPage({
 
         {/* Products Section */}
         <div className="lg:col-span-3 space-y-4">
+          <ProductSearchInput initialValue={searchQuery} debounceMs={350} />
+
           {isGeneratingRecommendations ? (
             <Card className="relative overflow-hidden border-primary/20 bg-background/50 shadow-lg shadow-primary/10">
               <div className="absolute inset-0 bg-linear-to-r from-red-500/15 via-purple-500/15 to-amber-500/15 bg-size-[200%_200%] animate-magical-gradient" />
@@ -461,7 +513,15 @@ export default function ProductListingPage({
               <Label htmlFor="page-size" className="text-sm">
                 Show:
               </Label>
-              <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(parseInt(v))}>
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(v) => {
+                  const nextPageSize = parseInt(v, 10);
+                  setPageSize(nextPageSize);
+                  setCurrentPage(1);
+                  updateUrl({ page: 1, pageSize: nextPageSize });
+                }}
+              >
                 <SelectTrigger id="page-size" className="w-20 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -480,29 +540,27 @@ export default function ProductListingPage({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">Active filters:</span>
               {activeFilters.map((filter) => (
-                <Badge key={filter} variant="secondary" className="gap-1">
+                <Badge key={filter} variant="secondary">
                   {filter}
-                  <X className="h-3 w-3" />
                 </Badge>
               ))}
             </div>
           )}
 
           {/* Products Grid/List */}
-          {isLoading ? (
+          {isPending ? (
             <div className="flex items-center justify-center py-12">
               <div className="space-y-2 text-center">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary mx-auto" />
                 <p className="text-sm text-muted-foreground">Loading products...</p>
               </div>
             </div>
-          ) : error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              {error}
-            </div>
           ) : products.length === 0 ? (
             <div className="rounded-lg border border-dashed bg-muted/50 p-12 text-center">
-              <p className="text-muted-foreground">No products found matching your filters.</p>
+              <p className="text-muted-foreground">
+                No products found matching your filters
+                {searchQuery.trim() ? ' and search terms' : ''}.
+              </p>
               {activeFilters.length > 0 && (
                 <Button variant="link" size="sm" className="mt-2" onClick={handleClearFilters}>
                   Try clearing filters
@@ -538,7 +596,11 @@ export default function ProductListingPage({
                   variant="outline"
                   size="sm"
                   disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onClick={() => {
+                    const nextPage = Math.max(1, currentPage - 1);
+                    setCurrentPage(nextPage);
+                    updateUrl({ page: nextPage });
+                  }}
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Previous
@@ -554,7 +616,10 @@ export default function ProductListingPage({
                         variant={pageNum === currentPage ? 'default' : 'outline'}
                         size="sm"
                         className="w-10"
-                        onClick={() => setCurrentPage(pageNum)}
+                        onClick={() => {
+                          setCurrentPage(pageNum);
+                          updateUrl({ page: pageNum });
+                        }}
                       >
                         {pageNum}
                       </Button>
@@ -566,7 +631,11 @@ export default function ProductListingPage({
                   variant="outline"
                   size="sm"
                   disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => {
+                    const nextPage = Math.min(totalPages, currentPage + 1);
+                    setCurrentPage(nextPage);
+                    updateUrl({ page: nextPage });
+                  }}
                 >
                   Next
                   <ChevronRight className="h-4 w-4" />

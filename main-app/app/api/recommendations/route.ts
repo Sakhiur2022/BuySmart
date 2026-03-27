@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-import { AgentOrchestrator } from "@/lib/agents/orchestrator";
-import { RecommendationAgent } from "@/lib/agents/recommendation/recommendation-agent";
+import { AgentOrchestrator } from '@/lib/agents/orchestrator';
+import { RecommendationAgent } from '@/lib/agents/recommendation/recommendation-agent';
 import type {
   RecommendationPayload,
   RecommendationResult,
-} from "@/lib/agents/recommendation/types";
-import { createClient } from "@/lib/supabase/server";
+} from '@/lib/agents/recommendation/types';
+import { createClient } from '@/lib/supabase/server';
 
 const orchestrator = new AgentOrchestrator();
 orchestrator.register(new RecommendationAgent());
@@ -18,6 +18,7 @@ const candidateSchema = z.object({
   category_id: z.number().int().nonnegative().optional(),
   brand: z.string().min(1).max(120).optional(),
   price: z.number().nonnegative().optional(),
+  image: z.string().max(2048).optional(),
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
 });
 
@@ -37,7 +38,7 @@ const constraintsSchema = z
       value.budgetMax === undefined ||
       value.budgetMin <= value.budgetMax,
     {
-      message: "budgetMin must be less than or equal to budgetMax",
+      message: 'budgetMin must be less than or equal to budgetMax',
     },
   );
 
@@ -54,17 +55,14 @@ export async function POST(request: Request) {
   try {
     payload = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON payload." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'Invalid JSON payload.' }, { status: 400 });
   }
 
   const parsed = requestSchema.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
       {
-        error: "Validation failed.",
+        error: 'Validation failed.',
         issues: parsed.error.flatten(),
       },
       { status: 400 },
@@ -74,11 +72,8 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
 
-  const result = await orchestrator.dispatch<
-    RecommendationPayload,
-    RecommendationResult
-  >(
-    "recommendation",
+  const result = await orchestrator.dispatch<RecommendationPayload, RecommendationResult>(
+    'recommendation',
     parsed.data, // This matches RecommendationPayload structurally due to zod validation
     data.user ? { userId: data.user.id } : undefined,
   );
