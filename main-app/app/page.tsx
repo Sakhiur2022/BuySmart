@@ -46,6 +46,31 @@ const SIGNALS = [
   'Post-purchase sentiment',
 ];
 
+function getFirstImageUrl(images: unknown): string | undefined {
+  if (!Array.isArray(images) || images.length === 0) {
+    return undefined;
+  }
+
+  const first = images[0] as unknown;
+
+  if (typeof first === 'string' && first.trim().length > 0) {
+    return first;
+  }
+
+  if (first && typeof first === 'object') {
+    const record = first as Record<string, unknown>;
+    const url =
+      (typeof record.url === 'string' && record.url) ||
+      (typeof record.src === 'string' && record.src) ||
+      (typeof record.path === 'string' && record.path) ||
+      undefined;
+
+    return url && url.trim().length > 0 ? url : undefined;
+  }
+
+  return undefined;
+}
+
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -93,7 +118,7 @@ export default function Home() {
 
       const { data: products } = await supabase
         .from('products')
-        .select('product_id, name, category_id, price, tags')
+        .select('product_id, name, category_id, price, tags, images')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(100);
@@ -105,6 +130,7 @@ export default function Home() {
             title: product.name,
             category_id: product.category_id ?? undefined,
             price: product.price,
+            image: getFirstImageUrl(product.images),
             tags: product.tags ?? undefined,
           })),
         );
