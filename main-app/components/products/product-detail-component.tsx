@@ -3,15 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import {
-  Star,
-  Heart,
-  Share2,
-  Check,
-  ShoppingCart,
-  MessageSquare,
-  Sparkles,
-} from 'lucide-react';
+import { Star, Heart, Share2, Check, ShoppingCart, MessageSquare, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -118,6 +110,7 @@ interface RecommendedItem {
   reason: string;
   score: number;
   price?: number;
+  image?: string;
 }
 
 interface RecommendationEventDetail {
@@ -193,7 +186,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       const match = productsById.get(item.productId);
       return {
         ...item,
-        image: match?.image,
+        image: match?.image ?? item.image,
         name: match?.name ?? item.title,
         productPrice: match?.price ?? item.price,
       };
@@ -204,14 +197,14 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     <div className="container mx-auto px-4 py-8">
       {/* Breadcrumb */}
       <div className="mb-8 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-        <Link href="/buyer" className="hover:text-zinc-900 dark:hover:text-zinc-200">
+        <Link href="/buyer?mode=buyer" className="hover:text-zinc-900 dark:hover:text-zinc-200">
           Home
         </Link>
         {product.category && (
           <>
             <span>/</span>
             <Link
-              href={`/buyer?categoryId=${product.category.category_id}`}
+              href={`/buyer?mode=buyer&categoryId=${product.category.category_id}`}
               className="hover:text-zinc-900 dark:hover:text-zinc-200"
             >
               {product.category.name}
@@ -276,7 +269,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
             <div className="space-y-2">
               {product.category && (
                 <Link
-                  href={`/buyer/products?categoryId=${product.category.category_id}`}
+                  href={`/buyer?mode=buyer&categoryId=${product.category.category_id}`}
                   className="inline-block"
                 >
                   <Badge variant="secondary">{product.category.name}</Badge>

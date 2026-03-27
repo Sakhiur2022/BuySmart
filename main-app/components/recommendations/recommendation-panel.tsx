@@ -37,6 +37,7 @@ interface RecommendationBroadcastItem {
   reason: string;
   score: number;
   price?: number;
+  image?: string;
 }
 
 interface RecommendationPanelProps {
@@ -159,15 +160,22 @@ export function RecommendationPanel({
       setHasGenerated(true);
 
       if (typeof window !== 'undefined') {
+        const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
         const recommendedItems: RecommendationBroadcastItem[] = data.result.recommendations
           .filter((recommendation) => Boolean(recommendation.productId?.trim()))
-          .map((recommendation) => ({
-            productId: recommendation.productId!.trim(),
-            title: recommendation.title,
-            reason: recommendation.reason,
-            score: recommendation.score,
-            price: recommendation.price,
-          }));
+          .map((recommendation) => {
+            const productId = recommendation.productId!.trim();
+            const candidate = candidatesById.get(productId);
+
+            return {
+              productId,
+              title: recommendation.title,
+              reason: recommendation.reason,
+              score: recommendation.score,
+              price: recommendation.price,
+              image: candidate?.image,
+            };
+          });
 
         window.dispatchEvent(
           new CustomEvent('buysmart:recommendations', {

@@ -14,6 +14,83 @@ interface ReviewStats {
   };
 }
 
+function getImageUrl(entry: unknown): string | undefined {
+  if (typeof entry === 'string' && entry.trim().length > 0) {
+    return entry;
+  }
+
+  if (entry && typeof entry === 'object') {
+    const record = entry as Record<string, unknown>;
+    const url =
+      (typeof record.url === 'string' && record.url) ||
+      (typeof record.src === 'string' && record.src) ||
+      (typeof record.path === 'string' && record.path) ||
+      undefined;
+
+    return url && url.trim().length > 0 ? url : undefined;
+  }
+
+  return undefined;
+}
+
+function getImageList(images: unknown): string[] {
+  if (!Array.isArray(images)) {
+    return [];
+  }
+
+  return images
+    .map((entry) => getImageUrl(entry))
+    .filter((entry): entry is string => typeof entry === 'string');
+}
+
+async function resolveCategory(
+  categoryId: number,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<{ category_id: number; name: string } | null> {
+  const { data: categoryData, error: categoryError } = await supabase
+    .from('categories')
+    .select('category_id, name')
+    .eq('category_id', categoryId)
+    .maybeSingle();
+
+  if (!categoryError && categoryData) {
+    return {
+      category_id: categoryData.category_id,
+      name: categoryData.name,
+    };
+  }
+
+  if (categoryError) {
+    console.error('Category fetch error:', categoryError);
+  }
+
+  const serviceRole = getServiceRoleSupabase();
+
+  if (!serviceRole) {
+    return null;
+  }
+
+  const { data: fallbackCategory, error: fallbackError } = await serviceRole
+    .from('categories')
+    .select('category_id, name')
+    .eq('category_id', categoryId)
+    .maybeSingle();
+
+  if (fallbackError) {
+    console.error('Category fallback fetch error:', fallbackError);
+    return null;
+  }
+
+  if (!fallbackCategory) {
+    return null;
+  }
+
+  return {
+    category_id: fallbackCategory.category_id,
+    name: fallbackCategory.name,
+  };
+}
+
 // ============================================================================
 // REQUEST HANDLER
 // ============================================================================
@@ -33,18 +110,12 @@ interface ReviewStats {
  *   relatedProducts: [...]
  * }
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
     if (!id || typeof id !== 'string') {
-      return NextResponse.json(
-        { error: 'Product ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -65,7 +136,7 @@ export async function GET(
         status,
         seller_id,
         created_at
-        `
+        `,
       )
       .eq('product_id', id)
       .eq('status', 'active')
@@ -73,30 +144,16 @@ export async function GET(
 
     if (productError || !product) {
       console.error('Product fetch error:', productError);
-      return NextResponse.json(
-        { error: 'Product not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
     // Fetch optional category info separately to avoid hard dependency on
     // Supabase relation metadata in the main product query.
     let category: { category_id: number; name: string } | null = null;
-    if (product.category_id) {
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('categories')
-        .select('category_id, name')
-        .eq('category_id', product.category_id)
-        .maybeSingle();
+    const hasCategoryId = product.category_id !== null && product.category_id !== undefined;
 
-      if (categoryError) {
-        console.error('Category fetch error:', categoryError);
-      } else if (categoryData) {
-        category = {
-          category_id: categoryData.category_id,
-          name: categoryData.name,
-        };
-      }
+    if (hasCategoryId) {
+      category = await resolveCategory(product.category_id as number, supabase);
     }
 
     // Fetch seller info
@@ -122,8 +179,7 @@ export async function GET(
           console.error('Seller auth metadata fetch error:', authUserError);
         } else {
           const metadata = authUserData.user?.user_metadata ?? {};
-          const fullName =
-            typeof metadata.full_name === 'string' ? metadata.full_name.trim() : '';
+          const fullName = typeof metadata.full_name === 'string' ? metadata.full_name.trim() : '';
           const name = typeof metadata.name === 'string' ? metadata.name.trim() : '';
           sellerNameFromAuth = fullName || name || null;
         }
@@ -177,11 +233,11 @@ export async function GET(
       image?: string;
       short_description: string | null;
     }> = [];
-    if (product.category_id) {
+    if (hasCategoryId) {
       const { data: related, error: relatedError } = await supabase
         .from('products')
         .select('product_id, name, price, images, short_description')
-        .eq('category_id', product.category_id)
+        .eq('category_id', product.category_id as number)
         .eq('status', 'active')
         .neq('product_id', id)
         .limit(5);
@@ -192,9 +248,7 @@ export async function GET(
           name: p.name,
           price: p.price,
           image:
-            Array.isArray(p.images) && p.images.length > 0 && typeof p.images[0] === 'string'
-              ? p.images[0]
-              : undefined,
+            Array.isArray(p.images) && p.images.length > 0 ? getImageUrl(p.images[0]) : undefined,
           short_description: p.short_description,
         }));
       }
@@ -207,10 +261,7 @@ export async function GET(
       price: product.price,
       description: product.description,
       short_description: product.short_description,
-      images:
-        Array.isArray(product.images) && product.images.every((img) => typeof img === 'string')
-          ? product.images
-          : [],
+      images: getImageList(product.images),
       category,
       seller: seller
         ? {
@@ -233,13 +284,10 @@ export async function GET(
         reviews: reviewStats,
         relatedProducts,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error('Error fetching product detail:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch product' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch product' }, { status: 500 });
   }
 }

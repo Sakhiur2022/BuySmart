@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ProductCandidate } from '@/lib/agents/recommendation/types';
+import { getBuyerProductsAction } from '@/lib/actions/buyer-products.actions';
+import { getActiveCategories } from '@/lib/controllers/category.controller';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -17,6 +19,13 @@ import { Suspense } from 'react';
 type BuyerPageProps = {
   searchParams?: Promise<{
     mode?: string | string[];
+    page?: string;
+    pageSize?: string;
+    priceMin?: string;
+    priceMax?: string;
+    categoryId?: string;
+    q?: string;
+    search?: string;
   }>;
 };
 
@@ -36,6 +45,68 @@ function isBuyerMode(value: string | null): boolean {
   return value === 'buyer' || value === '1' || value === 'true';
 }
 
+function hasBuyerBrowseParams(
+  params:
+    | {
+        page?: string;
+        pageSize?: string;
+        priceMin?: string;
+        priceMax?: string;
+        categoryId?: string;
+        q?: string;
+        search?: string;
+      }
+    | undefined,
+): boolean {
+  if (!params) {
+    return false;
+  }
+
+  return Boolean(
+    params.page ||
+    params.pageSize ||
+    params.priceMin ||
+    params.priceMax ||
+    params.categoryId ||
+    params.q ||
+    params.search,
+  );
+}
+
+function parseOptionalNumber(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getFirstImageUrl(images: unknown): string | undefined {
+  if (!Array.isArray(images) || images.length === 0) {
+    return undefined;
+  }
+
+  const first = images[0] as unknown;
+
+  if (typeof first === 'string' && first.trim().length > 0) {
+    return first;
+  }
+
+  if (first && typeof first === 'object') {
+    const record = first as Record<string, unknown>;
+    const url =
+      (typeof record.url === 'string' && record.url) ||
+      (typeof record.src === 'string' && record.src) ||
+      (typeof record.path === 'string' && record.path) ||
+      undefined;
+
+    return url && url.trim().length > 0 ? url : undefined;
+  }
+
+  return undefined;
+}
+
 export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
   const supabase = await createClient();
   const {
@@ -44,7 +115,10 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
 
   const resolvedSearchParams = await searchParams;
   const buyerMode = getSearchValue(resolvedSearchParams?.mode);
+  const searchQuery = resolvedSearchParams?.q ?? resolvedSearchParams?.search;
   const allowSellerView = isBuyerMode(buyerMode);
+  const hasBrowseParams = hasBuyerBrowseParams(resolvedSearchParams);
+
   let role: string | null = null;
   let profileName: string | null = null;
 
@@ -58,7 +132,7 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
     role = profile?.role ?? null;
     profileName = profile?.display_name || profile?.full_name || null;
 
-    if (role === 'seller' && !allowSellerView) {
+    if (role === 'seller' && !allowSellerView && !hasBrowseParams) {
       redirect('/seller');
     }
   }
@@ -89,15 +163,12 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
     title: product.name,
     category_id: product.category_id ?? undefined,
     price: product.price,
+    image: getFirstImageUrl(product.images),
     tags: product.tags ?? undefined,
   }));
 
   const recommendationProducts = (products ?? []).map((product) => {
-    const productImages = Array.isArray(product.images) ? product.images : [];
-    const firstImage =
-      productImages.length > 0 && typeof productImages[0] === 'string'
-        ? productImages[0]
-        : undefined;
+    const firstImage = getFirstImageUrl(product.images);
 
     return {
       productId: product.product_id,
@@ -108,16 +179,21 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
     };
   });
 
-  // Fetch categories for product listing
-  const { data: categoriesData } = await supabase
-    .from('categories')
-    .select('category_id, name, slug')
-    .order('name', { ascending: true });
+  const [categoriesData, productsResult] = await Promise.all([
+    getActiveCategories(),
+    getBuyerProductsAction({
+      page: parseOptionalNumber(resolvedSearchParams?.page),
+      pageSize: parseOptionalNumber(resolvedSearchParams?.pageSize),
+      priceMin: parseOptionalNumber(resolvedSearchParams?.priceMin),
+      priceMax: parseOptionalNumber(resolvedSearchParams?.priceMax),
+      categoryId: parseOptionalNumber(resolvedSearchParams?.categoryId),
+      q: searchQuery,
+    }),
+  ]);
 
-  const categories = (categoriesData ?? []).map((cat) => ({
-    category_id: cat.category_id as number,
-    name: cat.name as string,
-    slug: cat.slug as string,
+  const categories = categoriesData.map((cat) => ({
+    category_id: cat.category_id,
+    name: cat.name,
   }));
 
   return (
@@ -182,14 +258,15 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
 
           <section className="space-y-6">
             <ProductListingPage
-              initialProducts={[]}
-              initialPagination={{
-                page: 1,
-                pageSize: 12,
-                totalCount: 0,
-                totalPages: 0,
-              }}
+              initialProducts={productsResult.products}
+              initialPagination={productsResult.pagination}
               categories={categories}
+              initialFilters={{
+                priceMin: parseOptionalNumber(resolvedSearchParams?.priceMin),
+                priceMax: parseOptionalNumber(resolvedSearchParams?.priceMax),
+                categoryId: parseOptionalNumber(resolvedSearchParams?.categoryId),
+                query: searchQuery,
+              }}
             />
           </section>
         </main>

@@ -1,7 +1,8 @@
 import { Metadata } from 'next';
-import { headers } from 'next/headers';
-import { createClient } from '@/lib/supabase/server';
 import ProductListingPage from '@/components/products/product-listing-page';
+import { getBuyerProductsAction } from '@/lib/actions/buyer-products.actions';
+import { getActiveCategories } from '@/lib/controllers/category.controller';
+import type { BuyerProductListItem, BuyerProductPagination } from '@/lib/models/product.model';
 
 // ============================================================================
 // TYPES
@@ -10,15 +11,6 @@ import ProductListingPage from '@/components/products/product-listing-page';
 interface Category {
   category_id: number;
   name: string;
-  slug: string;
-}
-
-interface ProductItem {
-  product_id: string;
-  name: string;
-  price: number;
-  image: string | undefined;
-  short_description: string | null;
 }
 
 interface PageProps {
@@ -28,8 +20,18 @@ interface PageProps {
     priceMin?: string;
     priceMax?: string;
     categoryId?: string;
+    q?: string;
     search?: string;
   }>;
+}
+
+function parseOptionalNumber(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 // ============================================================================
@@ -38,7 +40,8 @@ interface PageProps {
 
 export const metadata: Metadata = {
   title: 'Browse Products | BuySmart',
-  description: 'Explore our wide selection of products. Filter by price, category, and more to find exactly what you need.',
+  description:
+    'Explore our wide selection of products. Filter by price, category, and more to find exactly what you need.',
   robots: 'index, follow',
 };
 
@@ -48,71 +51,42 @@ export const metadata: Metadata = {
 
 export default async function BuyerProductsPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const page = parseInt(params.page || '1', 10);
-  const pageSize = parseInt(params.pageSize || '12', 10);
+  const query = params.q ?? params.search;
 
-  try {
-    // Fetch categories
-    const supabase = await createClient();
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from('categories')
-      .select('category_id, name, slug')
-      .order('name', { ascending: true });
-
-    if (categoriesError) {
-      console.error('Failed to fetch categories:', categoriesError);
-    }
-
-    const categories: Category[] = (categoriesData || []).map((cat) => ({
-      category_id: cat.category_id as number,
-      name: cat.name as string,
-      slug: cat.slug as string,
-    }));
-
-    // Build query string for initial products fetch
-    const queryParams = new URLSearchParams();
-    queryParams.append('page', String(page));
-    queryParams.append('pageSize', String(pageSize));
-
-    if (params.priceMin) queryParams.append('priceMin', params.priceMin);
-    if (params.priceMax) queryParams.append('priceMax', params.priceMax);
-    if (params.categoryId) queryParams.append('categoryId', params.categoryId);
-    if (params.search) queryParams.append('search', params.search);
-
-    const requestHeaders = await headers();
-    const host = requestHeaders.get('host') || 'localhost:3000';
-    const protocol = requestHeaders.get('x-forwarded-proto') || 'http';
-    const appUrl = `${protocol}://${host}`;
-    const productsUrl = `${appUrl}/api/products?${queryParams.toString()}`;
-
-    const productsResponse = await fetch(productsUrl, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
-    });
-
-    if (!productsResponse.ok) {
-      console.error('Failed to fetch products:', productsResponse.statusText);
-      throw new Error('Failed to fetch products');
-    }
-
-    const productsData = await productsResponse.json();
-    const { products, pagination } = productsData;
-
-    return (
-      <ProductListingPage
-        initialProducts={products as ProductItem[]}
-        initialPagination={pagination}
-        categories={categories}
-        initialFilters={{
-          priceMin: params.priceMin ? Number(params.priceMin) : undefined,
-          priceMax: params.priceMax ? Number(params.priceMax) : undefined,
-          categoryId: params.categoryId ? Number(params.categoryId) : undefined,
-        }}
-      />
-    );
-  } catch (error) {
+  const [categoriesData, productsResult] = await Promise.all([
+    getActiveCategories(),
+    getBuyerProductsAction({
+      page: parseOptionalNumber(params.page),
+      pageSize: parseOptionalNumber(params.pageSize),
+      priceMin: parseOptionalNumber(params.priceMin),
+      priceMax: parseOptionalNumber(params.priceMax),
+      categoryId: parseOptionalNumber(params.categoryId),
+      q: query,
+    }),
+  ]).catch((error: unknown) => {
     console.error('Error loading products page:', error);
     throw error;
-  }
+  });
+
+  const categories: Category[] = categoriesData.map((cat) => ({
+    category_id: cat.category_id,
+    name: cat.name,
+  }));
+
+  const products = productsResult.products as BuyerProductListItem[];
+  const pagination = productsResult.pagination as BuyerProductPagination;
+
+  return (
+    <ProductListingPage
+      initialProducts={products}
+      initialPagination={pagination}
+      categories={categories}
+      initialFilters={{
+        priceMin: parseOptionalNumber(params.priceMin),
+        priceMax: parseOptionalNumber(params.priceMax),
+        categoryId: parseOptionalNumber(params.categoryId),
+        query,
+      }}
+    />
+  );
 }
