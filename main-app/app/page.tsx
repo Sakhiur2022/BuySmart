@@ -87,8 +87,8 @@ export default function Home() {
     let isMounted = true;
 
     const hydrateHome = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
 
       if (!isMounted) {
         return;
@@ -144,7 +144,7 @@ export default function Home() {
     };
   }, []);
 
-  const isAuthenticated = Boolean(userEmail);
+  const isAuthenticated = Boolean(userId ?? userEmail);
   const isSeller = userRole === 'seller';
   const shouldShowSellerCTA = !isSeller;
 

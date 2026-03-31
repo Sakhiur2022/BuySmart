@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { createClient } from '@/lib/supabase/client';
 
@@ -23,6 +21,7 @@ type SellerUpgradeCtaProps = {
 export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -34,6 +33,33 @@ export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaPr
     setIsOpen(nextOpen);
     if (nextOpen) {
       setErrorMessage(null);
+    }
+  };
+
+  const handleTriggerClick = async () => {
+    if (isSubmitting || isCheckingAuth) {
+      return;
+    }
+
+    if (isAuthenticated) {
+      setIsOpen(true);
+      return;
+    }
+
+    setIsCheckingAuth(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.getSession();
+      const sessionUser = data.session?.user;
+
+      if (error || !sessionUser?.id) {
+        router.push('/auth/seller-sign-up');
+        return;
+      }
+
+      setIsOpen(true);
+    } finally {
+      setIsCheckingAuth(false);
     }
   };
 
@@ -50,11 +76,14 @@ export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaPr
       let resolvedUserId = userId;
 
       if (!resolvedUserId) {
-        const { data, error } = await supabase.auth.getUser();
-        if (error || !data.user?.id) {
+        const { data, error } = await supabase.auth.getSession();
+        const sessionUser = data.session?.user;
+
+        if (error || !sessionUser?.id) {
           throw new Error('Unable to verify your account. Please sign in again.');
         }
-        resolvedUserId = data.user.id;
+
+        resolvedUserId = sessionUser.id;
       }
 
       const { data: existingProfile, error: existingProfileError } = await supabase
@@ -98,21 +127,17 @@ export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaPr
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <Link href="/auth/seller-sign-up" className="font-semibold text-primary hover:underline">
-        Sign up as a seller
-      </Link>
-    );
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button type="button" variant="link" className="h-auto p-0 font-semibold text-primary">
-          Sign up as a seller
-        </Button>
-      </DialogTrigger>
+      <Button
+        type="button"
+        variant="link"
+        className="h-auto p-0 font-semibold text-primary"
+        onClick={handleTriggerClick}
+        disabled={isCheckingAuth || isSubmitting}
+      >
+        {isCheckingAuth ? 'Checking account...' : 'Sign up as a seller'}
+      </Button>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Switch to a seller account?</DialogTitle>
