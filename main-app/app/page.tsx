@@ -210,10 +210,16 @@ export default function Home() {
                       <path d="M9 18v-6h6v6" />
                     </svg>
                   </span>
-                  <span>
-                    Want to sell on BuySmart?{' '}
-                    <SellerUpgradeCta isAuthenticated={isAuthenticated} userId={userId} />
-                  </span>
+                  <span>Want to sell on BuySmart? </span>
+                  <SellerUpgradeCta
+                    isAuthenticated={isAuthenticated}
+                    userId={userId}
+                    userRole={userRole}
+                    buttonVariant="ghost"
+                    buttonClassName="h-auto p-0 text-left font-semibold text-primary hover:bg-transparent hover:text-primary"
+                  >
+                    Sign up as a seller
+                  </SellerUpgradeCta>
                 </p>
               ) : null}
             </div>

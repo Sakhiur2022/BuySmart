@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactNode } from 'react';
+import type { VariantProps } from 'class-variance-authority';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -16,13 +18,27 @@ import { createClient } from '@/lib/supabase/client';
 type SellerUpgradeCtaProps = {
   isAuthenticated: boolean;
   userId?: string | null;
+  userRole?: string | null;
+  children?: ReactNode;
+  buttonClassName?: string;
+  buttonVariant?: VariantProps<typeof buttonVariants>['variant'];
+  buttonSize?: VariantProps<typeof buttonVariants>['size'];
 };
 
-export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaProps) {
+export function SellerUpgradeCta({
+  isAuthenticated,
+  userId,
+  userRole,
+  children,
+  buttonClassName,
+  buttonVariant = 'link',
+  buttonSize = 'default',
+}: SellerUpgradeCtaProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -41,23 +57,25 @@ export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaPr
       return;
     }
 
-    if (isAuthenticated) {
-      setIsOpen(true);
+    setIsOpen(true);
+    setErrorMessage(null);
+    setRequiresSignIn(false);
+
+    const hasKnownBuyerSession = userRole === 'buyer' || isAuthenticated;
+
+    if (hasKnownBuyerSession) {
       return;
     }
 
     setIsCheckingAuth(true);
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.auth.getSession();
-      const sessionUser = data.session?.user;
+      const { data, error } = await supabase.auth.getUser();
+      const sessionUser = data.user;
 
       if (error || !sessionUser?.id) {
-        router.push('/auth/seller-sign-up');
-        return;
+        setRequiresSignIn(true);
       }
-
-      setIsOpen(true);
     } finally {
       setIsCheckingAuth(false);
     }
@@ -131,35 +149,44 @@ export function SellerUpgradeCta({ isAuthenticated, userId }: SellerUpgradeCtaPr
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <Button
         type="button"
-        variant="link"
-        className="h-auto p-0 font-semibold text-primary"
+        variant={buttonVariant}
+        size={buttonSize}
+        className={
+          buttonClassName ?? 'h-auto p-0 font-semibold text-primary'
+        }
         onClick={handleTriggerClick}
         disabled={isCheckingAuth || isSubmitting}
       >
-        {isCheckingAuth ? 'Checking account...' : 'Sign up as a seller'}
+        {isCheckingAuth ? 'Checking account...' : children ?? 'Sign up as a seller'}
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Switch to a seller account?</DialogTitle>
+          <DialogTitle>
+            {requiresSignIn ? 'Sign in to become a seller' : 'Switch to a seller account?'}
+          </DialogTitle>
           <DialogDescription>
-            We will update your profile so you can access seller tools and publish products.
+            {requiresSignIn
+              ? 'Sign in to confirm your account before enabling seller tools.'
+              : 'We will update your profile so you can access seller tools and publish products.'}
           </DialogDescription>
         </DialogHeader>
 
         {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleOpenChange(false)}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleConfirmUpgrade} disabled={isSubmitting}>
-            {isSubmitting ? 'Switching...' : 'Confirm switch'}
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={isSubmitting}
+            >
+              No
+            </Button>
+            <Button type="button" onClick={handleConfirmUpgrade} disabled={isSubmitting}>
+              {isSubmitting ? 'Switching...' : 'Yes'}
+            </Button>
+          </>
         </DialogFooter>
       </DialogContent>
     </Dialog>
