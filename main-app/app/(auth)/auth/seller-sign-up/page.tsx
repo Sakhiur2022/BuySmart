@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { SignUpForm } from '@/components/forms/sign-up-form';
+import { SellerUpgradeGate } from './seller-upgrade-gate';
 
 const BENEFITS = [
   {
@@ -56,7 +57,9 @@ export default function SellerSignUpPage() {
 
           <section className="w-full max-w-sm justify-self-center lg:justify-self-end">
             <Suspense fallback={<p className="text-center text-muted-foreground">Loading...</p>}>
-              <SignUpForm defaultRole="seller" hideRoleSelect />
+              <SellerUpgradeGate>
+                <SignUpForm defaultRole="seller" hideRoleSelect />
+              </SellerUpgradeGate>
             </Suspense>
           </section>
         </div>

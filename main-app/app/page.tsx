@@ -87,8 +87,8 @@ export default function Home() {
     let isMounted = true;
 
     const hydrateHome = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
 
       if (!isMounted) {
         return;
@@ -144,7 +144,7 @@ export default function Home() {
     };
   }, []);
 
-  const isAuthenticated = Boolean(userEmail);
+  const isAuthenticated = Boolean(userId ?? userEmail);
   const isSeller = userRole === 'seller';
   const shouldShowSellerCTA = !isSeller;
 
@@ -210,10 +210,16 @@ export default function Home() {
                       <path d="M9 18v-6h6v6" />
                     </svg>
                   </span>
-                  <span>
-                    Want to sell on BuySmart?{' '}
-                    <SellerUpgradeCta isAuthenticated={isAuthenticated} userId={userId} />
-                  </span>
+                  <span>Want to sell on BuySmart? </span>
+                  <SellerUpgradeCta
+                    isAuthenticated={isAuthenticated}
+                    userId={userId}
+                    userRole={userRole}
+                    buttonVariant="ghost"
+                    buttonClassName="h-auto p-0 text-left font-semibold text-primary hover:bg-transparent hover:text-primary"
+                  >
+                    Sign up as a seller
+                  </SellerUpgradeCta>
                 </p>
               ) : null}
             </div>
