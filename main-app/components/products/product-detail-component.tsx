@@ -127,12 +127,14 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
   const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
   const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
+  const [hasRecommendationResponse, setHasRecommendationResponse] = useState(false);
 
   useEffect(() => {
     const onRecommendations = (event: Event) => {
       const customEvent = event as CustomEvent<RecommendationEventDetail>;
       const payload = customEvent.detail;
       setIsGeneratingRecommendations(false);
+      setHasRecommendationResponse(true);
 
       if (!payload || !Array.isArray(payload.items)) {
         return;
@@ -146,10 +148,12 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       setIsGeneratingRecommendations(true);
       setRecommendationSummary(null);
       setRecommendedItems([]);
+      setHasRecommendationResponse(false);
     };
 
     const onRecommendationsError = () => {
       setIsGeneratingRecommendations(false);
+      setHasRecommendationResponse(false);
     };
 
     window.addEventListener('buysmart:recommendations', onRecommendations);
@@ -567,6 +571,18 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : hasRecommendationResponse ? (
+        <div className="mt-8">
+          <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
+            <CardContent className="py-10 text-center space-y-2">
+              <div className="text-4xl font-mono text-muted-foreground">:(</div>
+              <p className="text-sm text-muted-foreground">
+                {recommendationSummary ??
+                  'No such product found. Try a different intent or loosen your constraints.'}
+              </p>
             </CardContent>
           </Card>
         </div>
