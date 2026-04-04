@@ -492,12 +492,25 @@ export default function ProductListingPage({
             </Card>
           ) : hasRecommendationResponse ? (
             <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
-              <CardContent className="py-10 text-center space-y-2">
-                <div className="text-4xl font-mono text-muted-foreground">:(</div>
-                <p className="text-sm text-muted-foreground">
-                  {recommendationSummary ??
-                    'No such product found. Try a different intent or loosen your constraints.'}
-                </p>
+              <CardContent className="py-10 text-center space-y-4">
+                <div className="mx-auto flex h-28 w-28 items-center justify-center">
+                  <Image
+                    src="/icons/salesperson_sorry.png"
+                    alt="Salesperson apologizing"
+                    width={112}
+                    height={112}
+                    className="h-28 w-28 object-contain"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    Sorry! I could not find a matching product.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {recommendationSummary ??
+                      'Try a different intent or loosen your constraints and I will keep looking.'}
+                  </p>
+                </div>
               </CardContent>
             </Card>
           ) : null}
