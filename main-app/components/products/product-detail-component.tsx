@@ -127,12 +127,14 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
   const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
   const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
+  const [hasRecommendationResponse, setHasRecommendationResponse] = useState(false);
 
   useEffect(() => {
     const onRecommendations = (event: Event) => {
       const customEvent = event as CustomEvent<RecommendationEventDetail>;
       const payload = customEvent.detail;
       setIsGeneratingRecommendations(false);
+      setHasRecommendationResponse(true);
 
       if (!payload || !Array.isArray(payload.items)) {
         return;
@@ -146,10 +148,12 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       setIsGeneratingRecommendations(true);
       setRecommendationSummary(null);
       setRecommendedItems([]);
+      setHasRecommendationResponse(false);
     };
 
     const onRecommendationsError = () => {
       setIsGeneratingRecommendations(false);
+      setHasRecommendationResponse(false);
     };
 
     window.addEventListener('buysmart:recommendations', onRecommendations);
@@ -566,6 +570,31 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                     </Link>
                   );
                 })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : hasRecommendationResponse ? (
+        <div className="mt-8">
+          <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
+            <CardContent className="py-10 text-center space-y-4">
+              <div className="mx-auto flex h-28 w-28 items-center justify-center">
+                <Image
+                  src="/icons/salesperson_sorry.png"
+                  alt="Salesperson apologizing"
+                  width={112}
+                  height={112}
+                  className="h-28 w-28 object-contain"
+                />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">
+                  Sorry! I could not find a matching product.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {recommendationSummary ??
+                    'Try a different intent or loosen your constraints and I will keep looking.'}
+                </p>
               </div>
             </CardContent>
           </Card>

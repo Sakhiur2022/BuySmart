@@ -105,6 +105,7 @@ export default function ProductListingPage({
   const [searchQuery, setSearchQuery] = useState<string>(initialFilters.query ?? '');
   const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
   const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
+  const [hasRecommendationResponse, setHasRecommendationResponse] = useState(false);
 
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
 
@@ -166,6 +167,7 @@ export default function ProductListingPage({
       const customEvent = event as CustomEvent<RecommendationEventDetail>;
       const payload = customEvent.detail;
       setIsGeneratingRecommendations(false);
+      setHasRecommendationResponse(true);
 
       if (!payload || !Array.isArray(payload.items)) {
         return;
@@ -179,10 +181,12 @@ export default function ProductListingPage({
       setIsGeneratingRecommendations(true);
       setRecommendationSummary(null);
       setRecommendedItems([]);
+      setHasRecommendationResponse(false);
     };
 
     const onRecommendationsError = () => {
       setIsGeneratingRecommendations(false);
+      setHasRecommendationResponse(false);
     };
 
     window.addEventListener('buysmart:recommendations', onRecommendations);
@@ -401,7 +405,7 @@ export default function ProductListingPage({
                 </div>
               </CardContent>
             </Card>
-          ) : recommendedItems.length > 0 ? (
+          ) : recommendedCardItems.length > 0 ? (
             <Card className="border-primary/20 bg-primary/5 shadow-md">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2 text-primary font-semibold">
@@ -483,6 +487,29 @@ export default function ProductListingPage({
                       </Link>
                     );
                   })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : hasRecommendationResponse ? (
+            <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
+              <CardContent className="py-10 text-center space-y-4">
+                <div className="mx-auto flex h-28 w-28 items-center justify-center">
+                  <Image
+                    src="/icons/salesperson_sorry.png"
+                    alt="Salesperson apologizing"
+                    width={112}
+                    height={112}
+                    className="h-28 w-28 object-contain"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    Sorry! I could not find a matching product.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {recommendationSummary ??
+                      'Try a different intent or loosen your constraints and I will keep looking.'}
+                  </p>
                 </div>
               </CardContent>
             </Card>

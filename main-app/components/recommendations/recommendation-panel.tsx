@@ -148,11 +148,17 @@ export function RecommendationPanel({
       };
 
       if (!response.ok || !data.success) {
-        const fallbackError = 'Recommendation request failed. Please try again.';
-        setHasGenerated(false);
-        setErrorMessage(data.errorMessage ?? data.error ?? fallbackError);
+        setHasGenerated(true);
+        setErrorMessage(null);
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('buysmart:recommendations:error'));
+          window.dispatchEvent(
+            new CustomEvent('buysmart:recommendations', {
+              detail: {
+                summary: 'No matching products found for that request.',
+                items: [],
+              },
+            }),
+          );
         }
         return;
       }
@@ -187,10 +193,17 @@ export function RecommendationPanel({
         );
       }
     } catch {
-      setHasGenerated(false);
-      setErrorMessage('Unable to connect to recommendation service right now.');
+      setHasGenerated(true);
+      setErrorMessage(null);
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('buysmart:recommendations:error'));
+        window.dispatchEvent(
+          new CustomEvent('buysmart:recommendations', {
+            detail: {
+              summary: 'No matching products found for that request.',
+              items: [],
+            },
+          }),
+        );
       }
     } finally {
       setIsLoading(false);

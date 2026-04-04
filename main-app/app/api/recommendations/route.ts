@@ -79,10 +79,21 @@ export async function POST(request: Request) {
   );
 
   const maxResults = parsed.data.constraints?.maxResults;
-  const trimmedResult = maxResults
+  const candidateIds = new Set(parsed.data.candidates.map((candidate) => candidate.id));
+  const filteredRecommendations = result.result.recommendations.filter((item) =>
+    item.productId ? candidateIds.has(item.productId) : false,
+  );
+  const limitedRecommendations = maxResults
+    ? filteredRecommendations.slice(0, maxResults)
+    : filteredRecommendations;
+  const trimmedResult = result.success
     ? {
         ...result.result,
-        recommendations: result.result.recommendations.slice(0, maxResults),
+        summary:
+          limitedRecommendations.length > 0
+            ? result.result.summary
+            : 'No matching products found for that request.',
+        recommendations: limitedRecommendations,
       }
     : result.result;
 
