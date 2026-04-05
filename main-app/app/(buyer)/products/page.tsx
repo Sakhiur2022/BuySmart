@@ -64,7 +64,7 @@ export default function ProductPage({ products = [] }: ProductPageProps) {
               type="text"
               placeholder="Search (try 'BUYSMART')..."
               className={`w-full p-3 rounded-lg border-2 transition-colors ${
-                validation.accepted ? 'border-green-500 ring-2 ring-green-100' : 'border-gray-200'
+                validation.accepted ? '' : 'border-gray-200'
               }`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
