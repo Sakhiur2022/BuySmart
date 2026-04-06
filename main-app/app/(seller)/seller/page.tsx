@@ -10,6 +10,7 @@ import {
 } from '@/components/seller/sales-overview-chart';
 import { DeleteProductForm } from '@/components/seller/delete-product-form';
 import { createClient } from '@/lib/supabase/server';
+import { formatCurrency } from '@/lib/utils';
 
 type RecentOrderItem = {
   order_item_id: string;
@@ -37,13 +38,6 @@ type SellerPageProps = {
     error?: string | string[];
   }>;
 };
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value);
-}
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US').format(value);

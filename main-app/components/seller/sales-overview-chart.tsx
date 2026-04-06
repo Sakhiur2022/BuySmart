@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { formatCurrency } from '@/lib/utils';
 
 export type SalesOverviewPoint = {
   month: string;
@@ -37,7 +38,7 @@ export function SalesOverviewChart({ data }: SalesOverviewChartProps) {
             }}
             formatter={(value: number | string) => {
               const amount = typeof value === 'number' ? value : Number(value);
-              return [`$${amount.toFixed(2)}`, 'Revenue'];
+              return [formatCurrency(amount), 'Revenue'];
             }}
           />
           <Line

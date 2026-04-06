@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import ProductSearchInput from '@/components/products/product-search-input';
+import { formatCurrency } from '@/lib/utils';
 
 interface Product {
   product_id: string;
@@ -108,6 +109,15 @@ export default function ProductListingPage({
   const [hasRecommendationResponse, setHasRecommendationResponse] = useState(false);
 
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
+
+  const formatFilterValue = (value: string, fallback: string) => {
+    if (!value.trim()) {
+      return fallback;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? formatCurrency(parsed) : fallback;
+  };
 
   const products = initialProducts;
   const pagination = initialPagination;
@@ -207,7 +217,9 @@ export default function ProductListingPage({
       filters.push(`Search: ${searchQuery.trim()}`);
     }
     if (priceMin || priceMax) {
-      filters.push(`Price: $${priceMin || '0'} - $${priceMax || '∞'}`);
+      const minLabel = formatFilterValue(priceMin, formatCurrency(0));
+      const maxLabel = formatFilterValue(priceMax, 'BDT max');
+      filters.push(`Price: ${minLabel} - ${maxLabel}`);
     }
     const selectedCategory = categories.find((c) => c.category_id.toString() === categoryId);
     if (selectedCategory && categoryId !== 'all') {
@@ -475,7 +487,7 @@ export default function ProductListingPage({
                             {item.productPrice !== undefined ? (
                               <div className="pt-2 flex items-center justify-between">
                                 <span className="text-base font-bold text-foreground">
-                                  ${item.productPrice.toFixed(2)}
+                                  {formatCurrency(item.productPrice)}
                                 </span>
                                 <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                                   View Details &rarr;
@@ -713,7 +725,7 @@ function ProductCard({ product, isListView }: ProductCardProps) {
                   </p>
                 )}
                 <div className="mt-2 text-lg font-bold text-primary">
-                  ${product.price.toFixed(2)}
+                  {formatCurrency(product.price)}
                 </div>
               </div>
             </div>
@@ -744,7 +756,9 @@ function ProductCard({ product, isListView }: ProductCardProps) {
                 {product.short_description}
               </p>
             )}
-            <div className="mt-3 text-lg font-bold text-primary">${product.price.toFixed(2)}</div>
+            <div className="mt-3 text-lg font-bold text-primary">
+              {formatCurrency(product.price)}
+            </div>
           </CardContent>
         </Card>
       )}

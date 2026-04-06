@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { formatCurrency } from '@/lib/utils';
 
 // ============================================================================
 // TYPES
@@ -301,9 +302,11 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
 
             {/* Price */}
             <div className="space-y-2">
-              <div className="text-4xl font-bold text-emerald-600">${product.price.toFixed(2)}</div>
+              <div className="text-4xl font-bold text-emerald-600">
+                {formatCurrency(product.price)}
+              </div>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Free shipping on orders over $50
+                Free shipping on orders over {formatCurrency(50)}
               </p>
             </div>
 
@@ -408,7 +411,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-start gap-2">
                 <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>Free shipping on orders over $50</span>
+                <span>Free shipping on orders over {formatCurrency(50)}</span>
               </div>
               <div className="flex items-start gap-2">
                 <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -558,7 +561,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                           {item.productPrice !== undefined ? (
                             <div className="pt-2 flex items-center justify-between">
                               <span className="text-sm font-bold text-foreground">
-                                ${item.productPrice.toFixed(2)}
+                                {formatCurrency(item.productPrice)}
                               </span>
                               <span className="text-xs font-medium text-primary flex items-center gap-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                                 View &rarr;
@@ -633,7 +636,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                         {relatedProduct.name}
                       </h3>
                       <p className="mt-2 font-bold text-emerald-600">
-                        ${relatedProduct.price.toFixed(2)}
+                        {formatCurrency(relatedProduct.price)}
                       </p>
                     </CardContent>
                   </Card>
