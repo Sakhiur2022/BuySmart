@@ -6,13 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeleteProductForm } from '@/components/seller/delete-product-form';
 import { createClient } from '@/lib/supabase/server';
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value);
-}
+import { formatCurrency } from '@/lib/utils';
 
 function pickImage(images: unknown): string | null {
   if (Array.isArray(images) && typeof images[0] === 'string') {

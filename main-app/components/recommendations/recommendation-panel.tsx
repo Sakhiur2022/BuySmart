@@ -71,7 +71,9 @@ export function RecommendationPanel({
   candidates = [],
   compact = false,
 }: RecommendationPanelProps) {
-  const [userIntent, setUserIntent] = useState('I need gear for remote work and travel under $200');
+  const [userIntent, setUserIntent] = useState(
+    'I need gear for remote work and travel under BDT 200',
+  );
   const [contextSummary, setContextSummary] = useState(
     'Prioritize lightweight products and practical daily use.',
   );
@@ -267,7 +269,7 @@ export function RecommendationPanel({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="budget-min">Min budget (USD)</Label>
+            <Label htmlFor="budget-min">Min budget (BDT)</Label>
             <Input
               id="budget-min"
               inputMode="decimal"
@@ -278,7 +280,7 @@ export function RecommendationPanel({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="budget-max">Max budget (USD)</Label>
+            <Label htmlFor="budget-max">Max budget (BDT)</Label>
             <Input
               id="budget-max"
               inputMode="decimal"

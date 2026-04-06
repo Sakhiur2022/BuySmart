@@ -99,7 +99,7 @@ export function ProductForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="price">Price (USD)</Label>
+              <Label htmlFor="price">Price (BDT)</Label>
               <Input
                 id="price"
                 name="price"

@@ -11,7 +11,7 @@ const PROMOS = [
   {
     id: 'shipping',
     title: 'Free Shipping',
-    detail: 'Orders over $50 ship on us.',
+    detail: 'Orders over BDT 50 ship on us.',
   },
   {
     id: 'seller-week',
