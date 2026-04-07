@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/utils';
+import { useCart } from '@/lib/context/cart-context';
 
 // ============================================================================
 // TYPES
@@ -123,6 +124,8 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const { addItem, isLoading: isCartLoading } = useCart();
 
   // AI Recommendation State
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
@@ -197,6 +200,19 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       };
     });
   }, [recommendedItems, product, relatedProducts]);
+
+  const handleAddToCart = async () => {
+    if (isAddingToCart || isCartLoading) {
+      return;
+    }
+
+    setIsAddingToCart(true);
+    try {
+      await addItem(product.product_id, quantity);
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -343,9 +359,13 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                 </div>
               </div>
 
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 text-base">
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 text-base"
+                onClick={handleAddToCart}
+                disabled={isAddingToCart || isCartLoading}
+              >
                 <ShoppingCart className="mr-2 h-5 w-5" />
-                Add to Cart
+                {isAddingToCart || isCartLoading ? 'Adding...' : 'Add to Cart'}
               </Button>
 
               <div className="flex gap-2">
