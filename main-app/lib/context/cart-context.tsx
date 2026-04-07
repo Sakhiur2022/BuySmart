@@ -10,7 +10,13 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import type { CartItemWithProduct, LocalCartSyncItem, UserCartSummary, UserCartResult } from '@/lib/models/cart.model';
+import type {
+  CartItemWithProduct,
+  CartProductDetails,
+  LocalCartSyncItem,
+  UserCartSummary,
+  UserCartResult,
+} from '@/lib/models/cart.model';
 import { createClient } from '@/lib/supabase/client';
 
 type CartContextValue = {
@@ -90,31 +96,59 @@ function writeLocalCart(items: LocalCartSyncItem[]) {
   window.localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(payload));
 }
 
-function buildLocalCart(items: LocalCartSyncItem[]): {
+function buildLocalCart(
+  items: LocalCartSyncItem[],
+  productsById?: Map<string, CartProductDetails>,
+): {
   items: CartItemWithProduct[];
   summary: UserCartSummary;
 } {
   const timestamp = new Date().toISOString();
-  const cartItems: CartItemWithProduct[] = items.map((item) => ({
-    cart_item_id: `local-${item.product_id}`,
-    cart_id: 'local',
-    product_id: item.product_id,
-    quantity: item.quantity,
-    created_at: timestamp,
-    updated_at: timestamp,
-    line_total: 0,
-    product: null,
-  }));
+  const cartItems: CartItemWithProduct[] = items.map((item) => {
+    const product = productsById?.get(item.product_id) ?? null;
+
+    return {
+      cart_item_id: `local-${item.product_id}`,
+      cart_id: 'local',
+      product_id: item.product_id,
+      quantity: item.quantity,
+      created_at: timestamp,
+      updated_at: timestamp,
+      line_total: product ? product.price * item.quantity : 0,
+      product,
+    };
+  });
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalAmount = cartItems.reduce((sum, item) => sum + item.line_total, 0);
 
   return {
     items: cartItems,
     summary: {
       totalItems,
-      totalAmount: 0,
+      totalAmount,
     },
   };
+}
+
+async function fetchLocalProducts(productIds: string[]): Promise<CartProductDetails[]> {
+  const uniqueIds = Array.from(
+    new Set(productIds.map((id) => id.trim()).filter((id) => id.length > 0)),
+  );
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const params = new URLSearchParams({ ids: uniqueIds.join(',') });
+  const response = await fetch(`/api/products/lookup?${params.toString()}`);
+  const payload = (await response.json()) as { products?: CartProductDetails[]; error?: string };
+
+  if (!response.ok) {
+    throw new Error(payload?.error ?? 'Unable to load product details.');
+  }
+
+  return Array.isArray(payload.products) ? payload.products : [];
 }
 
 async function parseCartResponse(response: Response): Promise<UserCartResult> {
@@ -154,6 +188,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const localItemsRef = useRef<LocalCartSyncItem[]>([]);
+  const localProductRequestIdRef = useRef(0);
 
   useEffect(() => {
     localItemsRef.current = localItems;
@@ -220,6 +255,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const initialize = async () => {
       setIsLoading(true);
+
+      let isAuthed = false;
       try {
         const { data, error: authError } = await supabase.auth.getUser();
         if (!isActive) {
@@ -232,7 +269,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
 
         setIsAuthenticated(true);
+        isAuthed = true;
+      } catch (err) {
+        if (isActive) {
+          setIsAuthenticated(false);
+          setError(err instanceof Error ? err.message : 'Unable to load cart.');
+        }
+        return;
+      } finally {
+        if (!isActive || !isAuthed) {
+          if (isActive) {
+            setIsLoading(false);
+          }
+          return;
+        }
+      }
 
+      try {
         if (stored.length > 0) {
           await syncLocalCart(stored);
         } else {
@@ -240,7 +293,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         if (isActive) {
-          setIsAuthenticated(false);
           setError(err instanceof Error ? err.message : 'Unable to load cart.');
         }
       } finally {
@@ -288,6 +340,48 @@ export function CartProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, [refreshCart, setLocalState, supabase, syncLocalCart]);
+
+  useEffect(() => {
+    if (isAuthenticated !== false) {
+      return;
+    }
+
+    if (localItems.length === 0) {
+      const localCart = buildLocalCart(localItems);
+      setItems(localCart.items);
+      setSummary(localCart.summary);
+      return;
+    }
+
+    let isActive = true;
+    const requestId = ++localProductRequestIdRef.current;
+
+    const hydrateLocalCart = async () => {
+      try {
+        const products = await fetchLocalProducts(localItems.map((item) => item.product_id));
+        if (!isActive || requestId !== localProductRequestIdRef.current) {
+          return;
+        }
+
+        const productsById = new Map(products.map((product) => [product.product_id, product]));
+        const localCart = buildLocalCart(localItems, productsById);
+        setItems(localCart.items);
+        setSummary(localCart.summary);
+      } catch (err) {
+        if (!isActive || requestId !== localProductRequestIdRef.current) {
+          return;
+        }
+
+        setError(err instanceof Error ? err.message : 'Unable to load cart details.');
+      }
+    };
+
+    hydrateLocalCart();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isAuthenticated, localItems]);
 
   const addItem = useCallback(
     async (productId: string, quantity = 1) => {

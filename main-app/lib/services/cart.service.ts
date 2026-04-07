@@ -142,23 +142,26 @@ export async function syncLocalCartOnLogin(
   const normalizedItems = normalizeSyncItems(localItems);
   const { cart, items: dbItems } = await getCartWithItems(normalizedUserId);
 
-  const existingProductIds = new Set(dbItems.map((item) => item.product_id));
-  const missingItems = normalizedItems.filter((item) => !existingProductIds.has(item.product_id));
-
-  if (missingItems.length > 0) {
-    const products = await fetchProductsByIds(missingItems.map((item) => item.product_id));
+  if (normalizedItems.length > 0) {
+    const products = await fetchProductsByIds(normalizedItems.map((item) => item.product_id));
     const availableProductIds = new Set(
       products
         .filter((product) => product.status === 'active')
         .map((product) => product.product_id),
     );
+    const existingQuantityByProduct = new Map(
+      dbItems.map((item) => [item.product_id, item.quantity]),
+    );
 
-    for (const item of missingItems) {
+    for (const item of normalizedItems) {
       if (!availableProductIds.has(item.product_id)) {
         continue;
       }
 
-      await upsertCartItem(cart.cart_id, item.product_id, item.quantity);
+      const existingQuantity = existingQuantityByProduct.get(item.product_id) ?? 0;
+      const targetQuantity = existingQuantity + item.quantity;
+
+      await upsertCartItem(cart.cart_id, item.product_id, targetQuantity);
     }
   }
 
