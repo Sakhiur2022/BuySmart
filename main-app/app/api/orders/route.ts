@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createOrderFromInput } from '@/lib/services/order.service';
+import { createOrderFromInput, getBuyerOrders } from '@/lib/services/order.service';
 import { requireAuthenticatedUser } from '@/app/api/cart/_shared';
+import type { OrderStatus } from '@/lib/models/order.model';
+
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+const ORDER_STATUS_VALUES: OrderStatus[] = [
+  'draft',
+  'confirmed',
+  'processing',
+  'shipped',
+  'delivered',
+  'completed',
+  'cancelled',
+];
 
 const orderAddressSchema = z.object({
   full_name: z.string().min(1).max(120),
@@ -44,6 +57,12 @@ const createOrderSchema = z
     }
   });
 
+const getOrdersQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional().default(DEFAULT_PAGE_SIZE),
+  status: z.enum(ORDER_STATUS_VALUES).optional(),
+});
+
 function formatOrderErrorResponse(error: unknown): {
   status: number;
   body: { error: string };
@@ -54,7 +73,11 @@ function formatOrderErrorResponse(error: unknown): {
     }
 
     if (error.message === 'FORBIDDEN') {
-      return { status: 403, body: { error: 'Forbidden: Only buyers can create orders' } };
+      return { status: 403, body: { error: 'Forbidden: Only buyers can access orders' } };
+    }
+
+    if (error.message === 'Order not found') {
+      return { status: 404, body: { error: 'Order not found' } };
     }
 
     if (
@@ -69,6 +92,36 @@ function formatOrderErrorResponse(error: unknown): {
   }
 
   return { status: 500, body: { error: 'Internal server error' } };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await requireAuthenticatedUser();
+
+    const searchParams = request.nextUrl.searchParams;
+    const queryParams = {
+      page: searchParams.get('page') || undefined,
+      pageSize: searchParams.get('pageSize') || undefined,
+      status: searchParams.get('status') || undefined,
+    };
+
+    const parsed = getOrdersQuerySchema.safeParse(queryParams);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: 'Validation failed',
+          issues: parsed.error.flatten(),
+        },
+        { status: 400 },
+      );
+    }
+
+    const result = await getBuyerOrders(userId, parsed.data);
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    const { status, body } = formatOrderErrorResponse(error);
+    return NextResponse.json(body, { status });
+  }
 }
 
 export async function POST(request: NextRequest) {
