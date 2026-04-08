@@ -2,18 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { ProductCard, Product } from '@/components/shared/product-card';
 
 const supabase = createClient();
-
-interface Product {
-  product_id: string;
-  id: string;
-  name: string;
-  description?: string | null;
-  price: number;
-  images?: any;
-  category_id?: number | null;
-}
 
 interface SearchState {
   query: string;
@@ -23,60 +14,6 @@ interface SearchState {
 interface CategoryOption {
   category_id: number;
   name: string;
-}
-
-function getProductImage(product: Product) {
-  if (!product.images) {
-    return 'https://via.placeholder.com/300';
-  }
-
-  if (typeof product.images === 'string') {
-    return product.images;
-  }
-
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    return product.images[0]?.url || product.images[0];
-  }
-
-  if (typeof product.images === 'object' && product.images?.url) {
-    return product.images.url;
-  }
-
-  return 'https://via.placeholder.com/300';
-}
-
-function ProductCard({ product, viewMode }: { product: Product; viewMode: 'grid' | 'list' }) {
-  return (
-    <div
-      className={`bg-card text-card-foreground border border-border rounded-2xl overflow-hidden shadow-sm transition hover:shadow-md ${
-        viewMode === 'list' ? 'flex h-44' : 'flex flex-col'
-      }`}
-    >
-      <div className={viewMode === 'list' ? 'w-48 shrink-0' : 'h-48 w-full'}>
-        <img
-          src={getProductImage(product)}
-          alt={product.name}
-          className="h-full w-full object-cover"
-        />
-      </div>
-
-      <div className="flex flex-1 flex-col justify-between p-4">
-        <div>
-          <h3 className="text-base font-semibold leading-tight">{product.name}</h3>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground line-clamp-3">
-            {product.description || 'No description available.'}
-          </p>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between gap-4 text-sm font-medium">
-          <span className="text-primary">${product.price.toFixed(2)}</span>
-          <button className="rounded-full bg-primary px-4 py-2 text-primary-foreground transition hover:bg-primary/90">
-            Add to Cart
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function ProductController() {
@@ -124,6 +61,8 @@ export default function ProductController() {
           data.map((product: any) => ({
             ...product,
             id: product.product_id,
+            title: product.title ?? product.name ?? 'Untitled product',
+            image_url: product.image_url ?? product.images?.[0]?.url ?? product.images?.[0] ?? undefined,
           })) as Product[],
         );
       } else {
