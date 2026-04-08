@@ -1,12 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ShoppingCart } from 'lucide-react';
 import { useMemo } from 'react';
 import { useCart } from '@/lib/context/cart-context';
 
 export function CartNavButton() {
   const { items, summary } = useCart();
+  const pathname = usePathname();
+
+  if (pathname === '/buyer/cart') {
+    return null;
+  }
 
   const itemCount = useMemo(() => {
     if (Number.isFinite(summary.totalItems)) {
