@@ -6,7 +6,6 @@ import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
 import { useCart } from '@/lib/context/cart-context';
 
@@ -136,9 +135,13 @@ export function CartManagement() {
 
                   <div className="min-w-0 space-y-2">
                     <p className="truncate text-sm font-semibold sm:text-base">{productName}</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">Unit {formatCurrency(unitPrice)}</Badge>
-                      <Badge variant="outline">Line {formatCurrency(lineTotal)}</Badge>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>
+                        Price: <span className="font-medium text-foreground">{formatCurrency(unitPrice)}</span>
+                      </p>
+                      <p>
+                        Subtotal: <span className="font-medium text-foreground">{formatCurrency(lineTotal)}</span>
+                      </p>
                     </div>
                   </div>
                 </div>
