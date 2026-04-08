@@ -74,11 +74,27 @@ export async function isSellerOwnerOfProduct(
   return (count ?? 0) > 0;
 }
 
-function applyFeedbackFilters(
-  query: ReturnType<Awaited<ReturnType<typeof createClient>>['from']>,
+export async function fetchFeedbackListForScope(
   filters: FeedbackListFilters,
-) {
-  let scoped = query.select('*', { count: 'exact' }).order('created_at', { ascending: false });
+  scope: FeedbackViewerScope,
+): Promise<{ feedback: Feedback[]; totalCount: number }> {
+  const supabase = await createClient();
+  const role = scope.role;
+  let scoped = supabase.from('feedback').select('*', { count: 'exact' });
+
+  if (role === 'seller') {
+    const productIds = await fetchSellerOwnedProductIds(scope.userId);
+
+    if (productIds.length === 0) {
+      return { feedback: [], totalCount: 0 };
+    }
+
+    scoped = scoped.in('product_id', productIds);
+  }
+
+  if (role === 'buyer') {
+    scoped = scoped.or(`status.eq.published,user_id.eq.${scope.userId}`);
+  }
 
   if (filters.productId) {
     scoped = scoped.eq('product_id', filters.productId);
@@ -128,55 +144,7 @@ function applyFeedbackFilters(
   }
 
   const offset = (filters.page - 1) * filters.pageSize;
-  return scoped.range(offset, offset + filters.pageSize - 1);
-}
-
-export async function fetchFeedbackListForScope(
-  filters: FeedbackListFilters,
-  scope: FeedbackViewerScope,
-): Promise<{ feedback: Feedback[]; totalCount: number }> {
-  const supabase = await createClient();
-  const role = scope.role;
-
-  if (role === 'seller') {
-    const productIds = await fetchSellerOwnedProductIds(scope.userId);
-
-    if (productIds.length === 0) {
-      return { feedback: [], totalCount: 0 };
-    }
-
-    const query = supabase.from('feedback').in('product_id', productIds);
-    const { data, count, error } = await applyFeedbackFilters(query, filters);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return {
-      feedback: (data ?? []) as Feedback[],
-      totalCount: count ?? 0,
-    };
-  }
-
-  if (role === 'buyer') {
-    const baseQuery = supabase
-      .from('feedback')
-      .or(`status.eq.published,user_id.eq.${scope.userId}`);
-
-    const { data, count, error } = await applyFeedbackFilters(baseQuery, filters);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return {
-      feedback: (data ?? []) as Feedback[],
-      totalCount: count ?? 0,
-    };
-  }
-
-  const query = supabase.from('feedback');
-  const { data, count, error } = await applyFeedbackFilters(query, filters);
+  const { data, count, error } = await scoped.range(offset, offset + filters.pageSize - 1);
 
   if (error) {
     throw new Error(error.message);
