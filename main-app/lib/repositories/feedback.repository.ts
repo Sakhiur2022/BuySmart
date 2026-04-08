@@ -131,7 +131,11 @@ export async function fetchBuyerOrderItemById(
     order_id: data.order_id,
     product_id: data.product_id,
     status: data.status,
-    order_status: Array.isArray(data.orders) ? data.orders[0]?.status : data.orders?.status,
+    order_status: (() => {
+      const ordersData = (data as { orders?: { status?: string } | { status?: string }[] }).orders;
+      const status = Array.isArray(ordersData) ? ordersData[0]?.status : ordersData?.status;
+      return status ?? '';
+    })(),
   };
 }
 
