@@ -376,7 +376,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
               </div>
 
               <Button
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 text-base"
+                className="w-full bg-red-600 hover:bg-red-700 text-white h-12 text-base"
                 onClick={handleAddToCart}
                 disabled={isAddingToCart || isCartLoading}
               >
@@ -389,10 +389,6 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                   {cartNotice}
                 </p>
               ) : null}
-
-              <Button variant="outline" className="w-full" asChild>
-                <Link href="/buyer/cart">View cart</Link>
-              </Button>
 
               <div className="flex gap-2">
                 <Button
