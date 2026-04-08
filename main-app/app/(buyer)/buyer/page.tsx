@@ -223,6 +223,9 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/buyer/cart">View cart</Link>
+            </Button>
             {!isAuthenticated ? (
               <>
                 <Button asChild variant="outline" size="sm">

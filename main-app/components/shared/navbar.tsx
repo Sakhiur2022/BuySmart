@@ -8,6 +8,7 @@ import { EnvVarWarning } from '@/components/shared/env-var-warning';
 import { createClient } from '@/lib/supabase/server';
 import { SellerNavLink } from '@/components/shared/seller-nav-link';
 import { PromotionalBanner } from '@/components/shared/promotional-banner';
+import { CartNavButton } from '@/components/shared/cart-nav-button';
 
 type NavbarRole = 'buyer' | 'seller' | 'admin' | 'moderator' | null;
 
@@ -69,6 +70,7 @@ export async function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
+            <CartNavButton />
             <ThemeSwitcher />
             {!hasEnvVars ? (
               <EnvVarWarning />
