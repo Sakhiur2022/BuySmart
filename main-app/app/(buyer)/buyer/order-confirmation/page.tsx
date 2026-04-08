@@ -21,10 +21,20 @@ function getSearchValue(value: string | string[] | undefined): string | null {
   return value ?? null;
 }
 
+function isUuid(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export default async function OrderConfirmationPage({
   searchParams,
 }: OrderConfirmationPageProps) {
   const resolvedSearchParams = await searchParams;
+  const orderId =
+    getSearchValue(resolvedSearchParams?.order_id) ?? getSearchValue(resolvedSearchParams?.order);
   const orderNumber =
     getSearchValue(resolvedSearchParams?.orderNumber) ??
     getSearchValue(resolvedSearchParams?.order_number) ??
@@ -103,6 +113,11 @@ export default async function OrderConfirmationPage({
           <Button asChild>
             <Link href="/buyer">Continue shopping</Link>
           </Button>
+          {isUuid(orderId) ? (
+            <Button asChild variant="secondary">
+              <Link href={`/buyer/orders/${orderId}`}>View order details</Link>
+            </Button>
+          ) : null}
           <Button asChild variant="outline">
             <Link href="/profile">View account</Link>
           </Button>
