@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatCurrency } from '@/lib/utils';
 import { useCart } from '@/lib/context/cart-context';
 
@@ -125,8 +126,9 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState<string | null>(null);
-  const { addItem, isLoading: isCartLoading } = useCart();
+  const { addItem, items: cartItems, summary: cartSummary, isLoading: isCartLoading } = useCart();
 
   // AI Recommendation State
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
@@ -211,10 +213,66 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     try {
       await addItem(product.product_id, quantity);
       setCartNotice('Item added to cart!');
+      setIsCartDrawerOpen(true);
     } finally {
       setIsAddingToCart(false);
     }
   };
+
+  const cartPreviewItems = useMemo(() => {
+    const grouped = new Map<
+      string,
+      {
+        cart_item_id: string;
+        product_id: string;
+        quantity: number;
+        line_total: number;
+        product: (typeof cartItems)[number]['product'];
+      }
+    >();
+
+    for (const item of cartItems) {
+      const key = item.product_id;
+      const unitPrice = item.product?.price ?? 0;
+      const lineTotal = Number.isFinite(item.line_total) ? item.line_total : unitPrice * item.quantity;
+      const existing = grouped.get(key);
+
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.line_total += lineTotal;
+        continue;
+      }
+
+      grouped.set(key, {
+        cart_item_id: item.cart_item_id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        line_total: lineTotal,
+        product: item.product,
+      });
+    }
+
+    return Array.from(grouped.values()).slice(0, 4);
+  }, [cartItems]);
+  const cartSubtotal = useMemo(() => {
+    if (Number.isFinite(cartSummary.totalAmount)) {
+      return cartSummary.totalAmount;
+    }
+
+    return cartItems.reduce((sum, item) => {
+      const unitPrice = item.product?.price ?? 0;
+      const lineTotal = Number.isFinite(item.line_total) ? item.line_total : unitPrice * item.quantity;
+      return sum + lineTotal;
+    }, 0);
+  }, [cartItems, cartSummary.totalAmount]);
+
+  const cartTotalItems = useMemo(() => {
+    if (Number.isFinite(cartSummary.totalItems)) {
+      return cartSummary.totalItems;
+    }
+
+    return cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  }, [cartItems, cartSummary.totalItems]);
 
   useEffect(() => {
     if (!cartNotice) {
@@ -232,6 +290,72 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <Dialog open={isCartDrawerOpen} onOpenChange={setIsCartDrawerOpen}>
+        <DialogContent className="left-auto right-0 top-0 flex h-dvh w-full max-w-md translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-l p-0 sm:max-w-md">
+          <DialogHeader className="space-y-0 border-b px-5 py-2">
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <ShoppingCart className="h-4 w-4 text-primary" />
+              <span>Added to cart</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 space-y-2 overflow-y-auto px-5 py-3">
+            {cartPreviewItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Your cart is currently empty.</p>
+            ) : (
+              cartPreviewItems.map((item) => {
+                const productName = item.product?.name ?? 'Unavailable product';
+                const imageUrl = item.product?.image?.trim() || null;
+
+                return (
+                  <div key={item.cart_item_id} className="flex items-center gap-2.5 rounded-lg border p-2.5">
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted">
+                      {imageUrl ? (
+                        <Image src={imageUrl} alt={productName} fill sizes="56px" className="object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                          No image
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <div className="truncate text-sm font-medium">{productName}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">Qty: {item.quantity}</div>
+                    </div>
+                    <div className="text-sm font-semibold leading-tight">
+                      {formatCurrency(Number.isFinite(item.line_total) ? item.line_total : (item.product?.price ?? 0) * item.quantity)}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {cartItems.length > cartPreviewItems.length ? (
+              <p className="text-xs text-muted-foreground">
+                +{cartItems.length - cartPreviewItems.length} more items in cart
+              </p>
+            ) : null}
+          </div>
+
+          <div className="border-t bg-background px-5 py-4">
+            <div className="mb-4 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal ({cartTotalItems} items)</span>
+              <span className="font-semibold">{formatCurrency(cartSubtotal)}</span>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setIsCartDrawerOpen(false)}>
+                Continue shopping
+              </Button>
+              <Button asChild className="flex-1 bg-red-500 text-white hover:bg-red-600">
+                <Link href="/buyer/cart" onClick={() => setIsCartDrawerOpen(false)}>
+                  Go to cart
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Breadcrumb */}
       <div className="mb-8 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
         <Link href="/buyer?mode=buyer" className="hover:text-zinc-900 dark:hover:text-zinc-200">
