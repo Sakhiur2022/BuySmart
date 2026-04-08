@@ -10,10 +10,6 @@ export function CartNavButton() {
   const { items, summary } = useCart();
   const pathname = usePathname();
 
-  if (pathname === '/buyer/cart') {
-    return null;
-  }
-
   const itemCount = useMemo(() => {
     if (Number.isFinite(summary.totalItems)) {
       return summary.totalItems;
@@ -23,6 +19,10 @@ export function CartNavButton() {
   }, [items, summary.totalItems]);
 
   const badgeLabel = itemCount > 99 ? '99+' : String(itemCount);
+
+  if (pathname === '/buyer/cart') {
+    return null;
+  }
 
   return (
     <Link
