@@ -25,12 +25,12 @@ The implementation adds a full feedback module across model, repository, service
 
 ## User Stories Covered
 
-| Story ID | Title                                                                  | Status         |
-| -------- | ---------------------------------------------------------------------- | -------------- |
-| US-XX    | Buyer can create and manage own feedback                               | ✅ Implemented |
-| US-XX    | Buyer can list feedback with filters and pagination                    | ✅ Implemented |
-| US-XX    | Seller can read feedback scoped to own products                        | ✅ Implemented |
-| US-XX    | Admin/Moderator can read and moderate feedback                         | ✅ Implemented |
+| Story ID | Title                                                                         | Status         |
+| -------- | ----------------------------------------------------------------------------- | -------------- |
+| US-XX    | Buyer can create and manage own feedback                                      | ✅ Implemented |
+| US-XX    | Buyer can list feedback with filters and pagination                           | ✅ Implemented |
+| US-XX    | Seller can read feedback scoped to own products                               | ✅ Implemented |
+| US-XX    | Admin/Moderator can read and moderate feedback                                | ✅ Implemented |
 | US-XX    | Unauthorized or invalid feedback operations are blocked with clear API errors | ✅ Implemented |
 
 ---
@@ -82,29 +82,29 @@ The following changes were identified from current branch vs `main`:
 
 ```json
 {
-	"feedback": [
-		{
-			"feedback_id": "uuid",
-			"user_id": "uuid",
-			"product_id": "uuid",
-			"order_id": "uuid",
-			"order_item_id": "uuid",
-			"feedback_type": "product_review",
-			"rating": 5,
-			"title": "Great product",
-			"comment": "Arrived fast and works well.",
-			"images": ["https://..."],
-			"status": "published",
-			"created_at": "...",
-			"updated_at": "..."
-		}
-	],
-	"pagination": {
-		"page": 1,
-		"pageSize": 20,
-		"totalCount": 1,
-		"totalPages": 1
-	}
+  "feedback": [
+    {
+      "feedback_id": "uuid",
+      "user_id": "uuid",
+      "product_id": "uuid",
+      "order_id": "uuid",
+      "order_item_id": "uuid",
+      "feedback_type": "product_review",
+      "rating": 5,
+      "title": "Great product",
+      "comment": "Arrived fast and works well.",
+      "images": ["https://..."],
+      "status": "published",
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "totalCount": 1,
+    "totalPages": 1
+  }
 }
 ```
 
@@ -119,18 +119,18 @@ The following changes were identified from current branch vs `main`:
 
 ```json
 {
-	"feedback": {
-		"feedback_id": "uuid",
-		"feedback_type": "product_review",
-		"rating": 4,
-		"title": "Solid value",
-		"comment": "Satisfied with the purchase.",
-		"status": "published",
-		"user_id": "uuid",
-		"product_id": "uuid",
-		"created_at": "...",
-		"updated_at": "..."
-	}
+  "feedback": {
+    "feedback_id": "uuid",
+    "feedback_type": "product_review",
+    "rating": 4,
+    "title": "Solid value",
+    "comment": "Satisfied with the purchase.",
+    "status": "published",
+    "user_id": "uuid",
+    "product_id": "uuid",
+    "created_at": "...",
+    "updated_at": "..."
+  }
 }
 ```
 
@@ -157,14 +157,14 @@ Service-level rule:
 
 ```json
 {
-	"feedback": {
-		"feedback_id": "uuid",
-		"feedback_type": "product_review",
-		"status": "published",
-		"user_id": "uuid",
-		"created_at": "...",
-		"updated_at": "..."
-	}
+  "feedback": {
+    "feedback_id": "uuid",
+    "feedback_type": "product_review",
+    "status": "published",
+    "user_id": "uuid",
+    "created_at": "...",
+    "updated_at": "..."
+  }
 }
 ```
 
@@ -181,11 +181,11 @@ Service-level rule:
 
 ```json
 {
-	"feedback": {
-		"feedback_id": "uuid",
-		"status": "published",
-		"updated_at": "..."
-	}
+  "feedback": {
+    "feedback_id": "uuid",
+    "status": "published",
+    "updated_at": "..."
+  }
 }
 ```
 
@@ -201,11 +201,11 @@ Service-level rule:
 
 ```json
 {
-	"feedback": {
-		"feedback_id": "uuid",
-		"status": "archived",
-		"updated_at": "..."
-	}
+  "feedback": {
+    "feedback_id": "uuid",
+    "status": "archived",
+    "updated_at": "..."
+  }
 }
 ```
 
@@ -292,14 +292,14 @@ Added thin delegation wrappers:
 **Files:**
 
 - `app/api/feedback/route.ts`
-	- added `GET /api/feedback`
-	- added `POST /api/feedback`
-	- zod query/body validation and standardized error mapping
+  - added `GET /api/feedback`
+  - added `POST /api/feedback`
+  - zod query/body validation and standardized error mapping
 - `app/api/feedback/[id]/route.ts`
-	- added `GET /api/feedback/[id]`
-	- added `PUT /api/feedback/[id]`
-	- added `DELETE /api/feedback/[id]`
-	- UUID route param validation and standardized error mapping
+  - added `GET /api/feedback/[id]`
+  - added `PUT /api/feedback/[id]`
+  - added `DELETE /api/feedback/[id]`
+  - UUID route param validation and standardized error mapping
 
 ---
 
@@ -403,9 +403,9 @@ None
 1. FB-02 introduces API and backend layering only; no UI/client changes were added.
 2. Delete behavior is soft-delete via `status = archived`; no hard delete endpoint behavior is used.
 3. Authorization is enforced at multiple layers:
-	 - session auth in API layer
-	 - role and ownership checks in service layer
-	 - scoped query behavior in repository layer
+   - session auth in API layer
+   - role and ownership checks in service layer
+   - scoped query behavior in repository layer
 
 ---
 
