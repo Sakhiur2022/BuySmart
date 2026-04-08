@@ -6,13 +6,27 @@ import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/utils';
 import { useCart } from '@/lib/context/cart-context';
+
+type VoucherRule =
+  | { code: string; type: 'percent'; value: number; label: string }
+  | { code: string; type: 'flat'; value: number; label: string };
+
+const VOUCHER_RULES: VoucherRule[] = [
+  { code: 'SAVE10', type: 'percent', value: 10, label: '10% OFF' },
+  { code: 'SAVE20', type: 'percent', value: 20, label: '20% OFF' },
+  { code: 'FLAT200', type: 'flat', value: 200, label: 'BDT 200 OFF' },
+];
 
 export function CartManagement() {
   const { items, summary, isLoading, error, updateItemQuantity, removeItem, clearCart } = useCart();
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
+  const [voucherInput, setVoucherInput] = useState('');
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+  const [appliedVoucher, setAppliedVoucher] = useState<VoucherRule | null>(null);
 
   const totals = useMemo(() => {
     const totalItems = Number.isFinite(summary.totalItems)
@@ -67,9 +81,52 @@ export function CartManagement() {
     setIsClearing(true);
     try {
       await clearCart();
+      setAppliedVoucher(null);
+      setVoucherInput('');
+      setVoucherError(null);
     } finally {
       setIsClearing(false);
     }
+  };
+
+  const discountAmount = useMemo(() => {
+    if (!appliedVoucher) {
+      return 0;
+    }
+
+    if (appliedVoucher.type === 'percent') {
+      return (totals.subtotal * appliedVoucher.value) / 100;
+    }
+
+    return Math.min(appliedVoucher.value, totals.subtotal);
+  }, [appliedVoucher, totals.subtotal]);
+
+  const totalAfterDiscount = Math.max(0, totals.subtotal - discountAmount);
+
+  const handleApplyVoucher = () => {
+    const normalized = voucherInput.trim().toUpperCase();
+
+    if (!normalized) {
+      setVoucherError('Please enter a voucher code.');
+      setAppliedVoucher(null);
+      return;
+    }
+
+    const matched = VOUCHER_RULES.find((rule) => rule.code === normalized);
+    if (!matched) {
+      setVoucherError('Invalid voucher code.');
+      setAppliedVoucher(null);
+      return;
+    }
+
+    setAppliedVoucher(matched);
+    setVoucherError(null);
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherError(null);
+    setVoucherInput('');
   };
 
   if (items.length === 0) {
@@ -190,7 +247,51 @@ export function CartManagement() {
         })}
       </section>
 
-      <aside className="lg:col-span-1">
+      <aside className="space-y-4 lg:col-span-1">
+        <Card className="relative overflow-hidden border-rose-200/80 bg-linear-to-br from-rose-50 via-pink-50 to-amber-50 dark:border-rose-500/30 dark:from-rose-950/35 dark:via-pink-950/25 dark:to-amber-950/20">
+          <span
+            aria-hidden="true"
+            className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background"
+          />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-rose-700 dark:text-rose-300">Coupon</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 border-t border-dashed border-rose-300/70 pt-3 dark:border-rose-500/40">
+            <div className="flex gap-2">
+              <Input
+                value={voucherInput}
+                onChange={(event) => setVoucherInput(event.target.value)}
+                placeholder="Enter code"
+                className="h-9"
+                aria-label="Voucher code"
+              />
+              <Button type="button" size="sm" onClick={handleApplyVoucher}>
+                Apply
+              </Button>
+            </div>
+            {voucherError ? <p className="text-xs text-destructive">{voucherError}</p> : null}
+            {!voucherError && appliedVoucher ? (
+              <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300">
+                <span>
+                  Applied: {appliedVoucher.code} ({appliedVoucher.label})
+                </span>
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={handleRemoveVoucher}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
+            <p className="text-[11px] text-muted-foreground">Try: SAVE10, SAVE20, FLAT200</p>
+          </CardContent>
+        </Card>
+
         <Card className="lg:sticky lg:top-24 bg-linear-to-br from-primary/10 via-card to-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 leading-normal">
@@ -207,9 +308,17 @@ export function CartManagement() {
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
             </div>
+            {discountAmount > 0 ? (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Discount</span>
+                <span className="font-medium text-emerald-700 dark:text-emerald-300">
+                  -{formatCurrency(discountAmount)}
+                </span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between border-t pt-3 text-base font-semibold">
               <span>Total</span>
-              <span>{formatCurrency(totals.subtotal)}</span>
+              <span>{formatCurrency(totalAfterDiscount)}</span>
             </div>
 
             <Button className="w-full" disabled>
