@@ -125,6 +125,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const { addItem, isLoading: isCartLoading } = useCart();
 
   // AI Recommendation State
@@ -209,10 +210,25 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     setIsAddingToCart(true);
     try {
       await addItem(product.product_id, quantity);
+      setCartNotice('Item added to cart!');
     } finally {
       setIsAddingToCart(false);
     }
   };
+
+  useEffect(() => {
+    if (!cartNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCartNotice(null);
+    }, 2400);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [cartNotice]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -366,6 +382,16 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
               >
                 <ShoppingCart className="mr-2 h-5 w-5" />
                 {isAddingToCart || isCartLoading ? 'Adding...' : 'Add to Cart'}
+              </Button>
+
+              {cartNotice ? (
+                <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  {cartNotice}
+                </p>
+              ) : null}
+
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/buyer/cart">View cart</Link>
               </Button>
 
               <div className="flex gap-2">
