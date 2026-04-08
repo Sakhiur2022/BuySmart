@@ -53,6 +53,27 @@ export interface OrderWithItemsResult {
   skipped_items: SkippedOrderItem[];
 }
 
+export interface BuyerOrderListFilters {
+  page: number;
+  pageSize: number;
+  status?: OrderStatus;
+}
+
+export interface BuyerOrderListResult {
+  orders: OrderRow[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+}
+
+export interface BuyerOrderDetailResult {
+  order: OrderRow;
+  items: OrderItemRow[];
+}
+
 export type Order = OrderRow;
 export type OrderItem = OrderItemRow;
 export type { OrderStatus, PaymentStatus, OrderItemStatus };
