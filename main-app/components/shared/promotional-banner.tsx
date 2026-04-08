@@ -4,6 +4,21 @@ import { usePathname } from 'next/navigation';
 
 const PROMOS = [
   {
+    id: 'coupon-save10',
+    title: 'Coupon SAVE10',
+    detail: 'Get 10% off on your next order.',
+  },
+  {
+    id: 'coupon-save20',
+    title: 'Coupon SAVE20',
+    detail: 'Get 20% off selected items today.',
+  },
+  {
+    id: 'coupon-flat200',
+    title: 'Coupon FLAT200',
+    detail: 'Instant BDT 200 off on eligible carts.',
+  },
+  {
     id: 'deals',
     title: 'New Deals Today',
     detail: 'Up to 30% off smart home favorites.',
