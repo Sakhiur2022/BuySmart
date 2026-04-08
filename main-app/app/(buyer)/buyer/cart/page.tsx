@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 export default function BuyerCartPage() {
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
+      <section className="rounded-xl border bg-linear-to-r from-primary/10 via-card to-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold sm:text-3xl">Your Cart</h1>

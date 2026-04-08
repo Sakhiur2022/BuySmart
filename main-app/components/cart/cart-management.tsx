@@ -75,7 +75,7 @@ export function CartManagement() {
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-3xl">
-        <Card className="border-dashed">
+        <Card className="border-dashed bg-linear-to-br from-primary/5 via-card to-card">
           <CardHeader className="items-center text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
               <ShoppingCart className="h-6 w-6" />
@@ -114,7 +114,7 @@ export function CartManagement() {
           const itemBusy = pendingProductId === item.product_id;
 
           return (
-            <Card key={item.cart_item_id}>
+            <Card key={item.cart_item_id} className="bg-linear-to-r from-background via-background to-primary/5">
               <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
                   <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
@@ -191,7 +191,7 @@ export function CartManagement() {
       </section>
 
       <aside className="lg:col-span-1">
-        <Card className="lg:sticky lg:top-24">
+        <Card className="lg:sticky lg:top-24 bg-linear-to-br from-primary/10 via-card to-card">
           <CardHeader>
             <CardTitle>Cart summary</CardTitle>
           </CardHeader>
