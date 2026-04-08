@@ -193,7 +193,10 @@ export function CartManagement() {
       <aside className="lg:col-span-1">
         <Card className="lg:sticky lg:top-24 bg-linear-to-br from-primary/10 via-card to-card">
           <CardHeader>
-            <CardTitle>Cart summary</CardTitle>
+            <CardTitle className="flex items-center gap-2 leading-normal">
+              <ShoppingCart className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <span>Cart summary</span>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm">
