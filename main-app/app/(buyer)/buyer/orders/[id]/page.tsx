@@ -18,11 +18,10 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
   }
 
   const resolvedParams = await params;
+  let detail: Awaited<ReturnType<typeof getBuyerOrderById>>;
 
   try {
-    const detail = await getBuyerOrderById(user.id, resolvedParams.id);
-
-    return <OrderDetailView order={detail.order} items={detail.items} />;
+    detail = await getBuyerOrderById(user.id, resolvedParams.id);
   } catch (error) {
     if (error instanceof Error && error.message === 'Order not found') {
       notFound();
@@ -34,4 +33,6 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
 
     throw error;
   }
+
+  return <OrderDetailView order={detail.order} items={detail.items} />;
 }
