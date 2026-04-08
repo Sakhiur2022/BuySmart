@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency } from '@/lib/utils';
 import { useCart } from '@/lib/context/cart-context';
 
@@ -135,6 +138,16 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
   const [recommendationSummary, setRecommendationSummary] = useState<string | null>(null);
   const [hasRecommendationResponse, setHasRecommendationResponse] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackTitle, setFeedbackTitle] = useState('');
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackImageInput, setFeedbackImageInput] = useState('');
+  const [feedbackImages, setFeedbackImages] = useState<string[]>([]);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackNotice, setFeedbackNotice] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     const onRecommendations = (event: Event) => {
@@ -287,6 +300,122 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       window.clearTimeout(timeoutId);
     };
   }, [cartNotice]);
+
+  const handleAddFeedbackImage = () => {
+    const nextUrl = feedbackImageInput.trim();
+    if (!nextUrl) {
+      return;
+    }
+
+    let normalized: string;
+    try {
+      normalized = new URL(nextUrl).toString();
+    } catch {
+      setFeedbackNotice({
+        type: 'error',
+        message: 'Please enter a valid image URL.',
+      });
+      return;
+    }
+
+    if (feedbackImages.includes(normalized)) {
+      setFeedbackNotice({
+        type: 'error',
+        message: 'That image has already been added.',
+      });
+      return;
+    }
+
+    if (feedbackImages.length >= 6) {
+      setFeedbackNotice({
+        type: 'error',
+        message: 'You can add up to 6 images per review.',
+      });
+      return;
+    }
+
+    setFeedbackImages((prev) => [...prev, normalized]);
+    setFeedbackImageInput('');
+    setFeedbackNotice(null);
+  };
+
+  const handleRemoveFeedbackImage = (targetUrl: string) => {
+    setFeedbackImages((prev) => prev.filter((url) => url !== targetUrl));
+  };
+
+  const handleSubmitFeedback = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (feedbackRating < 1 || feedbackRating > 5) {
+      setFeedbackNotice({
+        type: 'error',
+        message: 'Please choose a rating from 1 to 5 stars.',
+      });
+      return;
+    }
+
+    const trimmedComment = feedbackComment.trim();
+    if (trimmedComment.length < 10) {
+      setFeedbackNotice({
+        type: 'error',
+        message: 'Please share at least 10 characters of feedback.',
+      });
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    setFeedbackNotice(null);
+
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          feedback_type: 'product_review',
+          product_id: product.product_id,
+          rating: feedbackRating,
+          title: feedbackTitle.trim() || undefined,
+          comment: trimmedComment,
+          images: feedbackImages.length > 0 ? feedbackImages : undefined,
+          status: 'published',
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        const fallback =
+          response.status === 401
+            ? 'Please sign in to submit your review.'
+            : response.status === 403
+              ? 'Your account does not have permission to submit feedback.'
+              : 'Could not submit review right now. Please try again.';
+        setFeedbackNotice({
+          type: 'error',
+          message: payload?.error || fallback,
+        });
+        return;
+      }
+
+      setFeedbackTitle('');
+      setFeedbackComment('');
+      setFeedbackRating(0);
+      setFeedbackImages([]);
+      setFeedbackImageInput('');
+      setFeedbackNotice({
+        type: 'success',
+        message: 'Thanks! Your review has been submitted.',
+      });
+    } catch {
+      setFeedbackNotice({
+        type: 'error',
+        message: 'Network error while submitting your review. Please retry.',
+      });
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -617,6 +746,146 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
           </CardContent>
         </Card>
       )}
+
+      <Card className="mt-8 border-red-100/80 bg-gradient-to-b from-white to-red-50/40 dark:from-zinc-900 dark:to-zinc-900" id="reviews">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-xl">Share Your Feedback</CardTitle>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Tell other shoppers what stood out, and add photos for extra context.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmitFeedback} className="space-y-5">
+            <div className="space-y-2">
+              <Label>Rating</Label>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setFeedbackRating(star)}
+                    className="rounded-md p-1 transition hover:scale-105"
+                    aria-label={`Set rating to ${star} stars`}
+                  >
+                    <Star
+                      className={`h-6 w-6 ${
+                        star <= feedbackRating ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-300 dark:text-zinc-600'
+                      }`}
+                    />
+                  </button>
+                ))}
+                <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                  {feedbackRating > 0 ? `${feedbackRating} / 5` : 'Select a rating'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="feedback-title">Title (optional)</Label>
+              <Input
+                id="feedback-title"
+                value={feedbackTitle}
+                onChange={(event) => setFeedbackTitle(event.target.value)}
+                maxLength={255}
+                placeholder="Quick summary of your experience"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="feedback-comment">Your review</Label>
+              <Textarea
+                id="feedback-comment"
+                value={feedbackComment}
+                onChange={(event) => setFeedbackComment(event.target.value)}
+                minLength={10}
+                maxLength={5000}
+                placeholder="What did you like, dislike, or wish was better?"
+                className="min-h-28 resize-y"
+              />
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {feedbackComment.trim().length}/5000 characters
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="feedback-image-url">Add image URL (optional)</Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="feedback-image-url"
+                  type="url"
+                  value={feedbackImageInput}
+                  onChange={(event) => setFeedbackImageInput(event.target.value)}
+                  placeholder="https://images.example.com/review-photo.jpg"
+                />
+                <Button type="button" variant="outline" onClick={handleAddFeedbackImage}>
+                  Add image
+                </Button>
+              </div>
+
+              {feedbackImages.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {feedbackImages.map((imageUrl) => (
+                    <div
+                      key={imageUrl}
+                      className="rounded-lg border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    >
+                      <div className="relative aspect-video overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-800">
+                        <Image
+                          src={imageUrl}
+                          alt="Feedback image preview"
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="line-clamp-1 text-xs text-zinc-600 dark:text-zinc-400">
+                          {imageUrl}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs text-red-600 hover:text-red-700"
+                          onClick={() => handleRemoveFeedbackImage(imageUrl)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Add up to 6 images to make your review more helpful.
+                </p>
+              )}
+            </div>
+
+            {feedbackNotice ? (
+              <div
+                className={`rounded-md border px-3 py-2 text-sm ${
+                  feedbackNotice.type === 'success'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300'
+                }`}
+              >
+                {feedbackNotice.message}
+              </div>
+            ) : null}
+
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={isSubmittingFeedback}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {isSubmittingFeedback ? 'Submitting review...' : 'Submit review'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       {/* AI Recommendation Section */}
       {isGeneratingRecommendations ? (
