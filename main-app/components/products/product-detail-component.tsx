@@ -290,7 +290,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Dialog open={isCartDrawerOpen} onOpenChange={setIsCartDrawerOpen}>
+      <Dialog open={isCartDrawerOpen} onOpenChange={setIsCartDrawerOpen} modal={false}>
         <DialogContent className="left-auto right-0 top-0 flex h-dvh w-full max-w-md translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-l p-0 sm:max-w-md">
           <DialogHeader className="space-y-0 border-b px-5 py-2">
             <DialogTitle className="flex items-center gap-2 text-base font-semibold">

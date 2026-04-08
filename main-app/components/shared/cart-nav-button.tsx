@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { ShoppingCart } from 'lucide-react';
 import { useMemo } from 'react';
-import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/context/cart-context';
 
 export function CartNavButton() {
@@ -20,21 +19,18 @@ export function CartNavButton() {
   const badgeLabel = itemCount > 99 ? '99+' : String(itemCount);
 
   return (
-    <Button
-      asChild
-      variant="outline"
-      size="icon"
-      className="relative border-primary/30 bg-linear-to-br from-primary/10 via-background to-background hover:bg-background"
+    <Link
+      href="/buyer/cart"
+      title="Go to cart"
       aria-label="Open cart"
+      className="relative inline-flex h-9 w-9 items-center justify-center text-foreground transition-colors hover:text-primary"
     >
-      <Link href="/buyer/cart" title="Go to cart">
-        <ShoppingCart className="h-4 w-4" />
-        {itemCount > 0 ? (
-          <span className="absolute -right-1.5 -top-1.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-linear-to-r from-primary to-primary/80 px-1 text-[10px] font-semibold text-primary-foreground shadow-sm">
-            {badgeLabel}
-          </span>
-        ) : null}
-      </Link>
-    </Button>
+      <ShoppingCart className="h-5 w-5" />
+      {itemCount > 0 ? (
+        <span className="absolute -right-1.5 -top-1.5 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-linear-to-r from-primary to-primary/80 px-1 text-[10px] font-semibold text-primary-foreground shadow-sm">
+          {badgeLabel}
+        </span>
+      ) : null}
+    </Link>
   );
 }
