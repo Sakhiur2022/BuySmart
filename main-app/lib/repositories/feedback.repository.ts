@@ -74,6 +74,104 @@ export async function isSellerOwnerOfProduct(
   return (count ?? 0) > 0;
 }
 
+export async function fetchBuyerOrderById(
+  buyerId: string,
+  orderId: string,
+): Promise<{ order_id: string; status: string } | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('orders')
+    .select('order_id, status')
+    .eq('order_id', orderId)
+    .eq('buyer_id', buyerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    order_id: data.order_id,
+    status: data.status,
+  };
+}
+
+export async function fetchBuyerOrderItemById(
+  buyerId: string,
+  orderItemId: string,
+): Promise<{
+  order_item_id: string;
+  order_id: string;
+  product_id: string;
+  status: string;
+  order_status: string;
+} | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('order_item_id, order_id, product_id, status, orders!inner(buyer_id, status)')
+    .eq('order_item_id', orderItemId)
+    .eq('orders.buyer_id', buyerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    order_item_id: data.order_item_id,
+    order_id: data.order_id,
+    product_id: data.product_id,
+    status: data.status,
+    order_status: Array.isArray(data.orders) ? data.orders[0]?.status : data.orders?.status,
+  };
+}
+
+export async function fetchLatestDeliveredOrderItemForBuyerProduct(
+  buyerId: string,
+  productId: string,
+  orderId?: string,
+): Promise<{ order_id: string; order_item_id: string } | null> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('order_items')
+    .select('order_item_id, order_id, orders!inner(buyer_id, status)')
+    .eq('orders.buyer_id', buyerId)
+    .eq('product_id', productId)
+    .eq('status', 'delivered')
+    .in('orders.status', ['delivered', 'completed'])
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (orderId) {
+    query = query.eq('order_id', orderId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    order_id: data.order_id,
+    order_item_id: data.order_item_id,
+  };
+}
+
 export async function fetchFeedbackListForScope(
   filters: FeedbackListFilters,
   scope: FeedbackViewerScope,
@@ -172,6 +270,7 @@ export async function createFeedback(
     title: input.title ?? null,
     comment: input.comment ?? null,
     images: (input.images ?? null) as Json | null,
+    is_verified_purchase: input.is_verified_purchase ?? false,
     status: input.status ?? 'published',
   };
 

@@ -18,6 +18,7 @@ export interface CreateFeedbackInput {
   title?: string;
   comment?: string;
   images?: Json;
+  is_verified_purchase?: boolean;
   status?: FeedbackStatus;
 }
 

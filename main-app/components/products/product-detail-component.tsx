@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Star, Heart, Share2, Check, ShoppingCart, MessageSquare, Sparkles } from 'lucide-react';
+import { Star, Heart, Share2, Check, ShoppingCart, MessageSquare, Sparkles, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,25 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency } from '@/lib/utils';
 import { useCart } from '@/lib/context/cart-context';
+
+type FeedbackTypeOption =
+  | 'product_review'
+  | 'seller_review'
+  | 'service_feedback'
+  | 'general_feedback';
+type FeedbackStatusOption = 'draft' | 'published';
+
+const FEEDBACK_TYPE_OPTIONS: Array<{ value: FeedbackTypeOption; label: string }> = [
+  { value: 'product_review', label: 'Product review' },
+  { value: 'seller_review', label: 'Seller review' },
+  { value: 'service_feedback', label: 'Service feedback' },
+  { value: 'general_feedback', label: 'General feedback' },
+];
+
+const FEEDBACK_STATUS_OPTIONS: Array<{ value: FeedbackStatusOption; label: string }> = [
+  { value: 'published', label: 'Publish now' },
+  { value: 'draft', label: 'Save as draft' },
+];
 
 // ============================================================================
 // TYPES
@@ -124,6 +143,20 @@ interface RecommendationEventDetail {
   items: RecommendedItem[];
 }
 
+interface FeedbackApiResponse {
+  feedback?: {
+    feedback_id?: string;
+  };
+}
+
+interface FeedbackApiErrorResponse {
+  error?: string;
+  issues?: {
+    fieldErrors?: Record<string, string[] | undefined>;
+  };
+}
+
+
 export default function ProductDetailComponent({ productData }: ProductDetailComponentProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -141,9 +174,13 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackTitle, setFeedbackTitle] = useState('');
   const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackType, setFeedbackType] = useState<FeedbackTypeOption>('product_review');
+  const [feedbackStatus, setFeedbackStatus] = useState<FeedbackStatusOption>('published');
   const [feedbackImageInput, setFeedbackImageInput] = useState('');
   const [feedbackImages, setFeedbackImages] = useState<string[]>([]);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
+  const [submittedFeedbackId, setSubmittedFeedbackId] = useState<string | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState<{
     type: 'success' | 'error';
     message: string;
@@ -189,7 +226,6 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
 
   const { product, reviews, relatedProducts } = productData;
   const selectedImage = product.images[selectedImageIndex];
-
   // Merge image data for recommendations
   const recommendedCardItems = useMemo(() => {
     if (!recommendedItems.length) return [];
@@ -326,10 +362,10 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       return;
     }
 
-    if (feedbackImages.length >= 6) {
+    if (feedbackImages.length >= 10) {
       setFeedbackNotice({
         type: 'error',
-        message: 'You can add up to 6 images per review.',
+        message: 'You can add up to 10 images per review.',
       });
       return;
     }
@@ -355,13 +391,6 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     }
 
     const trimmedComment = feedbackComment.trim();
-    if (trimmedComment.length < 10) {
-      setFeedbackNotice({
-        type: 'error',
-        message: 'Please share at least 10 characters of feedback.',
-      });
-      return;
-    }
 
     setIsSubmittingFeedback(true);
     setFeedbackNotice(null);
@@ -373,39 +402,66 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          feedback_type: 'product_review',
+          feedback_type: feedbackType,
           product_id: product.product_id,
           rating: feedbackRating,
           title: feedbackTitle.trim() || undefined,
-          comment: trimmedComment,
+          comment: trimmedComment || undefined,
           images: feedbackImages.length > 0 ? feedbackImages : undefined,
-          status: 'published',
+          status: feedbackStatus,
         }),
       });
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        const payload = (await response.json().catch(() => null)) as FeedbackApiErrorResponse | null;
+        const fieldErrors = payload?.issues?.fieldErrors;
+        const fieldErrorMessage = fieldErrors
+          ? Object.entries(fieldErrors)
+              .filter(([, errors]) => Array.isArray(errors) && errors.length > 0)
+              .map(([field, errors]) => `${field}: ${errors?.join(', ')}`)
+              .join(' | ')
+          : '';
+
         const fallback =
           response.status === 401
             ? 'Please sign in to submit your review.'
             : response.status === 403
-              ? 'Your account does not have permission to submit feedback.'
-              : 'Could not submit review right now. Please try again.';
+              ? 'You can only submit a review for products you have purchased and received.'
+              : response.status === 404
+                ? 'Feedback endpoint was not found.'
+                : response.status === 409
+                  ? 'A feedback entry already exists for this context.'
+                  : response.status === 400
+                    ? 'Please check your review details and try again.'
+                    : 'Could not submit review right now. Please try again.';
+
         setFeedbackNotice({
           type: 'error',
-          message: payload?.error || fallback,
+          message:
+            fieldErrorMessage ||
+            (payload?.error && payload.error !== 'Validation failed' ? payload.error : '') ||
+            fallback,
         });
         return;
       }
 
+      const payload = (await response.json().catch(() => null)) as FeedbackApiResponse | null;
+      const feedbackId = payload?.feedback?.feedback_id || null;
+
       setFeedbackTitle('');
       setFeedbackComment('');
       setFeedbackRating(0);
+      setFeedbackType('product_review');
+      setFeedbackStatus('published');
       setFeedbackImages([]);
       setFeedbackImageInput('');
+      setSubmittedFeedbackId(feedbackId);
+      setIsFeedbackFormOpen(false);
       setFeedbackNotice({
         type: 'success',
-        message: 'Thanks! Your review has been submitted.',
+        message: feedbackId
+          ? `Thanks! Your review has been submitted. Reference: ${feedbackId}`
+          : 'Thanks! Your review has been submitted.',
       });
     } catch {
       setFeedbackNotice({
@@ -749,13 +805,95 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
 
       <Card className="mt-8 border-red-100/80 bg-gradient-to-b from-white to-red-50/40 dark:from-zinc-900 dark:to-zinc-900" id="reviews">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-xl">Share Your Feedback</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-xl">Share Your Feedback</CardTitle>
+            <Button
+              type="button"
+              variant={isFeedbackFormOpen ? 'outline' : 'default'}
+              size={isFeedbackFormOpen ? 'icon' : 'default'}
+              className={isFeedbackFormOpen ? 'h-9 w-9' : 'bg-red-600 text-white hover:bg-red-700'}
+              onClick={() => setIsFeedbackFormOpen((prev) => !prev)}
+              aria-label={isFeedbackFormOpen ? 'Close feedback form' : 'Write feedback'}
+              title={isFeedbackFormOpen ? 'Close form' : 'Write feedback'}
+            >
+              {isFeedbackFormOpen ? <X className="h-4 w-4" /> : 'Write feedback'}
+            </Button>
+          </div>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Tell other shoppers what stood out, and add photos for extra context.
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmitFeedback} className="space-y-5">
+          {!isFeedbackFormOpen ? (
+            <div className="rounded-xl border border-rose-100 bg-gradient-to-r from-white via-rose-50/70 to-rose-100/60 p-4 dark:border-zinc-700 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-900">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-full bg-red-100 p-1.5 dark:bg-red-900/30">
+                  <MessageSquare className="h-4 w-4 text-red-600 dark:text-red-300" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                    Share your experience when you are ready.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                      1-5 star rating
+                    </span>
+                    <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                      Up to 10 images
+                    </span>
+                    <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                      Draft or publish
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div
+            className={`overflow-hidden transition-all duration-500 ease-out ${
+              isFeedbackFormOpen
+                ? 'mt-4 max-h-[2600px] translate-y-0 opacity-100'
+                : 'max-h-0 -translate-y-2 opacity-0 pointer-events-none'
+            }`}
+          >
+            <div className="rounded-xl border border-rose-200/70 bg-gradient-to-b from-rose-50/80 via-white to-rose-100/50 p-5 shadow-sm dark:border-zinc-700 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-900">
+              <div className="mx-auto mb-4 h-1.5 w-20 rounded-full bg-red-200 dark:bg-red-900/40" />
+              <form onSubmit={handleSubmitFeedback} className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="feedback-type">Feedback type</Label>
+                <select
+                  id="feedback-type"
+                  value={feedbackType}
+                  onChange={(event) => setFeedbackType(event.target.value as FeedbackTypeOption)}
+                  className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-red-500 dark:focus:ring-red-900/30"
+                >
+                  {FEEDBACK_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="feedback-status">Submission mode</Label>
+                <select
+                  id="feedback-status"
+                  value={feedbackStatus}
+                  onChange={(event) => setFeedbackStatus(event.target.value as FeedbackStatusOption)}
+                  className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-red-500 dark:focus:ring-red-900/30"
+                >
+                  {FEEDBACK_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Rating</Label>
               <div className="flex items-center gap-2">
@@ -797,7 +935,6 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                 id="feedback-comment"
                 value={feedbackComment}
                 onChange={(event) => setFeedbackComment(event.target.value)}
-                minLength={10}
                 maxLength={5000}
                 placeholder="What did you like, dislike, or wish was better?"
                 className="min-h-28 resize-y"
@@ -857,10 +994,16 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                 </div>
               ) : (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Add up to 6 images to make your review more helpful.
+                  Add up to 10 images to make your review more helpful.
                 </p>
               )}
             </div>
+
+            {submittedFeedbackId ? (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Last submitted feedback ID: {submittedFeedbackId}
+              </p>
+            ) : null}
 
             {feedbackNotice ? (
               <div
@@ -883,7 +1026,21 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
                 {isSubmittingFeedback ? 'Submitting review...' : 'Submit review'}
               </Button>
             </div>
-          </form>
+              </form>
+            </div>
+          </div>
+
+          {feedbackNotice && !isFeedbackFormOpen ? (
+            <div
+              className={`mt-4 rounded-md border px-3 py-2 text-sm ${
+                feedbackNotice.type === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300'
+              }`}
+            >
+              {feedbackNotice.message}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
