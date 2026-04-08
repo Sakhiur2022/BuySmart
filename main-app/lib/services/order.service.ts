@@ -1,5 +1,8 @@
 import type { Database, Json } from '@/lib/types/database.types';
 import type {
+  BuyerOrderDetailResult,
+  BuyerOrderListFilters,
+  BuyerOrderListResult,
   CreateOrderInput,
   OrderAddress,
   OrderWithItemsResult,
@@ -10,8 +13,11 @@ import {
   createOrderItems,
   decreaseProductInventory,
   deleteOrder,
+  fetchBuyerOrdersPaginated,
   fetchCartByUserId,
   fetchCartItems,
+  fetchOrderByIdForBuyer,
+  fetchOrderItemsByOrderId,
   fetchProductsByIds,
   fetchUserRole,
   removeCartItems,
@@ -322,4 +328,59 @@ export async function createOrderFromInput(
     await deleteOrder(order.order_id);
     throw error;
   }
+}
+
+export async function getBuyerOrders(
+  userId: string,
+  filters: BuyerOrderListFilters,
+): Promise<BuyerOrderListResult> {
+  const normalizedUserId = normalizeUserId(userId);
+  await requireBuyerRole(normalizedUserId);
+
+  const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.trunc(filters.page) : 1;
+  const pageSize =
+    Number.isFinite(filters.pageSize) && filters.pageSize > 0 ? Math.trunc(filters.pageSize) : 20;
+
+  const { orders, totalCount } = await fetchBuyerOrdersPaginated({
+    buyerId: normalizedUserId,
+    page,
+    pageSize,
+    status: filters.status,
+  });
+
+  return {
+    orders,
+    pagination: {
+      page,
+      pageSize,
+      totalCount,
+      totalPages: totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0,
+    },
+  };
+}
+
+export async function getBuyerOrderById(
+  userId: string,
+  orderId: string,
+): Promise<BuyerOrderDetailResult> {
+  const normalizedUserId = normalizeUserId(userId);
+  const normalizedOrderId = orderId.trim();
+
+  if (!normalizedOrderId) {
+    throw new Error('Order ID is required');
+  }
+
+  await requireBuyerRole(normalizedUserId);
+
+  const order = await fetchOrderByIdForBuyer(normalizedOrderId, normalizedUserId);
+  if (!order) {
+    throw new Error('Order not found');
+  }
+
+  const items = await fetchOrderItemsByOrderId(order.order_id);
+
+  return {
+    order,
+    items,
+  };
 }
