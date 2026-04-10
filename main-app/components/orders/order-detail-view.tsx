@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/utils';
 import type { Order, OrderItem, OrderStatus } from '@/lib/models/order.model';
-import { CheckCircle2, Circle, Clock3, Package, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Circle, Clock3, MessageSquare, Package, Truck, XCircle } from 'lucide-react';
 
 type ParsedAddress = {
   full_name: string;
@@ -383,6 +383,19 @@ export function OrderDetailView({ order, items }: { order: Order; items: OrderIt
                             Line total: {formatCurrency(item.total_price)}
                           </p>
                         </div>
+
+                        {(order.status === 'delivered' || order.status === 'completed') && item.product_id ? (
+                          <div className="pt-1">
+                            <Button asChild size="sm" variant="outline" className="h-8">
+                              <Link
+                                href={`/buyer/products/${item.product_id}?leaveFeedback=1&orderId=${order.order_id}&orderItemId=${item.order_item_id}#reviews`}
+                              >
+                                <MessageSquare className="mr-2 h-3.5 w-3.5" />
+                                Leave Feedback
+                              </Link>
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </li>
