@@ -257,7 +257,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
           return;
         }
 
-        if (feedback.product_id && feedback.product_id !== product.product_id) {
+        if (feedback.product_id && feedback.product_id !== productData.product.product_id) {
           if (!active) {
             return;
           }
@@ -313,7 +313,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     return () => {
       active = false;
     };
-  }, [prefillFeedbackId, product.product_id, shouldTriggerEditFeedbackForm]);
+  }, [prefillFeedbackId, productData.product.product_id, shouldTriggerEditFeedbackForm]);
 
   useEffect(() => {
     const onRecommendations = (event: Event) => {
