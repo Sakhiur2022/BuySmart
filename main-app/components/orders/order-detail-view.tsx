@@ -188,7 +188,15 @@ function ItemStatusBadge({ status }: { status: OrderItem['status'] }) {
   );
 }
 
-export function OrderDetailView({ order, items }: { order: Order; items: OrderItem[] }) {
+export function OrderDetailView({
+  order,
+  items,
+  feedbackByOrderItemId,
+}: {
+  order: Order;
+  items: OrderItem[];
+  feedbackByOrderItemId: Record<string, { feedback_id: string; status: string }>;
+}) {
   const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
   const steps = getTimelineSteps(order);
   const currentStepIndex = ORDER_PROGRESS.indexOf(order.status as TimelineStep['key']);
@@ -340,6 +348,10 @@ export function OrderDetailView({ order, items }: { order: Order; items: OrderIt
             <ul className="space-y-3">
               {items.map((item) => {
                 const snapshot = parseSnapshot(item.product_snapshot);
+                const existingFeedback = feedbackByOrderItemId[item.order_item_id];
+                const canReview =
+                  (order.status === 'delivered' || order.status === 'completed') &&
+                  Boolean(item.product_id);
 
                 return (
                   <li
@@ -384,7 +396,20 @@ export function OrderDetailView({ order, items }: { order: Order; items: OrderIt
                           </p>
                         </div>
 
-                        {(order.status === 'delivered' || order.status === 'completed') && item.product_id ? (
+                        {canReview && item.product_id && existingFeedback ? (
+                          <div className="pt-1">
+                            <Button asChild size="sm" variant="outline" className="h-8">
+                              <Link
+                                href={`/buyer/products/${item.product_id}?editFeedback=1&feedbackId=${existingFeedback.feedback_id}#reviews`}
+                              >
+                                <MessageSquare className="mr-2 h-3.5 w-3.5" />
+                                Edit Feedback
+                              </Link>
+                            </Button>
+                          </div>
+                        ) : null}
+
+                        {canReview && item.product_id && !existingFeedback ? (
                           <div className="pt-1">
                             <Button asChild size="sm" variant="outline" className="h-8">
                               <Link

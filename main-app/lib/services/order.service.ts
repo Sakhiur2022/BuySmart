@@ -16,6 +16,7 @@ import {
   fetchBuyerOrdersPaginated,
   fetchCartByUserId,
   fetchCartItems,
+  fetchBuyerFeedbackByOrderItemIds,
   fetchOrderByIdForBuyer,
   fetchOrderItemsByOrderId,
   fetchProductsByIds,
@@ -378,9 +379,30 @@ export async function getBuyerOrderById(
   }
 
   const items = await fetchOrderItemsByOrderId(order.order_id);
+  const feedbackRows = await fetchBuyerFeedbackByOrderItemIds(
+    normalizedUserId,
+    items.map((item) => item.order_item_id),
+  );
+
+  const feedbackByOrderItemId = feedbackRows.reduce<BuyerOrderDetailResult['feedbackByOrderItemId']>(
+    (accumulator, feedback) => {
+      if (!feedback.order_item_id || accumulator[feedback.order_item_id]) {
+        return accumulator;
+      }
+
+      accumulator[feedback.order_item_id] = {
+        feedback_id: feedback.feedback_id,
+        status: feedback.status,
+      };
+
+      return accumulator;
+    },
+    {},
+  );
 
   return {
     order,
     items,
+    feedbackByOrderItemId,
   };
 }

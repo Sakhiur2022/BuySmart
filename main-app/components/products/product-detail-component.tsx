@@ -147,6 +147,13 @@ interface RecommendationEventDetail {
 interface FeedbackApiResponse {
   feedback?: {
     feedback_id?: string;
+    feedback_type?: string;
+    status?: string;
+    product_id?: string | null;
+    rating?: number | null;
+    title?: string | null;
+    comment?: string | null;
+    images?: unknown;
   };
 }
 
@@ -181,7 +188,9 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [feedbackImageInput, setFeedbackImageInput] = useState('');
   const [feedbackImages, setFeedbackImages] = useState<string[]>([]);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [isLoadingFeedbackForEdit, setIsLoadingFeedbackForEdit] = useState(false);
   const [isFeedbackFormOpen, setIsFeedbackFormOpen] = useState(false);
+  const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null);
   const [submittedFeedbackId, setSubmittedFeedbackId] = useState<string | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState<{
     type: 'success' | 'error';
@@ -190,16 +199,121 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
 
   const prefillOrderId = searchParams.get('orderId')?.trim() || undefined;
   const prefillOrderItemId = searchParams.get('orderItemId')?.trim() || undefined;
+  const prefillFeedbackId = searchParams.get('feedbackId')?.trim() || undefined;
   const shouldTriggerFeedbackForm = ['1', 'true', 'yes'].includes(
     (searchParams.get('leaveFeedback') || '').toLowerCase(),
   );
+  const shouldTriggerEditFeedbackForm =
+    ['1', 'true', 'yes'].includes((searchParams.get('editFeedback') || '').toLowerCase()) &&
+    Boolean(prefillFeedbackId);
 
   useEffect(() => {
     if (shouldTriggerFeedbackForm) {
       setIsFeedbackFormOpen(true);
       setFeedbackType('product_review');
+      setEditingFeedbackId(null);
     }
   }, [shouldTriggerFeedbackForm]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadFeedbackForEdit() {
+      if (!shouldTriggerEditFeedbackForm || !prefillFeedbackId) {
+        return;
+      }
+
+      setIsFeedbackFormOpen(true);
+      setIsLoadingFeedbackForEdit(true);
+      setFeedbackNotice(null);
+
+      try {
+        const response = await fetch(`/api/feedback/${prefillFeedbackId}`);
+        const payload = (await response.json().catch(() => null)) as FeedbackApiResponse | FeedbackApiErrorResponse | null;
+
+        if (!response.ok) {
+          if (!active) {
+            return;
+          }
+
+          const message =
+            (payload as FeedbackApiErrorResponse | null)?.error ||
+            'Could not load your existing feedback for editing.';
+          setFeedbackNotice({ type: 'error', message });
+          return;
+        }
+
+        const feedback = (payload as FeedbackApiResponse | null)?.feedback;
+
+        if (!feedback || !feedback.feedback_id) {
+          if (!active) {
+            return;
+          }
+
+          setFeedbackNotice({
+            type: 'error',
+            message: 'Feedback was not found for editing.',
+          });
+          return;
+        }
+
+        if (feedback.product_id && feedback.product_id !== product.product_id) {
+          if (!active) {
+            return;
+          }
+
+          setFeedbackNotice({
+            type: 'error',
+            message: 'This feedback belongs to a different product.',
+          });
+          return;
+        }
+
+        if (!active) {
+          return;
+        }
+
+        setEditingFeedbackId(feedback.feedback_id);
+        setFeedbackType(
+          feedback.feedback_type === 'seller_review' ||
+            feedback.feedback_type === 'service_feedback' ||
+            feedback.feedback_type === 'general_feedback'
+            ? feedback.feedback_type
+            : 'product_review',
+        );
+        setFeedbackStatus(feedback.status === 'draft' ? 'draft' : 'published');
+        setFeedbackRating(
+          typeof feedback.rating === 'number' && feedback.rating >= 1 && feedback.rating <= 5
+            ? feedback.rating
+            : 0,
+        );
+        setFeedbackTitle(feedback.title ?? '');
+        setFeedbackComment(feedback.comment ?? '');
+        setFeedbackImages(
+          Array.isArray(feedback.images)
+            ? feedback.images.filter((image): image is string => typeof image === 'string')
+            : [],
+        );
+      } catch {
+        if (active) {
+          setFeedbackNotice({
+            type: 'error',
+            message: 'Network error while loading your feedback. Please retry.',
+          });
+        }
+      } finally {
+        if (active) {
+          setIsLoadingFeedbackForEdit(false);
+        }
+      }
+    }
+
+    void loadFeedbackForEdit();
+
+    return () => {
+      active = false;
+    };
+  }, [prefillFeedbackId, product.product_id, shouldTriggerEditFeedbackForm]);
 
   useEffect(() => {
     const onRecommendations = (event: Event) => {
@@ -411,8 +525,9 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     setFeedbackNotice(null);
 
     try {
-      const response = await fetch('/api/feedback', {
-        method: 'POST',
+      const isEditMode = Boolean(editingFeedbackId);
+      const response = await fetch(isEditMode ? `/api/feedback/${editingFeedbackId}` : '/api/feedback', {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -463,7 +578,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       }
 
       const payload = (await response.json().catch(() => null)) as FeedbackApiResponse | null;
-      const feedbackId = payload?.feedback?.feedback_id || null;
+      const feedbackId = payload?.feedback?.feedback_id || editingFeedbackId || null;
 
       setFeedbackTitle('');
       setFeedbackComment('');
@@ -472,13 +587,17 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       setFeedbackStatus('published');
       setFeedbackImages([]);
       setFeedbackImageInput('');
+      setEditingFeedbackId(feedbackId);
       setSubmittedFeedbackId(feedbackId);
       setIsFeedbackFormOpen(false);
       setFeedbackNotice({
         type: 'success',
-        message: feedbackId
-          ? `Thanks! Your review has been submitted. Reference: ${feedbackId}`
-          : 'Thanks! Your review has been submitted.',
+        message:
+          isEditMode
+            ? 'Your feedback has been updated successfully.'
+            : feedbackId
+              ? `Thanks! Your review has been submitted. Reference: ${feedbackId}`
+              : 'Thanks! Your review has been submitted.',
       });
     } catch {
       setFeedbackNotice({
@@ -877,6 +996,11 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
             <div className="rounded-xl border border-rose-200/70 bg-gradient-to-b from-rose-50/80 via-white to-rose-100/50 p-5 shadow-sm dark:border-zinc-700 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-900">
               <div className="mx-auto mb-4 h-1.5 w-20 rounded-full bg-red-200 dark:bg-red-900/40" />
               <form onSubmit={handleSubmitFeedback} className="space-y-5">
+            {isLoadingFeedbackForEdit ? (
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+                Loading your feedback...
+              </div>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="feedback-type">Feedback type</Label>
@@ -1037,10 +1161,16 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
             <div className="flex justify-end">
               <Button
                 type="submit"
-                disabled={isSubmittingFeedback}
+                disabled={isSubmittingFeedback || isLoadingFeedbackForEdit}
                 className="bg-red-600 text-white hover:bg-red-700"
               >
-                {isSubmittingFeedback ? 'Submitting review...' : 'Submit review'}
+                {isSubmittingFeedback
+                  ? editingFeedbackId
+                    ? 'Updating review...'
+                    : 'Submitting review...'
+                  : editingFeedbackId
+                    ? 'Update review'
+                    : 'Submit review'}
               </Button>
             </div>
               </form>

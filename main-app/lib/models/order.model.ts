@@ -72,6 +72,13 @@ export interface BuyerOrderListResult {
 export interface BuyerOrderDetailResult {
   order: OrderRow;
   items: OrderItemRow[];
+  feedbackByOrderItemId: Record<
+    string,
+    {
+      feedback_id: string;
+      status: Database['public']['Enums']['feedback_status_enum'];
+    }
+  >;
 }
 
 export type Order = OrderRow;

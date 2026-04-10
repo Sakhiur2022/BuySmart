@@ -34,5 +34,11 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
     throw error;
   }
 
-  return <OrderDetailView order={detail.order} items={detail.items} />;
+  return (
+    <OrderDetailView
+      order={detail.order}
+      items={detail.items}
+      feedbackByOrderItemId={detail.feedbackByOrderItemId}
+    />
+  );
 }
