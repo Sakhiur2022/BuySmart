@@ -385,7 +385,14 @@ export function OrderDetailView({
                               </p>
                             ) : null}
                           </div>
-                          <ItemStatusBadge status={item.status} />
+                          <div className="flex items-center gap-2">
+                            {existingFeedback ? (
+                              <Badge variant="secondary" className="font-medium">
+                                Reviewed
+                              </Badge>
+                            ) : null}
+                            <ItemStatusBadge status={item.status} />
+                          </div>
                         </div>
 
                         <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
