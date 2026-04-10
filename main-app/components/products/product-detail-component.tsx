@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { Star, Heart, Share2, Check, ShoppingCart, MessageSquare, Sparkles, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -158,6 +159,7 @@ interface FeedbackApiErrorResponse {
 
 
 export default function ProductDetailComponent({ productData }: ProductDetailComponentProps) {
+  const searchParams = useSearchParams();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -185,6 +187,19 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+
+  const prefillOrderId = searchParams.get('orderId')?.trim() || undefined;
+  const prefillOrderItemId = searchParams.get('orderItemId')?.trim() || undefined;
+  const shouldTriggerFeedbackForm = ['1', 'true', 'yes'].includes(
+    (searchParams.get('leaveFeedback') || '').toLowerCase(),
+  );
+
+  useEffect(() => {
+    if (shouldTriggerFeedbackForm) {
+      setIsFeedbackFormOpen(true);
+      setFeedbackType('product_review');
+    }
+  }, [shouldTriggerFeedbackForm]);
 
   useEffect(() => {
     const onRecommendations = (event: Event) => {
@@ -404,6 +419,8 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
         body: JSON.stringify({
           feedback_type: feedbackType,
           product_id: product.product_id,
+          order_id: feedbackType === 'product_review' ? prefillOrderId : undefined,
+          order_item_id: feedbackType === 'product_review' ? prefillOrderItemId : undefined,
           rating: feedbackRating,
           title: feedbackTitle.trim() || undefined,
           comment: trimmedComment || undefined,
