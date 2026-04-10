@@ -48,9 +48,9 @@ const listFeedbackQuerySchema = z.object({
 
 const createFeedbackSchema = z.object({
   feedback_type: z.enum(FEEDBACK_TYPE_VALUES),
-  product_id: z.string().uuid().optional(),
-  order_id: z.string().uuid().optional(),
-  order_item_id: z.string().uuid().optional(),
+  product_id: z.string().trim().min(1).optional(),
+  order_id: z.string().trim().min(1).optional(),
+  order_item_id: z.string().trim().min(1).optional(),
   rating: z.coerce.number().int().min(1).max(5).optional(),
   title: z.string().trim().max(255).optional(),
   comment: z.string().trim().max(5000).optional(),
@@ -69,6 +69,13 @@ function formatFeedbackErrorResponse(error: unknown): {
 
     if (error.message === 'FORBIDDEN') {
       return { status: 403, body: { error: 'Forbidden: Insufficient permissions' } };
+    }
+
+    if (error.message === 'VERIFIED_PURCHASE_REQUIRED') {
+      return {
+        status: 403,
+        body: { error: 'Only buyers with a delivered purchase can submit this product review' },
+      };
     }
 
     if (error.message === 'Feedback not found') {
