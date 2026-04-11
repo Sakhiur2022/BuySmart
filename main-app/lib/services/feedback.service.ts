@@ -9,13 +9,20 @@ import type {
 } from '@/lib/models/feedback.model';
 import {
   createFeedback,
+  fetchBuyerOrderById,
+  fetchBuyerOrderItemById,
   fetchFeedbackById,
   fetchFeedbackListForScope,
+  fetchLatestDeliveredOrderItemForBuyerProduct,
   fetchUserRole,
   isSellerOwnerOfProduct,
   softDeleteFeedbackById,
   updateFeedbackById,
 } from '@/lib/repositories/feedback.repository';
+
+const DELIVERED_ORDER_STATUSES = new Set(['delivered', 'completed']);
+const DELIVERED_ORDER_ITEM_STATUS = 'delivered';
+const VERIFIED_PURCHASE_REQUIRED = 'VERIFIED_PURCHASE_REQUIRED';
 
 function normalizeUserId(userId: string): string {
   const normalized = userId.trim();
@@ -145,6 +152,87 @@ function normalizeCreateInput(input: CreateFeedbackInput): CreateFeedbackInput {
   };
 }
 
+async function enforceVerifiedPurchaseForProductReview(
+  buyerId: string,
+  input: CreateFeedbackInput,
+): Promise<CreateFeedbackInput> {
+  if (input.feedback_type !== 'product_review') {
+    return input;
+  }
+
+  if (!input.product_id) {
+    throw new Error('product_id is required for product_review');
+  }
+
+  let resolvedOrderId = input.order_id;
+  let resolvedOrderItemId = input.order_item_id;
+
+  if (input.order_item_id) {
+    const orderItem = await fetchBuyerOrderItemById(buyerId, input.order_item_id);
+    if (!orderItem) {
+      throw new Error(VERIFIED_PURCHASE_REQUIRED);
+    }
+
+    if (orderItem.status !== DELIVERED_ORDER_ITEM_STATUS) {
+      throw new Error(VERIFIED_PURCHASE_REQUIRED);
+    }
+
+    if (!DELIVERED_ORDER_STATUSES.has(orderItem.order_status)) {
+      throw new Error(VERIFIED_PURCHASE_REQUIRED);
+    }
+
+    if (orderItem.product_id !== input.product_id) {
+      throw new Error(VERIFIED_PURCHASE_REQUIRED);
+    }
+
+    resolvedOrderId = orderItem.order_id;
+    resolvedOrderItemId = orderItem.order_item_id;
+  }
+
+  if (input.order_id) {
+    const order = await fetchBuyerOrderById(buyerId, input.order_id);
+    if (!order) {
+      throw new Error(VERIFIED_PURCHASE_REQUIRED);
+    }
+
+    if (!DELIVERED_ORDER_STATUSES.has(order.status)) {
+      throw new Error(VERIFIED_PURCHASE_REQUIRED);
+    }
+
+    resolvedOrderId = order.order_id;
+  }
+
+  if (resolvedOrderItemId) {
+    if (resolvedOrderId && resolvedOrderId !== input.order_id && input.order_id) {
+      throw new Error(VERIFIED_PURCHASE_REQUIRED);
+    }
+
+    return {
+      ...input,
+      order_id: resolvedOrderId,
+      order_item_id: resolvedOrderItemId,
+      is_verified_purchase: true,
+    };
+  }
+
+  const fallback = await fetchLatestDeliveredOrderItemForBuyerProduct(
+    buyerId,
+    input.product_id,
+    resolvedOrderId,
+  );
+
+  if (!fallback) {
+    throw new Error(VERIFIED_PURCHASE_REQUIRED);
+  }
+
+  return {
+    ...input,
+    order_id: fallback.order_id,
+    order_item_id: fallback.order_item_id,
+    is_verified_purchase: true,
+  };
+}
+
 function normalizeUpdateInput(input: UpdateFeedbackInput): UpdateFeedbackInput {
   const normalized: UpdateFeedbackInput = {
     ...input,
@@ -228,7 +316,9 @@ export async function createFeedbackForUser(
     throw new Error('Either product_id or order_id is required');
   }
 
-  return createFeedback(scope.userId, normalized);
+  const verified = await enforceVerifiedPurchaseForProductReview(scope.userId, normalized);
+
+  return createFeedback(scope.userId, verified);
 }
 
 export async function updateFeedbackForScope(
