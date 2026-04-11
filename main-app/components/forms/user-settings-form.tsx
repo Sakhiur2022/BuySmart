@@ -54,6 +54,8 @@ type UserSettingsFormProps = {
   userId: string;
   email: string;
   role: string;
+  initialAvatarUrl: string | null;
+  displayName: string;
   emailVerified: boolean;
   hasProfileRecord: boolean;
   initialUpdatedAt: string | null;

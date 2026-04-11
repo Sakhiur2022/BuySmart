@@ -1,9 +1,14 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RecommendationPanel } from '@/components/recommendations/recommendation-panel';
+import { SellerUpgradeCta } from '@/components/shared/seller-upgrade-cta';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { ConnectSupabaseSteps } from '@/components/shared/tutorial/connect-supabase-steps';
 import { SignUpUserSteps } from '@/components/shared/tutorial/sign-up-user-steps';
-import { createClient } from '@/lib/supabase/server';
+import type { ProductCandidate } from '@/lib/agents/recommendation/types';
+import { createClient } from '@/lib/supabase/client';
 import { hasEnvVars } from '@/lib/utils';
 
 const STAT_BLOCKS = [
@@ -41,22 +46,107 @@ const SIGNALS = [
   'Post-purchase sentiment',
 ];
 
-export default async function Home() {
-  let userEmail: string | null = null;
-  let userDisplayName: string | undefined;
-
-  if (hasEnvVars) {
-    const supabase = await createClient();
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-
-    userEmail = user?.email ?? null;
-    userDisplayName =
-      (user?.user_metadata?.full_name as string | undefined) ??
-      (user?.user_metadata?.name as string | undefined);
+function getFirstImageUrl(images: unknown): string | undefined {
+  if (!Array.isArray(images) || images.length === 0) {
+    return undefined;
   }
 
-  const isAuthenticated = Boolean(userEmail);
+  const first = images[0] as unknown;
+
+  if (typeof first === 'string' && first.trim().length > 0) {
+    return first;
+  }
+
+  if (first && typeof first === 'object') {
+    const record = first as Record<string, unknown>;
+    const url =
+      (typeof record.url === 'string' && record.url) ||
+      (typeof record.src === 'string' && record.src) ||
+      (typeof record.path === 'string' && record.path) ||
+      undefined;
+
+    return url && url.trim().length > 0 ? url : undefined;
+  }
+
+  return undefined;
+}
+
+export default function Home() {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<ProductCandidate[]>([]);
+
+  useEffect(() => {
+    if (!hasEnvVars) {
+      return;
+    }
+
+    const supabase = createClient();
+    let isMounted = true;
+
+    const hydrateHome = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
+
+      if (!isMounted) {
+        return;
+      }
+
+      setUserId(user?.id ?? null);
+      setUserEmail(user?.email ?? null);
+      setUserDisplayName(
+        (user?.user_metadata?.full_name as string | undefined) ??
+          (user?.user_metadata?.name as string | undefined) ??
+          null,
+      );
+
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('users_profile')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+
+        if (isMounted) {
+          setUserRole(profile?.role ?? null);
+        }
+      } else {
+        setUserRole(null);
+      }
+
+      const { data: products } = await supabase
+        .from('products')
+        .select('product_id, name, category_id, price, tags, images')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (isMounted) {
+        setCandidates(
+          (products ?? []).map((product) => ({
+            id: product.product_id,
+            title: product.name,
+            category_id: product.category_id ?? undefined,
+            price: product.price,
+            image: getFirstImageUrl(product.images),
+            tags: product.tags ?? undefined,
+          })),
+        );
+      }
+    };
+
+    void hydrateHome();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const isAuthenticated = Boolean(userId ?? userEmail);
+  const isSeller = userRole === 'seller';
+  const shouldShowSellerCTA = !isSeller;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -99,6 +189,39 @@ export default async function Home() {
                   Review the integration plan
                 </Link>
               </div>
+              {shouldShowSellerCTA ? (
+                <p className="flex items-center gap-2 text-lg font-medium text-muted-foreground">
+                  <span
+                    className="inline-flex items-center justify-center rounded-full border border-primary/20 bg-primary/10 p-1 text-primary"
+                    aria-hidden
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 10h18" />
+                      <path d="M4 10l2-6h12l2 6" />
+                      <path d="M5 10v8h14v-8" />
+                      <path d="M9 18v-6h6v6" />
+                    </svg>
+                  </span>
+                  <span>Want to sell on BuySmart? </span>
+                  <SellerUpgradeCta
+                    isAuthenticated={isAuthenticated}
+                    userId={userId}
+                    userRole={userRole}
+                    buttonVariant="ghost"
+                    buttonClassName="h-auto p-0 text-left font-semibold text-primary hover:bg-transparent hover:text-primary"
+                  >
+                    Sign up as a seller
+                  </SellerUpgradeCta>
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-1 flex-col gap-4 rounded-3xl border border-white/10 bg-background/80 p-6 shadow-xl shadow-primary/10">
@@ -165,7 +288,8 @@ export default async function Home() {
               <RecommendationPanel
                 isAuthenticated={isAuthenticated}
                 userEmail={userEmail}
-                userDisplayName={userDisplayName}
+                userDisplayName={userDisplayName ?? undefined}
+                candidates={candidates}
               />
             </div>
           </div>

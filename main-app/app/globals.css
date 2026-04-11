@@ -173,6 +173,30 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
+
+  --animate-magical-gradient: magical-gradient 5s ease infinite;
+  --animate-shimmer: shimmer 2.5s ease-in-out infinite;
+
+  @keyframes magical-gradient {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-150%);
+    }
+    100% {
+      transform: translateX(150%);
+    }
+  }
 }
 
 @layer base {
@@ -181,5 +205,25 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+.banner-marquee {
+  animation: banner-marquee 22s linear infinite;
+}
+
+@keyframes banner-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-marquee {
+    animation: none;
+    transform: none;
   }
 }

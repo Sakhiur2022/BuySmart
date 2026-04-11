@@ -22,7 +22,6 @@ const responseSchema = z.object({
         price: z.number().nonnegative().optional(),
       }),
     )
-    .min(1)
     .max(10),
 });
 
@@ -54,6 +53,7 @@ Return JSON only with this structure:
 Rules:
 - Recommend only from provided candidates.
 - Respect budget/category_id/brand/tag constraints if provided.
+- If no candidate is a good match, return an empty recommendations array and explain briefly in summary.
 - Keep reason concise and concrete.
 - Sort by highest score first.
 - Score must be between 0 and 1.

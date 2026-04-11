@@ -1,25 +1,211 @@
-import { RecommendationPanel } from '@/components/recommendations/recommendation-panel';
+/**
+ * Buyer landing page layout refactor.
+ * Moves recommendations into a responsive sticky sidebar (lg+) and mobile strip below products.
+ */
+
+import { RecommendationSidebar } from '@/components/recommendations/RecommendationSidebar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ProductCandidate } from '@/lib/agents/recommendation/types';
+import { getBuyerProductsAction } from '@/lib/actions/buyer-products.actions';
+import { getActiveCategories } from '@/lib/controllers/category.controller';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import ProductListingPage from '@/components/products/product-listing-page';
+import { Suspense } from 'react';
 
-export default async function ProtectedPage() {
+type BuyerPageProps = {
+  searchParams?: Promise<{
+    mode?: string | string[];
+    page?: string;
+    pageSize?: string;
+    priceMin?: string;
+    priceMax?: string;
+    categoryId?: string;
+    q?: string;
+    search?: string;
+  }>;
+};
+
+function getSearchValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+function isBuyerMode(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return value === 'buyer' || value === '1' || value === 'true';
+}
+
+function hasBuyerBrowseParams(
+  params:
+    | {
+        page?: string;
+        pageSize?: string;
+        priceMin?: string;
+        priceMax?: string;
+        categoryId?: string;
+        q?: string;
+        search?: string;
+      }
+    | undefined,
+): boolean {
+  if (!params) {
+    return false;
+  }
+
+  return Boolean(
+    params.page ||
+    params.pageSize ||
+    params.priceMin ||
+    params.priceMax ||
+    params.categoryId ||
+    params.q ||
+    params.search,
+  );
+}
+
+function parseOptionalNumber(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function getFirstImageUrl(images: unknown): string | undefined {
+  if (!Array.isArray(images) || images.length === 0) {
+    return undefined;
+  }
+
+  const first = images[0] as unknown;
+
+  if (typeof first === 'string' && first.trim().length > 0) {
+    return first;
+  }
+
+  if (first && typeof first === 'object') {
+    const record = first as Record<string, unknown>;
+    const url =
+      (typeof record.url === 'string' && record.url) ||
+      (typeof record.src === 'string' && record.src) ||
+      (typeof record.path === 'string' && record.path) ||
+      undefined;
+
+    return url && url.trim().length > 0 ? url : undefined;
+  }
+
+  return undefined;
+}
+
+export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const resolvedSearchParams = await searchParams;
+  const buyerMode = getSearchValue(resolvedSearchParams?.mode);
+  const searchQuery = resolvedSearchParams?.q ?? resolvedSearchParams?.search;
+  const allowSellerView = isBuyerMode(buyerMode);
+  const hasBrowseParams = hasBuyerBrowseParams(resolvedSearchParams);
+
+  let role: string | null = null;
+  let profileName: string | null = null;
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('users_profile')
+      .select('role, display_name, full_name')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    role = profile?.role ?? null;
+    profileName = profile?.display_name || profile?.full_name || null;
+
+    if (role === 'seller' && !allowSellerView && !hasBrowseParams) {
+      redirect('/seller');
+    }
+  }
+
   const isAuthenticated = Boolean(user);
   const buyerName =
+    profileName ||
     (user?.user_metadata?.full_name as string | undefined) ||
     (user?.user_metadata?.name as string | undefined) ||
     user?.email ||
     'Guest Buyer';
 
+  const showBuyerModeBanner = role === 'seller' && allowSellerView;
+
+  const { data: products, error: productsError } = await supabase
+    .from('products')
+    .select('product_id, name, category_id, price, tags, images, short_description')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (productsError) {
+    console.error('Failed to load recommendation candidates:', productsError);
+  }
+
+  const candidates: ProductCandidate[] = (products ?? []).map((product) => ({
+    id: product.product_id,
+    title: product.name,
+    category_id: product.category_id ?? undefined,
+    price: product.price,
+    image: getFirstImageUrl(product.images),
+    tags: product.tags ?? undefined,
+  }));
+
+  const recommendationProducts = (products ?? []).map((product) => {
+    const firstImage = getFirstImageUrl(product.images);
+
+    return {
+      productId: product.product_id,
+      name: product.name,
+      price: product.price,
+      image: firstImage,
+      shortDescription: product.short_description,
+    };
+  });
+
+  const [categoriesData, productsResult] = await Promise.all([
+    getActiveCategories(),
+    getBuyerProductsAction({
+      page: parseOptionalNumber(resolvedSearchParams?.page),
+      pageSize: parseOptionalNumber(resolvedSearchParams?.pageSize),
+      priceMin: parseOptionalNumber(resolvedSearchParams?.priceMin),
+      priceMax: parseOptionalNumber(resolvedSearchParams?.priceMax),
+      categoryId: parseOptionalNumber(resolvedSearchParams?.categoryId),
+      q: searchQuery,
+    }),
+  ]);
+
+  const categories = categoriesData.map((cat) => ({
+    category_id: cat.category_id,
+    name: cat.name,
+  }));
+
   return (
     <div className="space-y-8">
+      {showBuyerModeBanner ? (
+        <div className="rounded-lg border border-rose-200 bg-linear-to-r from-rose-100 via-pink-100 to-amber-100 px-4 py-3 text-sm text-rose-700 shadow-sm">
+          <span className="font-semibold">Buyer mode</span> enabled. Enjoy the storefront view.{' '}
+          <Link href="/seller" className="font-semibold underline underline-offset-2">
+            Back to seller dashboard
+          </Link>
+        </div>
+      ) : null}
       <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
@@ -36,70 +222,88 @@ export default async function ProtectedPage() {
             </p>
           </div>
 
-          {!isAuthenticated ? (
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button asChild variant="outline" size="sm">
-                <Link href="/auth/login">Sign in</Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href="/auth/sign-up">Create account</Link>
-              </Button>
-            </div>
-          ) : null}
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/buyer/cart">View cart</Link>
+            </Button>
+            {!isAuthenticated ? (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/auth/login">Sign in</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/auth/sign-up">Create account</Link>
+                </Button>
+              </>
+            ) : null}
+          </div>
         </div>
       </section>
 
-      <RecommendationPanel
-        isAuthenticated={isAuthenticated}
-        userEmail={user?.email ?? null}
-        userDisplayName={buyerName}
-      />
+      <div className="mx-auto flex max-w-screen-2xl flex-col-reverse items-start gap-6 px-4 py-6 lg:flex-row">
+        <main className="min-w-0 w-full space-y-8 lg:basis-4/5">
+          {!isAuthenticated ? (
+            <Card className="border-primary/20 bg-secondary/30">
+              <CardHeader>
+                <CardTitle className="text-lg">Continue as guest, upgrade anytime</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Guest mode stays open for exploration. Create an account when you want to save
+                  activity, sync devices, and receive improved personalization.
+                </p>
+                <Button asChild className="w-full sm:w-auto">
+                  <Link href="/auth/sign-up">Unlock full buyer features</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Intent-Driven Matching</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Explain what you need in plain language and get ranked product matches.
-          </CardContent>
-        </Card>
+          <section className="space-y-6">
+            <ProductListingPage
+              initialProducts={productsResult.products}
+              initialPagination={productsResult.pagination}
+              categories={categories}
+              initialFilters={{
+                priceMin: parseOptionalNumber(resolvedSearchParams?.priceMin),
+                priceMax: parseOptionalNumber(resolvedSearchParams?.priceMax),
+                categoryId: parseOptionalNumber(resolvedSearchParams?.categoryId),
+                query: searchQuery,
+              }}
+            />
+          </section>
+        </main>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Budget-Aware Results</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Apply budget ranges and result limits to keep recommendations practical.
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Transparent Reasoning</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Every recommendation includes a short rationale and confidence score.
-          </CardContent>
-        </Card>
-      </section>
-
-      {!isAuthenticated ? (
-        <Card className="border-primary/20 bg-secondary/30">
-          <CardHeader>
-            <CardTitle className="text-lg">Continue as guest, upgrade anytime</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted-foreground">
-              Guest mode stays open for exploration. Create an account when you want to save
-              activity, sync devices, and receive improved personalization.
-            </p>
-            <Button asChild className="w-full sm:w-auto">
-              <Link href="/auth/sign-up">Unlock full buyer features</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
+        <div className="w-full lg:basis-1/5 lg:shrink-0">
+          <Suspense
+            fallback={
+              <section className="space-y-3" aria-label="Product recommendations">
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div
+                      key={`recommendation-fallback-${index}`}
+                      className="border border-border rounded-xl bg-background p-4"
+                    >
+                      <div className="h-4 w-10/12 animate-pulse rounded bg-muted" />
+                      <div className="mt-2 h-4 w-8/12 animate-pulse rounded bg-muted" />
+                      <div className="mt-4 h-8 w-full animate-pulse rounded bg-muted" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            }
+          >
+            <RecommendationSidebar
+              isAuthenticated={isAuthenticated}
+              userEmail={user?.email ?? null}
+              userDisplayName={buyerName}
+              candidates={candidates}
+              products={recommendationProducts}
+            />
+          </Suspense>
+        </div>
+      </div>
     </div>
   );
 }

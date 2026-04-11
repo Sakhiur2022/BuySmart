@@ -1,7 +1,7 @@
 import { aiEnv, aiModels } from '@/lib/services/ai/config';
 import { invokeGroqModel, type GroqTextGenerationPayload } from '@/lib/services/ai/groq-client';
 import { AIRequestError, AIResponseError } from '@/lib/services/ai/error-handler';
-import { approximateTokenCount, normalizeWhitespace } from '@/lib/services/ai/utils';
+import { normalizeWhitespace } from '@/lib/services/ai/utils';
 import type {
   AIChatMessage,
   AIRequestOptions,

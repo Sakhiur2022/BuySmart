@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Check, CheckCircle2, Loader2, Pencil } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { AvatarUploadWidget } from '@/components/shared/avatar-upload-widget';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -54,22 +54,22 @@ type UserProfileFormProps = {
   };
 };
 
-type EditableField = 'fullName' | 'displayName' | 'phone' | 'avatarUrl';
+type EditableField = 'fullName' | 'displayName' | 'phone';
 
 function toNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function getInitials(value: string): string {
-  const parts = value.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+// function getInitials(value: string): string {
+//   const parts = value.trim().split(/\s+/).filter(Boolean).slice(0, 2);
 
-  if (parts.length === 0) {
-    return 'BS';
-  }
+//   if (parts.length === 0) {
+//     return 'BS';
+//   }
 
-  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('');
-}
+//   return parts.map((part) => part[0]?.toUpperCase() ?? '').join('');
+// }
 
 function formatRole(role: string): string {
   if (!role) {
@@ -132,7 +132,6 @@ export function UserProfileForm({
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
 
   const identityName = displayName.trim() || fullName.trim() || email;
-  const initials = getInitials(identityName);
 
   const lastUpdated = useMemo(() => {
     if (!updatedAt) {
@@ -266,19 +265,12 @@ export function UserProfileForm({
         before: initialProfile.phone,
         after: phone,
       },
-      {
-        label: 'Avatar URL',
-        before: initialProfile.avatarUrl,
-        after: avatarUrl,
-      },
     ];
 
     return fields.filter((field) => field.before.trim() !== field.after.trim());
   }, [
-    avatarUrl,
     displayName,
     fullName,
-    initialProfile.avatarUrl,
     initialProfile.displayName,
     initialProfile.fullName,
     initialProfile.phone,
@@ -345,7 +337,7 @@ export function UserProfileForm({
         userId,
         hasProfileRecord,
         profileData,
-        formValues: { fullName, displayName, phone, avatarUrl },
+        formValues: { fullName, displayName, phone },
       });
 
       let profileError = null;
@@ -479,7 +471,7 @@ export function UserProfileForm({
         userId,
         hasProfileRecord,
         profileData,
-        formValues: { fullName, displayName, phone, avatarUrl },
+        formValues: { fullName, displayName, phone },
       });
 
       let profileError = null;
@@ -595,12 +587,13 @@ export function UserProfileForm({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               {/* RESPONSIVE: Avatar scales down on mobile for better layout at 360-393dp viewport */}
-              <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-pink-200 shadow-sm dark:border-pink-500/40">
-                {avatarUrl.trim() ? (
-                  <AvatarImage src={avatarUrl.trim()} alt={identityName} />
-                ) : null}
-                <AvatarFallback className="text-base font-semibold">{initials}</AvatarFallback>
-              </Avatar>
+              <AvatarUploadWidget
+                userId={userId}
+                initialAvatarUrl={avatarUrl}
+                displayName={identityName}
+                onUploadSuccess={setAvatarUrl}
+                className="scale-[0.8] origin-left sm:scale-100"
+              />
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   {/* RESPONSIVE: Title scales down on mobile (360-393dp) for readable spacing */}
@@ -788,32 +781,6 @@ export function UserProfileForm({
                       </motion.p>
                     ) : null}
                   </AnimatePresence>
-                </motion.div>
-
-                <motion.div className="grid gap-2" variants={fadeVariants}>
-                  <Label
-                    htmlFor="avatarUrl"
-                    // ANIMATION: Label gently shifts to reinforce focused field context.
-                    className="origin-left transition-transform duration-150"
-                    style={{
-                      transform:
-                        focusedField === 'avatarUrl'
-                          ? 'translateY(-1px) scale(0.98)'
-                          : 'translateY(0) scale(1)',
-                    }}
-                  >
-                    Avatar URL
-                  </Label>
-                  <Input
-                    id="avatarUrl"
-                    value={avatarUrl}
-                    disabled={isSaving}
-                    onChange={(event) => setAvatarUrl(event.target.value)}
-                    onFocus={() => setFocusedField('avatarUrl')}
-                    onBlur={(event) => handleFieldBlur('avatarUrl', event.target.value)}
-                    placeholder="https://example.com/avatar.png"
-                    className={`${getInputMotionClassName('avatarUrl')} h-11 sm:h-10 w-full`}
-                  />
                 </motion.div>
               </motion.div>
 

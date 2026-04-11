@@ -81,7 +81,6 @@ export async function classifyText(input: ClassifyInput): Promise<AIClassificati
     } else {
       const label = parsed.classification || normalizedLabels[0];
       const confidence = parsed.confidence || 0.5;
-      const allScores = parsed.all_scores || {};
 
       return {
         labels: [label],
@@ -91,7 +90,7 @@ export async function classifyText(input: ClassifyInput): Promise<AIClassificati
         model: aiModels.chat.id,
       };
     }
-  } catch (e) {
+  } catch {
     throw new AIResponseError(`Failed to parse Groq classification response: ${responseText}`);
   }
 }

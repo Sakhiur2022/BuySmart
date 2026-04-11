@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { OAuthProviderButtons } from '@/app/(auth)/components/oauth-provider-buttons';
-import { Suspense } from 'react';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -35,10 +34,16 @@ function getLoginErrorMessage(error: unknown): string {
 
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sellerErrorCode = searchParams.get('seller_error');
+  const sellerAccessMessage =
+    sellerErrorCode === 'admin_or_moderator_cannot_be_seller'
+      ? "Admin or moderator can't be a seller."
+      : null;
   const emailIsInvalid = email.length > 0 && !EMAIL_REGEX.test(email.trim());
   const passwordNeedsMoreChars = password.length > 0 && password.length < 8;
   const canSubmit = !emailIsInvalid && password.length >= 8;
@@ -50,7 +55,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
 
     try {
       const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -59,7 +64,57 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         throw signInError;
       }
 
-      router.replace('/');
+      const userId = data.user?.id;
+      const roleFromMetadata = data.user?.user_metadata?.role;
+      const normalizedMetadataRole =
+        roleFromMetadata === 'seller' || roleFromMetadata === 'buyer' ? roleFromMetadata : null;
+      let resolvedRole: string | null = null;
+
+      if (userId) {
+        const { data: existingProfile } = await supabase
+          .from('users_profile')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        resolvedRole = existingProfile?.role ?? null;
+      }
+
+      const shouldPromoteBuyerToSeller =
+        resolvedRole === 'buyer' && normalizedMetadataRole === 'seller';
+
+      if (shouldPromoteBuyerToSeller && userId) {
+        const { error: promoteError } = await supabase
+          .from('users_profile')
+          .update({ role: 'seller' })
+          .eq('user_id', userId);
+
+        if (promoteError) {
+          console.warn('Buyer to seller promotion failed:', promoteError.message);
+        } else {
+          resolvedRole = 'seller';
+        }
+      }
+
+      if (!resolvedRole && userId && normalizedMetadataRole) {
+        const { error: profileError } = await supabase
+          .from('users_profile')
+          .upsert({ user_id: userId, role: normalizedMetadataRole }, { onConflict: 'user_id' });
+
+        if (profileError) {
+          console.warn('Profile bootstrap failed:', profileError.message);
+        } else {
+          resolvedRole = normalizedMetadataRole;
+        }
+      }
+
+      const nextPath =
+        resolvedRole === 'admin' || resolvedRole === 'moderator'
+          ? '/admin'
+          : resolvedRole === 'seller'
+            ? '/seller'
+            : '/';
+      router.replace(nextPath);
       router.refresh();
     } catch (signInError: unknown) {
       setError(getLoginErrorMessage(signInError));
@@ -73,10 +128,18 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Sign in with email and password or continue with social.</CardDescription>
+          <CardDescription>
+            Sign in with email and password or continue with social.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-6">
+            {sellerAccessMessage ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                {sellerAccessMessage}
+              </div>
+            ) : null}
+
             <form className="flex flex-col gap-4" onSubmit={handleEmailLogin} autoComplete="on">
               <div className="grid gap-2">
                 <Label htmlFor="loginEmail">Email</Label>

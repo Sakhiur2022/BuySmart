@@ -3,7 +3,7 @@ import { Geist } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import { Navbar } from '@/components/shared/navbar';
 import { Footer } from '@/components/shared/footer';
-import { CartProvider } from '@/lib/hooks/cart-context';
+import { CartProvider } from '@/lib/context/cart-context';
 import './globals.css';
 
 const defaultUrl = process.env.VERCEL_URL

@@ -24,10 +24,10 @@ export async function AuthButton() {
     );
   }
 
-  // Fetch user profile to get display_name
+  // Fetch user profile to get display_name and avatar_url
   const { data: userProfile } = await supabase
     .from('users_profile')
-    .select('display_name')
+    .select('display_name, avatar_url')
     .eq('user_id', user.id)
     .single();
 
@@ -41,12 +41,16 @@ export async function AuthButton() {
     'User';
 
   const avatarUrl =
-    (user.user_metadata?.avatar_url as string) || (user.user_metadata?.picture as string);
+    (userProfile?.avatar_url && userProfile.avatar_url.trim()) ||
+    (user.user_metadata?.avatar_url as string) ||
+    (user.user_metadata?.picture as string);
 
   return (
     <div className="flex items-center gap-3">
       {avatarUrl && (
-        <Image src={avatarUrl} alt={userName} width={32} height={32} className="rounded-full" />
+        <div className="relative h-8 w-8 overflow-hidden rounded-full">
+          <Image src={avatarUrl} alt={userName} fill className="object-cover" sizes="32px" />
+        </div>
       )}
       <Link
         href="/profile"
@@ -60,7 +64,7 @@ export async function AuthButton() {
         href="/profile/settings"
         className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
         title="Settings"
-        aria-label="Account settings"
+        aria-label="Settings"
       >
         <Settings className="h-4 w-4" aria-hidden="true" />
       </Link>

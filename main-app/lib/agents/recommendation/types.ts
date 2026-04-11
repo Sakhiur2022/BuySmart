@@ -4,6 +4,7 @@ export interface ProductCandidate {
   category_id?: number;
   brand?: string;
   price?: number;
+  image?: string;
   tags?: string[];
 }
 

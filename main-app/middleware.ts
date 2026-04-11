@@ -43,12 +43,18 @@ export async function middleware(request: NextRequest) {
   const claims = (claimsData?.claims ?? null) as Record<string, unknown> | null;
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith('/auth');
-  const isPublicRoute = pathname === '/' || isAuthRoute;
+  const isPublicProductApi = pathname.startsWith('/api/products');
+  const isPublicRoute = pathname === '/' || isAuthRoute || isPublicProductApi;
 
-  const redirectTo = (targetPath: string) => {
+  const redirectTo = (targetPath: string, params?: Record<string, string>) => {
     const url = request.nextUrl.clone();
     url.pathname = targetPath;
     url.search = '';
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+      });
+    }
     const redirectResponse = NextResponse.redirect(url);
     response.cookies.getAll().forEach(({ name, value }) => {
       redirectResponse.cookies.set(name, value);
@@ -83,6 +89,16 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isSellerRoute && profile?.role !== 'seller') {
+      if (profile?.role === 'admin') {
+        return redirectTo('/admin');
+      }
+
+      if (profile?.role === 'moderator') {
+        return redirectTo('/auth/login', {
+          seller_error: 'admin_or_moderator_cannot_be_seller',
+        });
+      }
+
       return redirectTo('/auth/login');
     }
   }

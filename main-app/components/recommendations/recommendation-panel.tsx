@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Loader2, Sparkles, WandSparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import type {
   ProductCandidate,
   RecommendationPayload,
@@ -30,55 +31,22 @@ interface RecommendationApiResponse {
   errorMessage?: string;
 }
 
+interface RecommendationBroadcastItem {
+  productId: string;
+  title: string;
+  reason: string;
+  score: number;
+  price?: number;
+  image?: string;
+}
+
 interface RecommendationPanelProps {
   isAuthenticated: boolean;
   userEmail?: string | null;
   userDisplayName?: string;
   candidates?: ProductCandidate[];
+  compact?: boolean;
 }
-
-const SAMPLE_CANDIDATES: ProductCandidate[] = [
-  {
-    id: 'p-101',
-    title: 'Noise-Cancelling Headphones X9',
-    category_id: 12,
-    brand: 'SonicPeak',
-    price: 149.99,
-    tags: ['audio', 'wireless', 'travel'],
-  },
-  {
-    id: 'p-102',
-    title: 'Smartwatch Pulse 4',
-    category_id: 7,
-    brand: 'NovaWear',
-    price: 199,
-    tags: ['fitness', 'wearable', 'health'],
-  },
-  {
-    id: 'p-103',
-    title: 'USB-C Fast Charger 65W',
-    category_id: 18,
-    brand: 'VoltCore',
-    price: 39.5,
-    tags: ['charger', 'accessory', 'portable'],
-  },
-  {
-    id: 'p-104',
-    title: 'Mechanical Keyboard K80',
-    category_id: 4,
-    brand: 'TypeForge',
-    price: 89,
-    tags: ['keyboard', 'gaming', 'office'],
-  },
-  {
-    id: 'p-105',
-    title: '4K Webcam Studio Lite',
-    category_id: 9,
-    brand: 'FrameFocus',
-    price: 119,
-    tags: ['camera', 'streaming', 'remote-work'],
-  },
-];
 
 const MAX_RESULTS_OPTIONS = ['2', '3', '4', '5', '6'];
 
@@ -86,21 +54,6 @@ const MAX_RESULTS_BY_MODE = {
   guest: 3,
   member: 6,
 } as const;
-
-const getScoreBarClassName = (score: number) => {
-  const percentage = Math.round(Math.max(0, Math.min(1, score)) * 100);
-
-  if (percentage >= 90) return 'w-full';
-  if (percentage >= 80) return 'w-10/12';
-  if (percentage >= 70) return 'w-9/12';
-  if (percentage >= 60) return 'w-8/12';
-  if (percentage >= 50) return 'w-7/12';
-  if (percentage >= 40) return 'w-6/12';
-  if (percentage >= 30) return 'w-5/12';
-  if (percentage >= 20) return 'w-4/12';
-  if (percentage >= 10) return 'w-3/12';
-  return 'w-2/12';
-};
 
 const toNumber = (value: string): number | undefined => {
   if (!value.trim()) {
@@ -111,19 +64,16 @@ const toNumber = (value: string): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-const priceFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-});
-
 export function RecommendationPanel({
   isAuthenticated,
   userEmail,
   userDisplayName,
-  candidates = SAMPLE_CANDIDATES,
+  candidates = [],
+  compact = false,
 }: RecommendationPanelProps) {
-  const [userIntent, setUserIntent] = useState('I need gear for remote work and travel under $200');
+  const [userIntent, setUserIntent] = useState(
+    'I need gear for remote work and travel under BDT 200',
+  );
   const [contextSummary, setContextSummary] = useState(
     'Prioritize lightweight products and practical daily use.',
   );
@@ -132,21 +82,20 @@ export function RecommendationPanel({
   const [maxResults, setMaxResults] = useState(isAuthenticated ? '4' : '3');
 
   const [isLoading, setIsLoading] = useState(false);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<RecommendationResult | null>(null);
-
-  const candidateLookup = useMemo(
-    () =>
-      new Map<string, ProductCandidate>(candidates.map((candidate) => [candidate.id, candidate])),
-    [candidates],
-  );
+  const [hasGenerated, setHasGenerated] = useState(false);
 
   const maxAllowedResults = isAuthenticated
     ? MAX_RESULTS_BY_MODE.member
     : MAX_RESULTS_BY_MODE.guest;
+  const hasCandidates = candidates.length > 0;
 
   const generateRecommendations = async () => {
+    if (!hasCandidates) {
+      setErrorMessage('No catalog products are available yet. Add active products first.');
+      return;
+    }
+
     const trimmedIntent = userIntent.trim();
     if (trimmedIntent.length < 3) {
       setErrorMessage('Please provide a clearer intent (at least 3 characters).');
@@ -173,6 +122,10 @@ export function RecommendationPanel({
       return;
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('buysmart:recommendations:loading'));
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
 
@@ -197,27 +150,71 @@ export function RecommendationPanel({
       };
 
       if (!response.ok || !data.success) {
-        const fallbackError = 'Recommendation request failed. Please try again.';
-        setResult(null);
-        setLatencyMs(null);
-        setErrorMessage(data.errorMessage ?? data.error ?? fallbackError);
+        setHasGenerated(true);
+        setErrorMessage(null);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('buysmart:recommendations', {
+              detail: {
+                summary: 'No matching products found for that request.',
+                items: [],
+              },
+            }),
+          );
+        }
         return;
       }
 
-      setResult(data.result);
-      setLatencyMs(data.latencyMs ?? null);
+      setHasGenerated(true);
+
+      if (typeof window !== 'undefined') {
+        const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+        const recommendedItems: RecommendationBroadcastItem[] = data.result.recommendations
+          .filter((recommendation) => Boolean(recommendation.productId?.trim()))
+          .map((recommendation) => {
+            const productId = recommendation.productId!.trim();
+            const candidate = candidatesById.get(productId);
+
+            return {
+              productId,
+              title: recommendation.title,
+              reason: recommendation.reason,
+              score: recommendation.score,
+              price: recommendation.price,
+              image: candidate?.image,
+            };
+          });
+
+        window.dispatchEvent(
+          new CustomEvent('buysmart:recommendations', {
+            detail: {
+              summary: data.result.summary,
+              items: recommendedItems,
+            },
+          }),
+        );
+      }
     } catch {
-      setResult(null);
-      setLatencyMs(null);
-      setErrorMessage('Unable to connect to recommendation service right now.');
+      setHasGenerated(true);
+      setErrorMessage(null);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('buysmart:recommendations', {
+            detail: {
+              summary: 'No matching products found for that request.',
+              items: [],
+            },
+          }),
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Card className="border-primary/20">
-      <CardHeader className="space-y-3">
+    <Card className={cn('border-primary/20', compact && 'gap-4')}>
+      <CardHeader className={cn('space-y-3', compact && 'px-4 pb-0')}>
         <div className="flex flex-wrap items-center gap-2">
           <div className="rounded-lg bg-primary/15 p-2 text-primary">
             <Sparkles className="size-4" />
@@ -247,30 +244,32 @@ export function RecommendationPanel({
         )}
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 md:col-span-2">
+      <CardContent className={cn('space-y-6', compact && 'space-y-4 px-4 pb-4')}>
+        <div className={cn('grid grid-cols-1 gap-4', compact && 'gap-3')}>
+          <div className="space-y-2">
             <Label htmlFor="intent">What are you looking for?</Label>
             <Textarea
               id="intent"
               value={userIntent}
               onChange={(event) => setUserIntent(event.target.value)}
               placeholder="Example: I need affordable wireless gear for travel and calls."
+              className={cn(compact && 'min-h-24 text-sm')}
             />
           </div>
 
-          <div className="space-y-2 md:col-span-2">
+          <div className="space-y-2">
             <Label htmlFor="context">Extra context (optional)</Label>
             <Textarea
               id="context"
               value={contextSummary}
               onChange={(event) => setContextSummary(event.target.value)}
               placeholder="Example: I prefer lightweight products from trusted brands."
+              className={cn(compact && 'min-h-20 text-sm')}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="budget-min">Min budget (USD)</Label>
+            <Label htmlFor="budget-min">Min budget (BDT)</Label>
             <Input
               id="budget-min"
               inputMode="decimal"
@@ -281,7 +280,7 @@ export function RecommendationPanel({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="budget-max">Max budget (USD)</Label>
+            <Label htmlFor="budget-max">Max budget (BDT)</Label>
             <Input
               id="budget-max"
               inputMode="decimal"
@@ -291,7 +290,7 @@ export function RecommendationPanel({
             />
           </div>
 
-          <div className="space-y-2 md:max-w-52">
+          <div className={cn('space-y-2 md:max-w-52', compact && 'md:max-w-none')}>
             <Label htmlFor="max-results">Max results</Label>
             <Select value={maxResults} onValueChange={setMaxResults}>
               <SelectTrigger id="max-results" className="w-full">
@@ -321,8 +320,13 @@ export function RecommendationPanel({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" onClick={generateRecommendations} disabled={isLoading}>
+        <div className="flex flex-col gap-2">
+          <Button
+            type="button"
+            onClick={generateRecommendations}
+            disabled={isLoading || !hasCandidates}
+            className="w-full sm:w-auto self-start"
+          >
             {isLoading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
@@ -331,99 +335,32 @@ export function RecommendationPanel({
             ) : (
               <>
                 <WandSparkles className="size-4" />
-                {isAuthenticated ? 'Generate Recommendations' : 'Generate Guest Recommendations'}
+                {hasCandidates
+                  ? isAuthenticated
+                    ? 'Generate Recommendations'
+                    : 'Generate Guest Recommendations'
+                  : 'No Products Available'}
               </>
             )}
           </Button>
-
-          <span className="text-xs text-muted-foreground">
-            Candidates available: {candidates.length}
-          </span>
         </div>
-
-        {isLoading ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, index) => (
-              <div
-                key={`skeleton-${index}`}
-                className="space-y-3 rounded-lg border bg-card p-4 shadow-sm"
-              >
-                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-full animate-pulse rounded bg-muted" />
-                <div className="h-3 w-10/12 animate-pulse rounded bg-muted" />
-                <div className="h-2 w-full animate-pulse rounded bg-muted" />
-              </div>
-            ))}
-          </div>
-        ) : null}
-
         {errorMessage ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {errorMessage}
           </div>
         ) : null}
 
-        {!isLoading && !result && !errorMessage ? (
-          <div className="rounded-lg border border-border/70 bg-muted/25 p-4 text-sm text-muted-foreground">
-            Enter your intent and constraints, then generate recommendations to see AI-ranked
-            results.
+        {!hasCandidates ? (
+          <div className="rounded-lg border border-amber-300/70 bg-amber-100/60 px-3 py-2 text-sm text-amber-900 dark:border-amber-600/70 dark:bg-amber-950/40 dark:text-amber-200">
+            No active products were loaded from the catalog. Add products in seller mode to enable
+            recommendations.
           </div>
         ) : null}
 
-        {result ? (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-border/70 bg-muted/25 p-4">
-              <p className="text-sm leading-6">{result.summary}</p>
-              {latencyMs !== null ? (
-                <p className="mt-2 text-xs text-muted-foreground">Latency: {latencyMs}ms</p>
-              ) : null}
-            </div>
-
-            {result.recommendations.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {result.recommendations.map((recommendation, index) => {
-                  const normalizedScore = Math.max(0, Math.min(1, recommendation.score));
-                  const productId = recommendation.productId?.trim();
-                  const match: ProductCandidate | undefined = productId
-                    ? candidateLookup.get(productId)
-                    : undefined;
-
-                  return (
-                    <div
-                      key={`${recommendation.title}-${index}`}
-                      className="rounded-lg border bg-card p-4 shadow-sm"
-                    >
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <h3 className="text-sm font-semibold leading-5">{recommendation.title}</h3>
-                        <Badge variant="secondary">{Math.round(normalizedScore * 100)}%</Badge>
-                      </div>
-
-                      <p className="text-sm text-muted-foreground">{recommendation.reason}</p>
-
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={`h-full rounded-full bg-primary ${getScoreBarClassName(normalizedScore)}`}
-                        />
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        {recommendation.price !== undefined ? (
-                          <span>{priceFormatter.format(recommendation.price)}</span>
-                        ) : null}
-                        {productId ? <span>ID: {productId}</span> : null}
-                        {match?.brand ? <span>Brand: {match.brand}</span> : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border/70 bg-muted/25 p-4">
-                <p className="text-sm text-muted-foreground">
-                  No recommendations were returned. Try broadening your intent or constraints.
-                </p>
-              </div>
-            )}
+        {!isLoading && !hasGenerated && !errorMessage ? (
+          <div className="rounded-lg border border-border/70 bg-muted/25 p-4 text-sm text-muted-foreground">
+            Enter your intent and constraints, then generate recommendations to see AI-ranked
+            results.
           </div>
         ) : null}
       </CardContent>
