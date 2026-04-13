@@ -25,9 +25,6 @@ type SellerUpgradeCtaProps = {
 };
 
 export function SellerUpgradeCta({
-  isAuthenticated,
-  userId,
-  userRole,
   children,
   buttonClassName,
   buttonVariant = 'link',

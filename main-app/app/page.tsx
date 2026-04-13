@@ -87,32 +87,28 @@ export default function Home() {
     let isMounted = true;
 
     const hydrateHome = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData?.session?.user;
+      const profileResponse = await fetch('/api/auth/me', { cache: 'no-store' });
 
       if (!isMounted) {
         return;
       }
 
-      setUserId(user?.id ?? null);
-      setUserEmail(user?.email ?? null);
-      setUserDisplayName(
-        (user?.user_metadata?.full_name as string | undefined) ??
-          (user?.user_metadata?.name as string | undefined) ??
-          null,
-      );
+      if (profileResponse.ok) {
+        const profile = (await profileResponse.json()) as {
+          userId: string;
+          email: string | null;
+          fullName: string | null;
+          role: string | null;
+        };
 
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from('users_profile')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-
-        if (isMounted) {
-          setUserRole(profile?.role ?? null);
-        }
+        setUserId(profile.userId);
+        setUserEmail(profile.email ?? null);
+        setUserDisplayName(profile.fullName ?? null);
+        setUserRole(profile.role ?? null);
       } else {
+        setUserId(null);
+        setUserEmail(null);
+        setUserDisplayName(null);
         setUserRole(null);
       }
 
@@ -145,8 +141,7 @@ export default function Home() {
   }, []);
 
   const isAuthenticated = Boolean(userId ?? userEmail);
-  const isSeller = userRole === 'seller';
-  const shouldShowSellerCTA = !isSeller;
+  const shouldShowSellerCTA = userRole !== 'seller';
 
   return (
     <main className="min-h-screen bg-background text-foreground">
