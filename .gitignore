@@ -13,8 +13,9 @@
 !.yarn/versions
 
 # testing
-/coverage
-
+/main-app/coverage
+/main-app/test-results
+/main-app/.env.*
 # next.js
 /.next/
 /out/
