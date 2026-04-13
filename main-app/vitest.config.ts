@@ -9,6 +9,7 @@ export default defineConfig({
     },
   },
   test: {
+    pool: 'threads',
     environment: 'node',
     globals: true,
     setupFiles: ['./tests/setup/vitest.setup.ts'],
@@ -22,6 +23,8 @@ export default defineConfig({
         'app/api/**/*.ts',
         'lib/actions/**/*.ts',
         'lib/agents/**/*.ts',
+        'lib/context/**/*.ts',
+        'lib/context/**/*.tsx',
         'lib/controllers/**/*.ts',
         'lib/repositories/**/*.ts',
         'lib/services/**/*.ts',
