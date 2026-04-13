@@ -76,7 +76,9 @@ describe('CartProvider context', () => {
     expect(result.current.summary.totalItems).toBe(5);
 
     const raw = window.localStorage.getItem('buysmart.cart');
-    const parsed = JSON.parse(raw ?? '{}') as { items: Array<{ product_id: string; quantity: number }> };
+    const parsed = JSON.parse(raw ?? '{}') as {
+      items: Array<{ product_id: string; quantity: number }>;
+    };
     expect(parsed.items[0]).toEqual({ product_id: 'p-1', quantity: 5 });
   });
 
