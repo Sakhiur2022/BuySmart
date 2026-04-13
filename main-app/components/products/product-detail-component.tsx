@@ -78,6 +78,34 @@ interface ProductDetailComponentProps {
   productData: ProductData;
 }
 
+type SentimentLabel = 'positive' | 'neutral' | 'negative' | 'mixed';
+
+interface ReviewItem {
+  feedback_id: string;
+  rating: number;
+  title: string | null;
+  content: string;
+  created_at: string;
+  verified_purchase: boolean;
+  ai_sentiment: SentimentLabel | null;
+  ai_confidence_score: number | null;
+  user: {
+    user_id: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
+}
+
+interface ReviewsApiResponse {
+  reviews: ReviewItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+}
+
 // ============================================================================
 // HELPER COMPONENTS
 // ============================================================================
@@ -124,6 +152,49 @@ function RatingDistribution({ distribution }: { distribution: { [key: string]: n
       })}
     </div>
   );
+}
+
+function getSentimentBadgeInfo(sentiment: ReviewItem['ai_sentiment']) {
+  switch (sentiment) {
+    case 'positive':
+      return {
+        label: 'Positive',
+        className:
+          'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200',
+      };
+    case 'negative':
+      return {
+        label: 'Negative',
+        className:
+          'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200',
+      };
+    case 'mixed':
+      return {
+        label: 'Mixed',
+        className:
+          'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200',
+      };
+    case 'neutral':
+    default:
+      return {
+        label: sentiment ? 'Neutral' : 'Pending',
+        className:
+          'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200',
+      };
+  }
+}
+
+function formatReviewDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
 }
 
 // ============================================================================
@@ -196,6 +267,10 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [reviewList, setReviewList] = useState<ReviewItem[]>([]);
+  const [reviewsPagination, setReviewsPagination] = useState<ReviewsApiResponse['pagination'] | null>(null);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
 
   const prefillOrderId = searchParams.get('orderId')?.trim() || undefined;
   const prefillOrderItemId = searchParams.get('orderItemId')?.trim() || undefined;
@@ -465,6 +540,65 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
       window.clearTimeout(timeoutId);
     };
   }, [cartNotice]);
+
+  useEffect(() => {
+    if (!product?.product_id) {
+      return;
+    }
+
+    const controller = new AbortController();
+    let active = true;
+
+    async function loadReviews() {
+      setIsLoadingReviews(true);
+      setReviewsError(null);
+
+      try {
+        const response = await fetch(
+          `/api/products/${product.product_id}/reviews?page=1&pageSize=6&sortBy=recent`,
+          { signal: controller.signal },
+        );
+
+        const payload = (await response
+          .json()
+          .catch(() => null)) as ReviewsApiResponse | { error?: string } | null;
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.ok || !payload || !('reviews' in payload)) {
+          setReviewsError(
+            (payload as { error?: string } | null)?.error ||
+              'Unable to load reviews right now.',
+          );
+          setReviewList([]);
+          setReviewsPagination(null);
+          return;
+        }
+
+        setReviewList(payload.reviews || []);
+        setReviewsPagination(payload.pagination || null);
+      } catch (error) {
+        if (!active || (error instanceof DOMException && error.name === 'AbortError')) {
+          return;
+        }
+
+        setReviewsError('Unable to load reviews right now.');
+      } finally {
+        if (active) {
+          setIsLoadingReviews(false);
+        }
+      }
+    }
+
+    void loadReviews();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [product?.product_id]);
 
   const handleAddFeedbackImage = () => {
     const nextUrl = feedbackImageInput.trim();
@@ -1188,6 +1322,123 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
               {feedbackNotice.message}
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader className="space-y-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Customer Reviews</CardTitle>
+            {reviewsPagination ? (
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                {reviewsPagination.totalCount} total reviews
+              </span>
+            ) : null}
+          </div>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            AI sentiment badges summarize the tone of each review.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {isLoadingReviews ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-20 w-full animate-pulse rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900"
+                />
+              ))}
+            </div>
+          ) : reviewsError ? (
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-200">
+              {reviewsError}
+            </div>
+          ) : reviewList.length === 0 ? (
+            <div className="rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-center text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+              No reviews yet. Be the first to share your experience.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reviewList.map((review) => {
+                const badgeInfo = getSentimentBadgeInfo(review.ai_sentiment);
+                const confidence =
+                  typeof review.ai_confidence_score === 'number'
+                    ? Math.round(Math.max(0, Math.min(1, review.ai_confidence_score)) * 100)
+                    : null;
+
+                return (
+                  <div
+                    key={review.feedback_id}
+                    className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-10 w-10 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                          {review.user.avatar_url ? (
+                            <Image
+                              src={review.user.avatar_url}
+                              alt={review.user.full_name}
+                              fill
+                              sizes="40px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-zinc-500">
+                              {review.user.full_name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {review.user.full_name}
+                          </p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {formatReviewDate(review.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge className={`border ${badgeInfo.className}`}>{badgeInfo.label}</Badge>
+                        {confidence !== null ? (
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {confidence}% confidence
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <RatingStars rating={review.rating} size="sm" />
+                      <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                        {review.rating.toFixed(1)} / 5
+                      </span>
+                      {review.verified_purchase ? (
+                        <Badge variant="secondary" className="text-xs">
+                          Verified purchase
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    {review.title ? (
+                      <p className="mt-3 text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                        {review.title}
+                      </p>
+                    ) : null}
+
+                    {review.content ? (
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
+                        {review.content}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                        No review text provided.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

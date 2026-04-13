@@ -9,11 +9,14 @@ import { createClient } from '@/lib/supabase/server';
 interface ReviewRecord {
   feedback_id: string;
   rating: number | null;
-  content: string | null;
+  title: string | null;
+  comment: string | null;
   created_at: string;
   verified_purchase: boolean;
   status: string;
   user_id: string;
+  ai_sentiment: string | null;
+  ai_confidence_score: number | null;
   users_profile?: Array<{
     user_id: string;
     full_name: string | null;
@@ -116,11 +119,14 @@ export async function GET(
         `
         feedback_id,
         rating,
-        content,
+        title,
+        comment,
         created_at,
         verified_purchase,
         status,
         user_id,
+        ai_sentiment,
+        ai_confidence_score,
         users_profile!inner(user_id, full_name, avatar_url)
         `,
         { count: 'exact' }
@@ -171,9 +177,13 @@ export async function GET(
       return {
         feedback_id: review.feedback_id,
         rating: review.rating || 0,
-        content: review.content || '',
+        title: review.title || null,
+        content: review.comment || '',
         created_at: review.created_at,
         verified_purchase: review.verified_purchase || false,
+        ai_sentiment: review.ai_sentiment || null,
+        ai_confidence_score:
+          typeof review.ai_confidence_score === 'number' ? review.ai_confidence_score : null,
         user: userArray.length > 0
           ? {
               user_id: userArray[0].user_id,
