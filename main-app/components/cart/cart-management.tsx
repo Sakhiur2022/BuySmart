@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ const VOUCHER_RULES: VoucherRule[] = [
 ];
 
 export function CartManagement() {
+  const router = useRouter();
   const { items, summary, isLoading, error, updateItemQuantity, removeItem, clearCart } = useCart();
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
@@ -102,6 +104,7 @@ export function CartManagement() {
   }, [appliedVoucher, totals.subtotal]);
 
   const totalAfterDiscount = Math.max(0, totals.subtotal - discountAmount);
+  const isCheckoutDisabled = isLoading || pendingProductId !== null || isClearing;
 
   const handleApplyVoucher = () => {
     const normalized = voucherInput.trim().toUpperCase();
@@ -171,7 +174,10 @@ export function CartManagement() {
           const itemBusy = pendingProductId === item.product_id;
 
           return (
-            <Card key={item.cart_item_id} className="bg-linear-to-r from-background via-background to-primary/5">
+            <Card
+              key={item.cart_item_id}
+              className="bg-linear-to-r from-background via-background to-primary/5"
+            >
               <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
                   <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
@@ -194,10 +200,16 @@ export function CartManagement() {
                     <p className="truncate text-sm font-semibold sm:text-base">{productName}</p>
                     <div className="space-y-1 text-sm text-muted-foreground">
                       <p>
-                        Price: <span className="font-medium text-foreground">{formatCurrency(unitPrice)}</span>
+                        Price:{' '}
+                        <span className="font-medium text-foreground">
+                          {formatCurrency(unitPrice)}
+                        </span>
                       </p>
                       <p>
-                        Subtotal: <span className="font-medium text-foreground">{formatCurrency(lineTotal)}</span>
+                        Subtotal:{' '}
+                        <span className="font-medium text-foreground">
+                          {formatCurrency(lineTotal)}
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -216,7 +228,9 @@ export function CartManagement() {
                     >
                       <Minus className="h-4 w-4" />
                     </Button>
-                    <span className="min-w-10 px-3 text-center text-sm font-semibold">{item.quantity}</span>
+                    <span className="min-w-10 px-3 text-center text-sm font-semibold">
+                      {item.quantity}
+                    </span>
                     <Button
                       type="button"
                       variant="ghost"
@@ -321,7 +335,12 @@ export function CartManagement() {
               <span>{formatCurrency(totalAfterDiscount)}</span>
             </div>
 
-            <Button className="w-full" disabled>
+            <Button
+              type="button"
+              className="w-full"
+              onClick={() => router.push('/buyer/checkout')}
+              disabled={isCheckoutDisabled}
+            >
               Checkout
             </Button>
             <Button
