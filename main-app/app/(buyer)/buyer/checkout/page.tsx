@@ -1,18 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useCart } from '@/lib/context/cart-context';
 
 interface CartItem {
   product_id: string;
   product_name: string;
   quantity: number;
   unit_price: number;
-  stock: number;
 }
 
 interface AddressForm {
@@ -99,13 +99,21 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-sm text-destructive mt-1">{message}</p>;
 }
 
-interface CheckoutPageProps {
-  cartItems: CartItem[];
-}
-
-export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
+export default function CheckoutPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { items, isLoading: isCartLoading, error: cartError } = useCart();
+
+  const cartItems = useMemo<CartItem[]>(
+    () =>
+      items.map((item) => ({
+        product_id: item.product_id,
+        product_name: item.product?.name ?? 'Unknown product',
+        quantity: item.quantity,
+        unit_price: item.product?.price ?? 0,
+      })),
+    [items],
+  );
 
   const [form, setForm] = useState<AddressForm>({
     full_name: '',
@@ -200,6 +208,12 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
         {globalError && (
           <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {globalError}
+          </div>
+        )}
+
+        {cartError && (
+          <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {cartError}
           </div>
         )}
 
@@ -310,7 +324,7 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
 
           <Button
             type="submit"
-            disabled={isSubmitting || cartItems.length === 0}
+            disabled={isSubmitting || isCartLoading || cartItems.length === 0}
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             size="lg"
           >

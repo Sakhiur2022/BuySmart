@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 
 export interface Product {
   id: string;
@@ -7,7 +7,7 @@ export interface Product {
   price: number;
   category: string;
   image?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface FetchProductsOptions {
@@ -23,7 +23,7 @@ export interface FetchProductsOptions {
  */
 export async function fetchFilteredProducts(
   nameQuery?: string,
-  category?: string
+  category?: string,
 ): Promise<Product[]> {
   const supabase = createClient();
 
@@ -53,11 +53,7 @@ export async function fetchFilteredProducts(
 export async function fetchProductById(id: string): Promise<Product | null> {
   const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
 
   if (error) {
     console.error('Error fetching product:', error);
@@ -73,17 +69,17 @@ export async function fetchProductById(id: string): Promise<Product | null> {
 export async function fetchCategories(): Promise<string[]> {
   const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from('products')
-    .select('category')
-    .distinct();
+  const { data, error } = await supabase.from('products').select('category');
 
   if (error) {
     console.error('Error fetching categories:', error);
     throw new Error(`Failed to fetch categories: ${error.message}`);
   }
 
-  return data
-    ?.map((item: { category: string }) => item.category)
-    .filter((cat: string): cat is string => Boolean(cat)) || [];
+  const categories =
+    data
+      ?.map((item: { category: string }) => item.category)
+      .filter((cat: string): cat is string => Boolean(cat)) ?? [];
+
+  return Array.from(new Set(categories));
 }

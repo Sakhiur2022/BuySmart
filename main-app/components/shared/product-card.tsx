@@ -7,7 +7,7 @@ export interface Product {
   description?: string | null;
   price: number;
   image_url?: string;
-  images?: any;
+  images?: unknown;
   category_id?: number | null;
 }
 
@@ -25,26 +25,48 @@ function getImageUrl(product: Product) {
   }
 
   if (Array.isArray(product.images) && product.images.length > 0) {
-    return product.images[0]?.url || product.images[0];
+    const first = product.images[0];
+    if (typeof first === 'string') {
+      return first;
+    }
+
+    if (first && typeof first === 'object' && 'url' in first && typeof first.url === 'string') {
+      return first.url;
+    }
   }
 
-  if (typeof product.images === 'object' && product.images?.url) {
+  if (
+    product.images &&
+    typeof product.images === 'object' &&
+    'url' in product.images &&
+    typeof product.images.url === 'string'
+  ) {
     return product.images.url;
   }
 
   return 'https://via.placeholder.com/300';
 }
 
-export function ProductCard({ product, viewMode }: { product: Product; viewMode: 'grid' | 'list' }) {
+export function ProductCard({
+  product,
+  viewMode,
+}: {
+  product: Product;
+  viewMode: 'grid' | 'list';
+}) {
   const isList = viewMode === 'list';
 
   return (
-    <div className={`
+    <div
+      className={`
       group bg-card text-card-foreground rounded-lg border border-border 
       transition-all duration-200 hover:shadow-md hover:border-primary/40
       ${isList ? 'flex h-44' : 'flex flex-col'}
-    `}>
-      <div className={`${isList ? 'w-48' : 'w-full h-48'} overflow-hidden rounded-t-lg ${isList ? 'rounded-tr-none rounded-l-lg' : ''}`}>
+    `}
+    >
+      <div
+        className={`${isList ? 'w-48' : 'w-full h-48'} overflow-hidden rounded-t-lg ${isList ? 'rounded-tr-none rounded-l-lg' : ''}`}
+      >
         <img
           src={getImageUrl(product)}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -57,9 +79,7 @@ export function ProductCard({ product, viewMode }: { product: Product; viewMode:
           <h3 className="font-sans font-bold tracking-tight text-foreground line-clamp-1">
             {product.title}
           </h3>
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-            {product.description}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{product.description}</p>
         </div>
 
         <div className="flex justify-between items-center mt-4">

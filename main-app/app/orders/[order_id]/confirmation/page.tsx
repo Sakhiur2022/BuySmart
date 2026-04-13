@@ -1,8 +1,7 @@
-import type { Database } from "@/lib/types/database.types";
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/server";
+import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { createClient } from '@/lib/supabase/server';
 
 interface OrderItem {
   product_id: string;
@@ -20,27 +19,27 @@ interface ShippingAddress {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Date(iso).toLocaleDateString('en-GB', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
 const COUNTRY_LABELS: Record<string, string> = {
-  BD: "Bangladesh",
-  US: "United States",
+  BD: 'Bangladesh',
+  US: 'United States',
 };
 
 async function getOrder(orderId: string) {
   const supabase = await createClient();
 
   const { data: order, error: orderError } = await supabase
-    .from<Database["public"]["Tables"]["orders"]["Row"]>("orders")
-    .select("order_id, created_at, status, shipping_address")
-    .eq("order_id", orderId)
+    .from('orders')
+    .select('order_id, created_at, status, shipping_address')
+    .eq('order_id', orderId)
     .single();
 
   if (orderError || !order) {
@@ -48,9 +47,9 @@ async function getOrder(orderId: string) {
   }
 
   const { data: rawItems, error: itemsError } = await supabase
-    .from<Database["public"]["Tables"]["order_items"]["Row"]>("order_items")
-    .select("product_id, quantity, unit_price, product_snapshot")
-    .eq("order_id", orderId);
+    .from('order_items')
+    .select('product_id, quantity, unit_price, product_snapshot')
+    .eq('order_id', orderId);
 
   if (itemsError || !rawItems) {
     return {
@@ -66,7 +65,7 @@ async function getOrder(orderId: string) {
 
     return {
       product_id: item.product_id,
-      product_name: productSnapshot?.name ?? "Product",
+      product_name: productSnapshot?.name ?? 'Product',
       quantity: item.quantity,
       unit_price: item.unit_price,
     };
@@ -76,31 +75,28 @@ async function getOrder(orderId: string) {
 }
 
 interface PageProps {
-  params: {
+  params: Promise<{
     order_id: string;
-  };
+  }>;
 }
 
 export default async function OrderConfirmationPage({ params }: PageProps) {
-  const fetched = await getOrder(params.order_id);
+  const { order_id } = await params;
+  const fetched = await getOrder(order_id);
   if (!fetched) {
     notFound();
   }
 
   const { order, items } = fetched;
-  const shippingAddress =
-    (order.shipping_address as ShippingAddress | null) ?? {
-      full_name: "",
-      street_address: "",
-      city: "",
-      postal_code: "",
-      country: "",
-    };
+  const shippingAddress = (order.shipping_address as ShippingAddress | null) ?? {
+    full_name: '',
+    street_address: '',
+    city: '',
+    postal_code: '',
+    country: '',
+  };
 
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.unit_price * item.quantity,
-    0
-  );
+  const subtotal = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -175,10 +171,7 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button
-            asChild
-            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
-          >
+          <Button asChild className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
             <Link href={`/orders/${order.order_id}`}>Track this order</Link>
           </Button>
 

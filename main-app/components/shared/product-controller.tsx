@@ -16,6 +16,32 @@ interface CategoryOption {
   name: string;
 }
 
+type RawImage = string | { url?: string };
+type RawProduct = {
+  product_id: string;
+  title?: string | null;
+  name?: string | null;
+  image_url?: string | null;
+  images?: RawImage[] | null;
+} & Record<string, unknown>;
+
+function resolveImageUrl(product: RawProduct): string | undefined {
+  if (typeof product.image_url === 'string' && product.image_url.trim()) {
+    return product.image_url;
+  }
+
+  const firstImage = product.images?.[0];
+  if (typeof firstImage === 'string') {
+    return firstImage;
+  }
+
+  if (firstImage && typeof firstImage.url === 'string') {
+    return firstImage.url;
+  }
+
+  return undefined;
+}
+
 export default function ProductController() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,11 +84,11 @@ export default function ProductController() {
 
       if (!error && data) {
         setProducts(
-          data.map((product: any) => ({
+          data.map((product: RawProduct) => ({
             ...product,
             id: product.product_id,
             title: product.title ?? product.name ?? 'Untitled product',
-            image_url: product.image_url ?? product.images?.[0]?.url ?? product.images?.[0] ?? undefined,
+            image_url: resolveImageUrl(product),
           })) as Product[],
         );
       } else {
@@ -94,7 +120,9 @@ export default function ProductController() {
             onChange={(event) => setSearch((prev) => ({ ...prev, query: event.target.value }))}
             className="w-full rounded-md border border-input bg-background px-4 py-2 pr-10 text-foreground outline-none focus:ring-2 focus:ring-ring"
           />
-          <span className="pointer-events-none absolute left-3 top-2.5 text-muted-foreground">🔍</span>
+          <span className="pointer-events-none absolute left-3 top-2.5 text-muted-foreground">
+            🔍
+          </span>
         </div>
 
         <select
@@ -142,7 +170,13 @@ export default function ProductController() {
           ))}
         </div>
       ) : (
-        <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4' : 'space-y-4'}>
+        <div
+          className={
+            viewMode === 'grid'
+              ? 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4'
+              : 'space-y-4'
+          }
+        >
           {products.map((product) => (
             <ProductCard key={product.id} product={product} viewMode={viewMode} />
           ))}
