@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/utils';
 import type { Order, OrderItem, OrderStatus } from '@/lib/models/order.model';
-import { CheckCircle2, Circle, Clock3, Package, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Circle, Clock3, MessageSquare, Package, Truck, XCircle } from 'lucide-react';
 
 type ParsedAddress = {
   full_name: string;
@@ -188,7 +188,15 @@ function ItemStatusBadge({ status }: { status: OrderItem['status'] }) {
   );
 }
 
-export function OrderDetailView({ order, items }: { order: Order; items: OrderItem[] }) {
+export function OrderDetailView({
+  order,
+  items,
+  feedbackByOrderItemId,
+}: {
+  order: Order;
+  items: OrderItem[];
+  feedbackByOrderItemId: Record<string, { feedback_id: string; status: string }>;
+}) {
   const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
   const steps = getTimelineSteps(order);
   const currentStepIndex = ORDER_PROGRESS.indexOf(order.status as TimelineStep['key']);
@@ -340,6 +348,10 @@ export function OrderDetailView({ order, items }: { order: Order; items: OrderIt
             <ul className="space-y-3">
               {items.map((item) => {
                 const snapshot = parseSnapshot(item.product_snapshot);
+                const existingFeedback = feedbackByOrderItemId[item.order_item_id];
+                const canReview =
+                  (order.status === 'delivered' || order.status === 'completed') &&
+                  Boolean(item.product_id);
 
                 return (
                   <li
@@ -373,7 +385,14 @@ export function OrderDetailView({ order, items }: { order: Order; items: OrderIt
                               </p>
                             ) : null}
                           </div>
-                          <ItemStatusBadge status={item.status} />
+                          <div className="flex items-center gap-2">
+                            {existingFeedback ? (
+                              <Badge variant="secondary" className="font-medium">
+                                Reviewed
+                              </Badge>
+                            ) : null}
+                            <ItemStatusBadge status={item.status} />
+                          </div>
                         </div>
 
                         <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
@@ -383,6 +402,32 @@ export function OrderDetailView({ order, items }: { order: Order; items: OrderIt
                             Line total: {formatCurrency(item.total_price)}
                           </p>
                         </div>
+
+                        {canReview && item.product_id && existingFeedback ? (
+                          <div className="pt-1">
+                            <Button asChild size="sm" variant="outline" className="h-8">
+                              <Link
+                                href={`/buyer/products/${item.product_id}?editFeedback=1&feedbackId=${existingFeedback.feedback_id}#reviews`}
+                              >
+                                <MessageSquare className="mr-2 h-3.5 w-3.5" />
+                                Edit Feedback
+                              </Link>
+                            </Button>
+                          </div>
+                        ) : null}
+
+                        {canReview && item.product_id && !existingFeedback ? (
+                          <div className="pt-1">
+                            <Button asChild size="sm" variant="outline" className="h-8">
+                              <Link
+                                href={`/buyer/products/${item.product_id}?leaveFeedback=1&orderId=${order.order_id}&orderItemId=${item.order_item_id}#reviews`}
+                              >
+                                <MessageSquare className="mr-2 h-3.5 w-3.5" />
+                                Leave Feedback
+                              </Link>
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </li>

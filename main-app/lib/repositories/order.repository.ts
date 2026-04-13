@@ -10,6 +10,8 @@ type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type CartRow = Database['public']['Tables']['carts']['Row'];
 type CartItemRow = Database['public']['Tables']['cart_items']['Row'];
 
+type FeedbackStatus = Database['public']['Enums']['feedback_status_enum'];
+
 export interface CheckoutProductRecord {
   product_id: string;
   seller_id: string;
@@ -19,6 +21,12 @@ export interface CheckoutProductRecord {
   status: Database['public']['Enums']['product_status_enum'];
   inventory_quantity: number;
   price: number;
+}
+
+export interface BuyerOrderItemFeedbackRecord {
+  feedback_id: string;
+  order_item_id: string;
+  status: FeedbackStatus;
 }
 
 export async function fetchUserRole(userId: string): Promise<UserRole | null> {
@@ -228,4 +236,28 @@ export async function fetchOrderItemsByOrderId(orderId: string): Promise<OrderIt
   }
 
   return (data ?? []) as OrderItemRow[];
+}
+
+export async function fetchBuyerFeedbackByOrderItemIds(
+  buyerId: string,
+  orderItemIds: string[],
+): Promise<BuyerOrderItemFeedbackRecord[]> {
+  if (orderItemIds.length === 0) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('feedback_id, order_item_id, status')
+    .eq('user_id', buyerId)
+    .eq('feedback_type', 'product_review')
+    .in('order_item_id', orderItemIds)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as BuyerOrderItemFeedbackRecord[];
 }
