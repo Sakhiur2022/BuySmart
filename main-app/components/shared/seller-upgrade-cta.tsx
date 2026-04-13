@@ -75,6 +75,13 @@ export function SellerUpgradeCta({
         return;
       }
 
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        setIsOpen(false);
+        router.push('/auth/seller-sign-up');
+        return;
+      }
+
       const payload = (await response.json()) as { ok?: boolean; error?: string };
 
       if (!response.ok || !payload.ok) {
