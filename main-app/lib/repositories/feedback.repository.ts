@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getServiceRoleSupabase } from '@/lib/supabase/service-role';
 import type { Database, Json } from '@/lib/types/database.types';
 import type {
   CreateFeedbackInput,
@@ -8,6 +9,7 @@ import type {
   UpdateFeedbackInput,
   UserRole,
 } from '@/lib/models/feedback.model';
+import type { FeedbackSentimentPersistenceInput } from '@/lib/types/feedback-sentiment.types';
 
 type FeedbackInsert = Database['public']['Tables']['feedback']['Insert'];
 type FeedbackUpdate = Database['public']['Tables']['feedback']['Update'];
@@ -362,6 +364,57 @@ export async function softDeleteFeedbackById(
       moderated_at: moderatorId ? now : null,
       updated_at: now,
     })
+    .eq('feedback_id', feedbackId)
+    .select('*')
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Feedback;
+}
+
+export async function fetchFeedbackPendingSentimentAnalysis(limit = 20): Promise<Feedback[]> {
+  const supabase = await createClient();
+  const normalizedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('*')
+    .is('ai_processed_at', null)
+    .eq('status', 'published')
+    .or('comment.not.is.null,title.not.is.null')
+    .order('created_at', { ascending: true })
+    .limit(normalizedLimit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as Feedback[];
+}
+
+export async function updateFeedbackSentimentAnalysisById(
+  feedbackId: string,
+  input: FeedbackSentimentPersistenceInput,
+): Promise<Feedback> {
+  const serviceRole = getServiceRoleSupabase();
+  const supabase = serviceRole ?? (await createClient());
+
+  const payload: FeedbackUpdate = {
+    ai_sentiment: input.ai_sentiment,
+    ai_confidence_score: input.ai_confidence_score,
+    ai_category: input.ai_category,
+    ai_urgency: input.ai_urgency,
+    ai_keywords: input.ai_keywords,
+    ai_processed_at: input.ai_processed_at,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('feedback')
+    .update(payload)
     .eq('feedback_id', feedbackId)
     .select('*')
     .single();
