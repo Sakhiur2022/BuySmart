@@ -3,7 +3,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
 beforeEach(() => {
-  process.env.NODE_ENV = 'test';
+  (process.env as Record<string, string | undefined>).NODE_ENV = 'test';
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'http://127.0.0.1:54321';
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??= 'test-publishable-key';
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_OR_ANON_KEY ??= 'test-anon-key';
