@@ -12,7 +12,7 @@ interface ReviewRecord {
   title: string | null;
   comment: string | null;
   created_at: string;
-  verified_purchase: boolean;
+  is_verified_purchase: boolean;
   status: string;
   user_id: string;
   ai_sentiment: string | null;
@@ -122,17 +122,17 @@ export async function GET(
         title,
         comment,
         created_at,
-        verified_purchase,
+        is_verified_purchase,
         status,
         user_id,
         ai_sentiment,
         ai_confidence_score,
-        users_profile!inner(user_id, full_name, avatar_url)
+        users_profile!feedback_user_id_fkey(user_id, full_name, avatar_url)
         `,
         { count: 'exact' }
       )
       .eq('product_id', id)
-      .in('status', ['approved', 'verified']);
+      .in('status', ['published']);
 
     // Apply sorting
     switch (sortBy) {
@@ -180,7 +180,7 @@ export async function GET(
         title: review.title || null,
         content: review.comment || '',
         created_at: review.created_at,
-        verified_purchase: review.verified_purchase || false,
+        verified_purchase: review.is_verified_purchase || false,
         ai_sentiment: review.ai_sentiment || null,
         ai_confidence_score:
           typeof review.ai_confidence_score === 'number' ? review.ai_confidence_score : null,

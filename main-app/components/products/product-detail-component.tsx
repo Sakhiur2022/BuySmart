@@ -568,12 +568,9 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
         }
 
         if (!response.ok || !payload || !('reviews' in payload)) {
-          setReviewsError(
-            (payload as { error?: string } | null)?.error ||
-              'Unable to load reviews right now.',
-          );
           setReviewList([]);
           setReviewsPagination(null);
+          setReviewsError(null);
           return;
         }
 
@@ -584,7 +581,9 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
           return;
         }
 
-        setReviewsError('Unable to load reviews right now.');
+        setReviewList([]);
+        setReviewsPagination(null);
+        setReviewsError(null);
       } finally {
         if (active) {
           setIsLoadingReviews(false);
