@@ -1,12 +1,11 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface CartItem {
   product_id: string;
@@ -36,50 +35,50 @@ function validateAddress(form: AddressForm): FormErrors {
   const errors: FormErrors = {};
 
   if (!form.full_name.trim()) {
-    errors.full_name = "Full name is required.";
+    errors.full_name = 'Full name is required.';
   } else if (form.full_name.trim().length < 2) {
-    errors.full_name = "Name must be at least 2 characters.";
+    errors.full_name = 'Name must be at least 2 characters.';
   }
 
   if (!form.street_address.trim()) {
-    errors.street_address = "Street address is required.";
+    errors.street_address = 'Street address is required.';
   } else if (form.street_address.trim().length < 5) {
-    errors.street_address = "Please enter a complete street address.";
+    errors.street_address = 'Please enter a complete street address.';
   }
 
   if (!form.city.trim()) {
-    errors.city = "City is required.";
+    errors.city = 'City is required.';
   }
 
   if (!form.postal_code.trim()) {
-    errors.postal_code = "Postal code is required.";
+    errors.postal_code = 'Postal code is required.';
   } else {
     const pattern = POSTAL_REGEX[form.country] ?? POSTAL_REGEX.DEFAULT;
     if (!pattern.test(form.postal_code.trim())) {
-      errors.postal_code = "Invalid postal code format for selected country.";
+      errors.postal_code = 'Invalid postal code format for selected country.';
     }
   }
 
   if (!form.country.trim()) {
-    errors.country = "Country is required.";
+    errors.country = 'Country is required.';
   }
 
   return errors;
 }
 
 async function checkStockAvailability(
-  supabase: ReturnType<typeof createClientComponentClient>,
-  cartItems: CartItem[]
+  supabase: ReturnType<typeof createClient>,
+  cartItems: CartItem[],
 ): Promise<{ ok: boolean; outOfStock: string[] }> {
   const productIds = cartItems.map((i) => i.product_id);
 
   const { data, error } = await supabase
-    .from("products")
-    .select("id, title, stock")
-    .in("id", productIds);
+    .from('products')
+    .select('id, title, stock')
+    .in('id', productIds);
 
   if (error || !data) {
-    return { ok: false, outOfStock: ["Unable to verify stock. Please try again."] };
+    return { ok: false, outOfStock: ['Unable to verify stock. Please try again.'] };
   }
 
   const outOfStock: string[] = [];
@@ -87,7 +86,7 @@ async function checkStockAvailability(
     const product = data.find((p) => p.id === item.product_id);
     if (!product || product.stock < item.quantity) {
       outOfStock.push(
-        `"${item.product_name}" — requested ${item.quantity}, only ${product?.stock ?? 0} available.`
+        `"${item.product_name}" — requested ${item.quantity}, only ${product?.stock ?? 0} available.`,
       );
     }
   }
@@ -106,14 +105,14 @@ interface CheckoutPageProps {
 
 export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   const [form, setForm] = useState<AddressForm>({
-    full_name: "",
-    street_address: "",
-    city: "",
-    postal_code: "",
-    country: "BD",
+    full_name: '',
+    street_address: '',
+    city: '',
+    postal_code: '',
+    country: 'BD',
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -121,14 +120,9 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  const subtotal = cartItems.reduce(
-    (sum, item) => sum + item.unit_price * item.quantity,
-    0
-  );
+  const subtotal = cartItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
 
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     if (errors[name as keyof AddressForm]) {
@@ -157,9 +151,9 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
         return;
       }
 
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           shipping_address: form,
           items: cartItems.map((i) => ({
@@ -172,16 +166,14 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
 
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.message ?? "Order creation failed.");
+        throw new Error(body.message ?? 'Order creation failed.');
       }
 
       const { order_id } = await res.json();
       router.push(`/orders/${order_id}/confirmation`);
     } catch (err: unknown) {
       setGlobalError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again."
+        err instanceof Error ? err.message : 'Something went wrong. Please try again.',
       );
     } finally {
       setIsSubmitting(false);
@@ -194,23 +186,21 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
         <h1 className="text-2xl font-semibold mb-8">Checkout</h1>
 
         {stockErrors.length > 0 && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>
-              <p className="font-medium mb-1">Some items are no longer available:</p>
-              <ul className="list-disc pl-4 space-y-1 text-sm">
-                {stockErrors.map((msg, i) => (
-                  <li key={i}>{msg}</li>
-                ))}
-              </ul>
-              <p className="text-sm mt-2">Update your cart before continuing.</p>
-            </AlertDescription>
-          </Alert>
+          <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive">
+            <p className="font-medium mb-1">Some items are no longer available:</p>
+            <ul className="list-disc pl-4 space-y-1 text-sm">
+              {stockErrors.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+            <p className="text-sm mt-2">Update your cart before continuing.</p>
+          </div>
         )}
 
         {globalError && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{globalError}</AlertDescription>
-          </Alert>
+          <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {globalError}
+          </div>
         )}
 
         <form onSubmit={handleSubmit} noValidate>
@@ -227,9 +217,7 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
                 placeholder="e.g. Sabrina Tabassum"
                 aria-invalid={!!errors.full_name}
                 className={
-                  errors.full_name
-                    ? "border-destructive focus-visible:ring-destructive"
-                    : ""
+                  errors.full_name ? 'border-destructive focus-visible:ring-destructive' : ''
                 }
               />
               <FieldError message={errors.full_name} />
@@ -245,9 +233,7 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
                 placeholder="e.g. 123 Bashundhara R/A"
                 aria-invalid={!!errors.street_address}
                 className={
-                  errors.street_address
-                    ? "border-destructive focus-visible:ring-destructive"
-                    : ""
+                  errors.street_address ? 'border-destructive focus-visible:ring-destructive' : ''
                 }
               />
               <FieldError message={errors.street_address} />
@@ -262,11 +248,7 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
                 onChange={handleChange}
                 placeholder="e.g. Dhaka"
                 aria-invalid={!!errors.city}
-                className={
-                  errors.city
-                    ? "border-destructive focus-visible:ring-destructive"
-                    : ""
-                }
+                className={errors.city ? 'border-destructive focus-visible:ring-destructive' : ''}
               />
               <FieldError message={errors.city} />
             </div>
@@ -279,12 +261,10 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
                   name="postal_code"
                   value={form.postal_code}
                   onChange={handleChange}
-                  placeholder={form.country === "BD" ? "e.g. 1229" : "e.g. 10001"}
+                  placeholder={form.country === 'BD' ? 'e.g. 1229' : 'e.g. 10001'}
                   aria-invalid={!!errors.postal_code}
                   className={
-                    errors.postal_code
-                      ? "border-destructive focus-visible:ring-destructive"
-                      : ""
+                    errors.postal_code ? 'border-destructive focus-visible:ring-destructive' : ''
                   }
                 />
                 <FieldError message={errors.postal_code} />
@@ -334,7 +314,7 @@ export default function CheckoutPage({ cartItems }: CheckoutPageProps) {
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             size="lg"
           >
-            {isSubmitting ? "Placing order…" : "Place order"}
+            {isSubmitting ? 'Placing order…' : 'Place order'}
           </Button>
         </form>
       </div>
