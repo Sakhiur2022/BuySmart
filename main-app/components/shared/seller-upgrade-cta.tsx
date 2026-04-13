@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { createClient } from '@/lib/supabase/client';
 
 type SellerUpgradeCtaProps = {
   isAuthenticated: boolean;
@@ -36,9 +35,7 @@ export function SellerUpgradeCta({
 }: SellerUpgradeCtaProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -52,33 +49,13 @@ export function SellerUpgradeCta({
     }
   };
 
-  const handleTriggerClick = async () => {
-    if (isSubmitting || isCheckingAuth) {
+  const handleTriggerClick = () => {
+    if (isSubmitting) {
       return;
     }
 
     setIsOpen(true);
     setErrorMessage(null);
-    setRequiresSignIn(false);
-
-    const hasKnownBuyerSession = userRole === 'buyer' || isAuthenticated;
-
-    if (hasKnownBuyerSession) {
-      return;
-    }
-
-    setIsCheckingAuth(true);
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.getUser();
-      const sessionUser = data.user;
-
-      if (error || !sessionUser?.id) {
-        setRequiresSignIn(true);
-      }
-    } finally {
-      setIsCheckingAuth(false);
-    }
   };
 
   const handleConfirmUpgrade = async () => {
@@ -90,56 +67,32 @@ export function SellerUpgradeCta({
     setErrorMessage(null);
 
     try {
-      const supabase = createClient();
-      let resolvedUserId = userId;
+      const response = await fetch('/api/seller/upgrade', { method: 'POST' });
 
-      if (!resolvedUserId) {
-        const { data, error } = await supabase.auth.getSession();
-        const sessionUser = data.session?.user;
-
-        if (error || !sessionUser?.id) {
-          throw new Error('Unable to verify your account. Please sign in again.');
-        }
-
-        resolvedUserId = sessionUser.id;
-      }
-
-      const { data: existingProfile, error: existingProfileError } = await supabase
-        .from('users_profile')
-        .select('role')
-        .eq('user_id', resolvedUserId)
-        .maybeSingle();
-
-      if (existingProfileError) {
-        throw existingProfileError;
-      }
-
-      if (existingProfile?.role === 'admin' || existingProfile?.role === 'moderator') {
+      if (response.status === 401) {
         setIsOpen(false);
-        router.replace('/');
-        router.refresh();
+        router.push('/auth/seller-sign-up');
         return;
       }
 
-      const { error: profileError } = await supabase
-        .from('users_profile')
-        .upsert({ user_id: resolvedUserId, role: 'seller' }, { onConflict: 'user_id' });
+      const payload = (await response.json()) as { ok?: boolean; error?: string };
 
-      if (profileError) {
-        throw profileError;
+      if (!response.ok || !payload.ok) {
+        if (payload.error === 'admin_or_moderator') {
+          setIsOpen(false);
+          router.replace('/');
+          router.refresh();
+          return;
+        }
+        throw new Error(payload.error || 'Unable to upgrade to seller.');
       }
-
-      await supabase.auth.updateUser({
-        data: {
-          role: 'seller',
-        },
-      });
 
       setIsOpen(false);
       router.replace('/seller');
       router.refresh();
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to switch roles.');
+      const errorMsg = error instanceof Error ? error.message : 'Unable to upgrade to seller';
+      setErrorMessage(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -155,19 +108,15 @@ export function SellerUpgradeCta({
           buttonClassName ?? 'h-auto p-0 font-semibold text-primary'
         }
         onClick={handleTriggerClick}
-        disabled={isCheckingAuth || isSubmitting}
+        disabled={isSubmitting}
       >
-        {isCheckingAuth ? 'Checking account...' : children ?? 'Sign up as a seller'}
+        {children ?? 'Sign up as a seller'}
       </Button>
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {requiresSignIn ? 'Sign in to become a seller' : 'Switch to a seller account?'}
-          </DialogTitle>
+          <DialogTitle className="text-2xl font-semibold">Switch to a seller account?</DialogTitle>
           <DialogDescription>
-            {requiresSignIn
-              ? 'Sign in to confirm your account before enabling seller tools.'
-              : 'We will update your profile so you can access seller tools and publish products.'}
+            Continue to unlock listing tools, inventory controls, and your seller dashboard.
           </DialogDescription>
         </DialogHeader>
 
@@ -181,10 +130,10 @@ export function SellerUpgradeCta({
               onClick={() => handleOpenChange(false)}
               disabled={isSubmitting}
             >
-              No
+              Not now
             </Button>
             <Button type="button" onClick={handleConfirmUpgrade} disabled={isSubmitting}>
-              {isSubmitting ? 'Switching...' : 'Yes'}
+              {isSubmitting ? 'Switching...' : 'Continue'}
             </Button>
           </>
         </DialogFooter>
