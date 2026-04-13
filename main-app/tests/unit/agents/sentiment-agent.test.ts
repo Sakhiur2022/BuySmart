@@ -28,6 +28,7 @@ describe('SentimentAgent', () => {
     const agent = new SentimentAgent();
 
     const result = await agent.run({
+      task: 'analyze_sentiment',
       payload: {
         feedbackId: 'fd-feedback-1',
         feedbackType: 'product_review',
@@ -48,6 +49,7 @@ describe('SentimentAgent', () => {
     const agent = new SentimentAgent();
 
     const result = await agent.run({
+      task: 'analyze_sentiment',
       payload: {
         feedbackId: 'fd-feedback-2',
         feedbackType: 'service_feedback',
