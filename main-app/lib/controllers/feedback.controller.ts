@@ -5,6 +5,7 @@ import type {
   FeedbackListResult,
   UpdateFeedbackInput,
 } from '@/lib/models/feedback.model';
+import type { FeedbackSentimentAnalysisResult } from '@/lib/types/feedback-sentiment.types';
 import {
   createFeedbackForUser,
   getFeedbackByIdForScope,
@@ -12,6 +13,7 @@ import {
   softDeleteFeedbackForScope,
   updateFeedbackForScope,
 } from '@/lib/services/feedback.service';
+import { analyzeFeedbackSentimentForScope } from '@/lib/services/feedback-analysis.service';
 
 export async function getFeedbackList(
   userId: string,
@@ -41,4 +43,11 @@ export async function updateFeedback(
 
 export async function deleteFeedback(userId: string, feedbackId: string): Promise<Feedback> {
   return softDeleteFeedbackForScope(userId, feedbackId);
+}
+
+export async function analyzeFeedbackSentiment(
+  userId: string,
+  feedbackId: string,
+): Promise<FeedbackSentimentAnalysisResult> {
+  return analyzeFeedbackSentimentForScope(userId, feedbackId);
 }

@@ -1,0 +1,187 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { ProductCard, Product } from '@/components/shared/product-card';
+
+const supabase = createClient();
+
+interface SearchState {
+  query: string;
+  category: string;
+}
+
+interface CategoryOption {
+  category_id: number;
+  name: string;
+}
+
+type RawImage = string | { url?: string };
+type RawProduct = {
+  product_id: string;
+  title?: string | null;
+  name?: string | null;
+  image_url?: string | null;
+  images?: RawImage[] | null;
+} & Record<string, unknown>;
+
+function resolveImageUrl(product: RawProduct): string | undefined {
+  if (typeof product.image_url === 'string' && product.image_url.trim()) {
+    return product.image_url;
+  }
+
+  const firstImage = product.images?.[0];
+  if (typeof firstImage === 'string') {
+    return firstImage;
+  }
+
+  if (firstImage && typeof firstImage.url === 'string') {
+    return firstImage.url;
+  }
+
+  return undefined;
+}
+
+export default function ProductController() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [search, setSearch] = useState<SearchState>({ query: '', category: 'All' });
+  const [categories, setCategories] = useState<CategoryOption[]>([
+    { category_id: -1, name: 'All' },
+  ]);
+
+  const loadCategories = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('category_id, name')
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+
+    if (!error && data) {
+      setCategories([{ category_id: -1, name: 'All' }, ...data]);
+    }
+  }, []);
+
+  const loadData = useCallback(
+    async (filters: SearchState) => {
+      setLoading(true);
+
+      let query = supabase.from('products').select('*');
+
+      if (filters.query.trim()) {
+        query = query.ilike('name', `%${filters.query}%`);
+      }
+
+      if (filters.category !== 'All') {
+        const selectedCategory = categories.find((category) => category.name === filters.category);
+        if (selectedCategory && selectedCategory.category_id !== -1) {
+          query = query.eq('category_id', selectedCategory.category_id);
+        }
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setProducts(
+          data.map((product: RawProduct) => ({
+            ...product,
+            id: product.product_id,
+            title: product.title ?? product.name ?? 'Untitled product',
+            image_url: resolveImageUrl(product),
+          })) as Product[],
+        );
+      } else {
+        setProducts([]);
+      }
+
+      setLoading(false);
+    },
+    [categories],
+  );
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => loadData(search), 300);
+    return () => window.clearTimeout(timer);
+  }, [search, loadData]);
+
+  return (
+    <div className="max-w-7xl mx-auto p-6 space-y-8">
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-sm md:flex-row">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Search items..."
+            value={search.query}
+            onChange={(event) => setSearch((prev) => ({ ...prev, query: event.target.value }))}
+            className="w-full rounded-md border border-input bg-background px-4 py-2 pr-10 text-foreground outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="pointer-events-none absolute left-3 top-2.5 text-muted-foreground">
+            🔍
+          </span>
+        </div>
+
+        <select
+          value={search.category}
+          onChange={(event) => setSearch((prev) => ({ ...prev, category: event.target.value }))}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none cursor-pointer"
+        >
+          {categories.map((category) => (
+            <option key={category.category_id} value={category.name}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex overflow-hidden rounded-md border border-input shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className={`px-4 py-2 text-sm transition-colors ${
+              viewMode === 'grid'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card text-card-foreground hover:bg-muted'
+            }`}
+          >
+            Grid
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`px-4 py-2 text-sm transition-colors ${
+              viewMode === 'list'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card text-card-foreground hover:bg-muted'
+            }`}
+          >
+            List
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-4 animate-pulse">
+          {[1, 2, 3, 4].map((index) => (
+            <div key={index} className="h-64 rounded-lg bg-muted" />
+          ))}
+        </div>
+      ) : (
+        <div
+          className={
+            viewMode === 'grid'
+              ? 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4'
+              : 'space-y-4'
+          }
+        >
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product} viewMode={viewMode} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
