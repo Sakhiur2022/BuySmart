@@ -29,6 +29,7 @@ export function CartManagement() {
   const [voucherInput, setVoucherInput] = useState('');
   const [voucherError, setVoucherError] = useState<string | null>(null);
   const [appliedVoucher, setAppliedVoucher] = useState<VoucherRule | null>(null);
+  const continueShoppingHref = '/buyer?mode=buyer';
 
   const totals = useMemo(() => {
     const totalItems = Number.isFinite(summary.totalItems)
@@ -147,7 +148,7 @@ export function CartManagement() {
               Looks like you have not added any products yet. Start browsing and build your cart.
             </p>
             <Button asChild>
-              <Link href="/buyer">Continue shopping</Link>
+              <Link href={continueShoppingHref}>Continue shopping</Link>
             </Button>
           </CardContent>
         </Card>
