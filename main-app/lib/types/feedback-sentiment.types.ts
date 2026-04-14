@@ -13,7 +13,10 @@ export interface FeedbackSentimentAgentPayload {
 }
 
 export interface FeedbackSentimentAgentOutput {
+  label: FeedbackAISentiment;
   sentiment: FeedbackAISentiment;
+  score: number;
+  confidence: number;
   confidenceScore: number;
   category: FeedbackAICategory;
   urgency: FeedbackAIUrgency;
@@ -32,7 +35,10 @@ export interface FeedbackSentimentPersistenceInput {
 
 export interface FeedbackSentimentAnalysisMetadata {
   feedbackId: string;
+  label: FeedbackAISentiment;
   sentiment: FeedbackAISentiment;
+  score: number;
+  confidence: number;
   confidenceScore: number;
   category: FeedbackAICategory;
   urgency: FeedbackAIUrgency;

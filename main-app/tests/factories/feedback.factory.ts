@@ -38,7 +38,10 @@ export function buildSentimentAgentOutput(
   overrides: Partial<FeedbackSentimentAgentOutput> = {},
 ): FeedbackSentimentAgentOutput {
   return {
+    label: 'positive',
     sentiment: 'positive',
+    score: 0.92,
+    confidence: 0.92,
     confidenceScore: 0.92,
     category: 'product_quality',
     urgency: 'low',
