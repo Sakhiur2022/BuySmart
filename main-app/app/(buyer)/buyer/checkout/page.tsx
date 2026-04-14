@@ -17,8 +17,11 @@ interface CartItem {
 
 interface AddressForm {
   full_name: string;
-  street_address: string;
+  phone: string;
+  address_line_1: string;
+  address_line_2: string;
   city: string;
+  state: string;
   postal_code: string;
   country: string;
 }
@@ -40,10 +43,16 @@ function validateAddress(form: AddressForm): FormErrors {
     errors.full_name = 'Name must be at least 2 characters.';
   }
 
-  if (!form.street_address.trim()) {
-    errors.street_address = 'Street address is required.';
-  } else if (form.street_address.trim().length < 5) {
-    errors.street_address = 'Please enter a complete street address.';
+  if (!form.phone.trim()) {
+    errors.phone = 'Phone number is required.';
+  } else if (form.phone.trim().length < 7) {
+    errors.phone = 'Please enter a valid phone number.';
+  }
+
+  if (!form.address_line_1.trim()) {
+    errors.address_line_1 = 'Street address is required.';
+  } else if (form.address_line_1.trim().length < 5) {
+    errors.address_line_1 = 'Please enter a complete street address.';
   }
 
   if (!form.city.trim()) {
@@ -74,8 +83,8 @@ async function checkStockAvailability(
 
   const { data, error } = await supabase
     .from('products')
-    .select('id, title, stock')
-    .in('id', productIds);
+    .select('product_id, name, inventory_quantity')
+    .in('product_id', productIds);
 
   if (error || !data) {
     return { ok: false, outOfStock: ['Unable to verify stock. Please try again.'] };
@@ -83,10 +92,10 @@ async function checkStockAvailability(
 
   const outOfStock: string[] = [];
   for (const item of cartItems) {
-    const product = data.find((p) => p.id === item.product_id);
-    if (!product || product.stock < item.quantity) {
+    const product = data.find((p) => p.product_id === item.product_id);
+    if (!product || product.inventory_quantity < item.quantity) {
       outOfStock.push(
-        `"${item.product_name}" — requested ${item.quantity}, only ${product?.stock ?? 0} available.`,
+        `"${item.product_name}" - requested ${item.quantity}, only ${product?.inventory_quantity ?? 0} available.`,
       );
     }
   }
@@ -117,8 +126,11 @@ export default function CheckoutPage() {
 
   const [form, setForm] = useState<AddressForm>({
     full_name: '',
-    street_address: '',
+    phone: '',
+    address_line_1: '',
+    address_line_2: '',
     city: '',
+    state: '',
     postal_code: '',
     country: 'BD',
   });
@@ -152,6 +164,11 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
+      if (cartItems.length === 0) {
+        setGlobalError('Your cart is empty. Add items before checkout.');
+        return;
+      }
+
       const { ok, outOfStock } = await checkStockAvailability(supabase, cartItems);
       if (!ok) {
         setStockErrors(outOfStock);
@@ -163,21 +180,26 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          source: 'cart',
           shipping_address: form,
-          items: cartItems.map((i) => ({
-            product_id: i.product_id,
-            quantity: i.quantity,
-            unit_price: i.unit_price,
-          })),
         }),
       });
 
       if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.message ?? 'Order creation failed.');
+        const body = (await res.json()) as { error?: string };
+        throw new Error(body.error ?? 'Order creation failed.');
       }
 
-      const { order_id } = await res.json();
+      const body = (await res.json()) as {
+        order?: { order_id?: string; order?: { order_id?: string } };
+        order_id?: string;
+      };
+      const order_id = body.order?.order_id ?? body.order?.order?.order_id ?? body.order_id;
+
+      if (!order_id) {
+        throw new Error('Order was created, but no order ID was returned.');
+      }
+
       router.push(`/orders/${order_id}/confirmation`);
     } catch (err: unknown) {
       setGlobalError(
@@ -238,19 +260,44 @@ export default function CheckoutPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="street_address">Street address</Label>
+              <Label htmlFor="phone">Phone number</Label>
               <Input
-                id="street_address"
-                name="street_address"
-                value={form.street_address}
+                id="phone"
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="e.g. +8801XXXXXXXXX"
+                aria-invalid={!!errors.phone}
+                className={errors.phone ? 'border-destructive focus-visible:ring-destructive' : ''}
+              />
+              <FieldError message={errors.phone} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="address_line_1">Street address</Label>
+              <Input
+                id="address_line_1"
+                name="address_line_1"
+                value={form.address_line_1}
                 onChange={handleChange}
                 placeholder="e.g. 123 Bashundhara R/A"
-                aria-invalid={!!errors.street_address}
+                aria-invalid={!!errors.address_line_1}
                 className={
-                  errors.street_address ? 'border-destructive focus-visible:ring-destructive' : ''
+                  errors.address_line_1 ? 'border-destructive focus-visible:ring-destructive' : ''
                 }
               />
-              <FieldError message={errors.street_address} />
+              <FieldError message={errors.address_line_1} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="address_line_2">Address line 2 (optional)</Label>
+              <Input
+                id="address_line_2"
+                name="address_line_2"
+                value={form.address_line_2}
+                onChange={handleChange}
+                placeholder="Apartment, suite, landmark"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -265,6 +312,18 @@ export default function CheckoutPage() {
                 className={errors.city ? 'border-destructive focus-visible:ring-destructive' : ''}
               />
               <FieldError message={errors.city} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="state">State/Division (optional)</Label>
+              <Input
+                id="state"
+                name="state"
+                value={form.state}
+                onChange={handleChange}
+                placeholder={form.country === 'BD' ? 'e.g. Dhaka' : 'e.g. New York'}
+              />
+              <FieldError message={errors.state} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
