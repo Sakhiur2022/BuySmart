@@ -116,6 +116,48 @@ describe('POST /api/orders', () => {
     expect(body.order.order_id).toBe('ord-created');
   });
 
+  it('returns 201 for cart source with schema-aligned address', async () => {
+    vi.mocked(requireAuthenticatedUser).mockResolvedValue({ userId: 'user-1' });
+    vi.mocked(createOrderFromInput).mockResolvedValue({
+      order: { order_id: 'ord-cart' },
+      items: [],
+      skipped_items: [],
+    } as never);
+
+    const req = new NextRequest('http://localhost/api/orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        source: 'cart',
+        shipping_address: {
+          full_name: 'Sakhiur Rahman',
+          phone: '+8801712345678',
+          address_line_1: '123 Bashundhara R/A',
+          city: 'Dhaka',
+          postal_code: '1229',
+          country: 'BD',
+        },
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(createOrderFromInput).toHaveBeenCalledWith('user-1', {
+      source: 'cart',
+      shipping_address: {
+        full_name: 'Sakhiur Rahman',
+        phone: '+8801712345678',
+        address_line_1: '123 Bashundhara R/A',
+        city: 'Dhaka',
+        postal_code: '1229',
+        country: 'BD',
+      },
+    });
+    expect(body.order.order.order_id).toBe('ord-cart');
+  });
+
   it('returns 400 for business error no valid items', async () => {
     vi.mocked(requireAuthenticatedUser).mockResolvedValue({ userId: 'user-1' });
     vi.mocked(createOrderFromInput).mockRejectedValue(
