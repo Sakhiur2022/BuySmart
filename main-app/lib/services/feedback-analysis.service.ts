@@ -27,9 +27,14 @@ function buildFeedbackText(title: string | null, comment: string | null): string
 }
 
 function toPersistenceInput(result: SentimentAnalysisResult): FeedbackSentimentPersistenceInput {
+  const rawConfidence = Number(result.confidence);
+  const fallbackConfidence = Number(result.confidenceScore);
+  const resolvedConfidence = Number.isFinite(rawConfidence) ? rawConfidence : fallbackConfidence;
+  const confidence = Math.max(0, Math.min(1, resolvedConfidence));
+
   return {
-    ai_sentiment: result.sentiment,
-    ai_confidence_score: Math.max(0, Math.min(1, Number(result.confidenceScore))),
+    ai_sentiment: result.label,
+    ai_confidence_score: confidence,
     ai_category: result.category,
     ai_urgency: result.urgency,
     ai_keywords: result.keySignals,
@@ -83,7 +88,10 @@ export async function analyzeFeedbackSentimentForScope(
     feedback: persisted,
     analysis: {
       feedbackId: feedback.feedback_id,
+      label: agentResult.result.label,
       sentiment: agentResult.result.sentiment,
+      score: agentResult.result.score,
+      confidence: agentResult.result.confidence,
       confidenceScore: agentResult.result.confidenceScore,
       category: agentResult.result.category,
       urgency: agentResult.result.urgency,
