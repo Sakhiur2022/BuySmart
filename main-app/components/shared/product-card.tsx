@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+
 export interface Product {
   product_id: string;
   id: string;
@@ -65,16 +67,18 @@ export function ProductCard({
     `}
     >
       <div
-        className={`${isList ? 'w-48' : 'w-full h-48'} overflow-hidden rounded-t-lg ${isList ? 'rounded-tr-none rounded-l-lg' : ''}`}
+        className={`${isList ? 'w-48' : 'w-full h-48'} relative overflow-hidden rounded-t-lg ${isList ? 'rounded-tr-none rounded-l-lg' : ''}`}
       >
-        <img
+        <Image
           src={getImageUrl(product)}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          alt=""
+          fill
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          alt={product.title}
+          unoptimized
         />
       </div>
 
-      <div className="p-4 flex flex-col justify-between flex-grow">
+      <div className="p-4 flex flex-col justify-between grow">
         <div>
           <h3 className="font-sans font-bold tracking-tight text-foreground line-clamp-1">
             {product.title}
