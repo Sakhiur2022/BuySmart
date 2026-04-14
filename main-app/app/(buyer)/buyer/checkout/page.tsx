@@ -28,6 +28,17 @@ interface AddressForm {
 
 type FormErrors = Partial<Record<keyof AddressForm, string>>;
 
+const BD_CITIES = [
+  'Dhaka',
+  'Chattogram',
+  'Khulna',
+  'Rajshahi',
+  'Sylhet',
+  'Barishal',
+  'Rangpur',
+  'Mymensingh',
+];
+
 const POSTAL_REGEX: Record<string, RegExp> = {
   US: /^\d{5}(-\d{4})?$/,
   BD: /^\d{4}$/,
@@ -139,6 +150,7 @@ export default function CheckoutPage() {
   const [stockErrors, setStockErrors] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'cash_on_delivery'>('cash_on_delivery');
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
 
@@ -182,6 +194,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           source: 'cart',
           shipping_address: form,
+          payment_method: paymentMethod,
         }),
       });
 
@@ -302,26 +315,34 @@ export default function CheckoutPage() {
 
             <div className="space-y-1.5">
               <Label htmlFor="city">City</Label>
-              <Input
+              <select
                 id="city"
                 name="city"
                 value={form.city}
                 onChange={handleChange}
-                placeholder="e.g. Dhaka"
                 aria-invalid={!!errors.city}
-                className={errors.city ? 'border-destructive focus-visible:ring-destructive' : ''}
-              />
+                className={`w-full h-10 rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 ${
+                  errors.city ? 'border-destructive focus-visible:ring-destructive' : ''
+                }`}
+              >
+                <option value="">Select a city</option>
+                {BD_CITIES.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
               <FieldError message={errors.city} />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="state">State/Division (optional)</Label>
+              <Label htmlFor="state">Area/Thana (optional)</Label>
               <Input
                 id="state"
                 name="state"
                 value={form.state}
                 onChange={handleChange}
-                placeholder={form.country === 'BD' ? 'e.g. Dhaka' : 'e.g. New York'}
+                placeholder="e.g. Gulshan"
               />
               <FieldError message={errors.state} />
             </div>
@@ -334,7 +355,7 @@ export default function CheckoutPage() {
                   name="postal_code"
                   value={form.postal_code}
                   onChange={handleChange}
-                  placeholder={form.country === 'BD' ? 'e.g. 1229' : 'e.g. 10001'}
+                  placeholder="e.g. 1229"
                   aria-invalid={!!errors.postal_code}
                   className={
                     errors.postal_code ? 'border-destructive focus-visible:ring-destructive' : ''
@@ -345,19 +366,28 @@ export default function CheckoutPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="country">Country</Label>
-                <select
-                  id="country"
-                  name="country"
-                  value={form.country}
-                  onChange={handleChange}
-                  className="w-full h-10 rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0"
-                >
-                  <option value="BD">Bangladesh</option>
-                  <option value="US">United States</option>
-                </select>
+                <Input id="country" value="Bangladesh" readOnly />
                 <FieldError message={errors.country} />
               </div>
             </div>
+          </div>
+
+          <div className="bg-card text-card-foreground border border-border rounded-lg shadow-sm p-6 mb-6 space-y-4">
+            <h2 className="text-base font-medium">Payment method</h2>
+            <label className="flex items-center gap-3 rounded-md border border-border bg-background px-4 py-3">
+              <input
+                type="radio"
+                name="payment_method"
+                value="cash_on_delivery"
+                checked={paymentMethod === 'cash_on_delivery'}
+                onChange={() => setPaymentMethod('cash_on_delivery')}
+                className="h-4 w-4"
+              />
+              <div>
+                <p className="text-sm font-semibold">Cash on delivery</p>
+                <p className="text-xs text-muted-foreground">Pay when the order arrives.</p>
+              </div>
+            </label>
           </div>
 
           <div className="bg-card text-card-foreground border border-border rounded-lg shadow-sm p-6 mb-6">
