@@ -128,12 +128,13 @@ function computeOrderNumber(): string {
 
 async function requireBuyerRole(userId: string): Promise<void> {
   const role = await fetchUserRole(userId);
+  const allowedRoles = new Set(['buyer', 'seller']);
 
   if (!role) {
     throw new Error('UNAUTHENTICATED');
   }
 
-  if (role !== 'buyer') {
+  if (!allowedRoles.has(role)) {
     throw new Error('FORBIDDEN');
   }
 }
