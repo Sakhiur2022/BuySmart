@@ -14,6 +14,20 @@ import type { FeedbackSentimentPersistenceInput } from '@/lib/types/feedback-sen
 type FeedbackInsert = Database['public']['Tables']['feedback']['Insert'];
 type FeedbackUpdate = Database['public']['Tables']['feedback']['Update'];
 
+export interface FeedbackInsightsFilters {
+  sellerId?: string;
+  fromDateIso?: string;
+}
+
+export interface FeedbackInsightsRecord {
+  feedback_id: string;
+  title: string | null;
+  comment: string | null;
+  created_at: string;
+  ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'];
+  ai_confidence_score: number | null;
+}
+
 export async function fetchUserRole(userId: string): Promise<UserRole | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -424,4 +438,96 @@ export async function updateFeedbackSentimentAnalysisById(
   }
 
   return data as Feedback;
+}
+
+export async function countPublishedFeedbackForInsights(
+  filters: FeedbackInsightsFilters,
+): Promise<number> {
+  const supabase = await createClient();
+
+  let sellerProductIds: string[] | null = null;
+  if (filters.sellerId) {
+    sellerProductIds = await fetchSellerOwnedProductIds(filters.sellerId);
+
+    if (sellerProductIds.length === 0) {
+      return 0;
+    }
+  }
+
+  let query = supabase
+    .from('feedback')
+    .select('feedback_id', { count: 'exact', head: true })
+    .eq('status', 'published');
+
+  if (sellerProductIds) {
+    query = query.in('product_id', sellerProductIds);
+  }
+
+  if (filters.fromDateIso) {
+    query = query.gte('created_at', filters.fromDateIso);
+  }
+
+  const { count, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
+}
+
+export async function fetchProcessedFeedbackForInsights(
+  filters: FeedbackInsightsFilters,
+): Promise<FeedbackInsightsRecord[]> {
+  const supabase = await createClient();
+
+  let sellerProductIds: string[] | null = null;
+  if (filters.sellerId) {
+    sellerProductIds = await fetchSellerOwnedProductIds(filters.sellerId);
+
+    if (sellerProductIds.length === 0) {
+      return [];
+    }
+  }
+
+  let query = supabase
+    .from('feedback')
+    .select('feedback_id, title, comment, created_at, ai_sentiment, ai_confidence_score')
+    .eq('status', 'published')
+    .not('ai_sentiment', 'is', null)
+    .not('ai_processed_at', 'is', null)
+    .order('created_at', { ascending: true });
+
+  if (sellerProductIds) {
+    query = query.in('product_id', sellerProductIds);
+  }
+
+  if (filters.fromDateIso) {
+    query = query.gte('created_at', filters.fromDateIso);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (
+    (data ?? []) as Array<
+      Omit<FeedbackInsightsRecord, 'ai_sentiment'> & {
+        ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'] | null;
+      }
+    >
+  )
+    .filter(
+      (
+        row,
+      ): row is Omit<FeedbackInsightsRecord, 'ai_sentiment'> & {
+        ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'];
+      } => row.ai_sentiment !== null,
+    )
+    .map((row) => ({
+      ...row,
+      ai_sentiment: row.ai_sentiment,
+    }));
 }
