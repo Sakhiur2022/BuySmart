@@ -374,8 +374,9 @@ export default function CheckoutPage() {
 
           <div className="bg-card text-card-foreground border border-border rounded-lg shadow-sm p-6 mb-6 space-y-4">
             <h2 className="text-base font-medium">Payment method</h2>
-            <label className="flex items-center gap-3 rounded-md border border-border bg-background px-4 py-3">
+            <div className="flex items-center gap-3 rounded-md border border-border bg-background px-4 py-3">
               <input
+                id="payment_cod"
                 type="radio"
                 name="payment_method"
                 value="cash_on_delivery"
@@ -383,11 +384,11 @@ export default function CheckoutPage() {
                 onChange={() => setPaymentMethod('cash_on_delivery')}
                 className="h-4 w-4"
               />
-              <div>
-                <p className="text-sm font-semibold">Cash on delivery</p>
-                <p className="text-xs text-muted-foreground">Pay when the order arrives.</p>
-              </div>
-            </label>
+              <Label htmlFor="payment_cod" className="cursor-pointer">
+                <span className="text-sm font-semibold">Cash on delivery</span>
+                <span className="block text-xs text-muted-foreground">Pay when the order arrives.</span>
+              </Label>
+            </div>
           </div>
 
           <div className="bg-card text-card-foreground border border-border rounded-lg shadow-sm p-6 mb-6">
