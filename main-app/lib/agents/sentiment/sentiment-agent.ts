@@ -8,21 +8,87 @@ import type {
   SentimentAnalysisResult,
 } from '@/lib/agents/sentiment/types';
 
-const responseSchema = z.object({
-  sentiment: z.enum(['positive', 'neutral', 'negative', 'mixed']),
-  confidenceScore: z.number().min(0).max(1),
-  category: z.enum([
-    'product_quality',
-    'delivery',
-    'customer_service',
-    'pricing',
-    'user_experience',
-    'other',
-  ]),
-  urgency: z.enum(['low', 'medium', 'high', 'critical']),
-  reasoningSummary: z.string().min(1).max(300),
-  keySignals: z.array(z.string().min(1).max(80)).max(8),
-});
+const SENTIMENT_LABELS = ['positive', 'neutral', 'negative', 'mixed'] as const;
+const FALLBACK_LABEL = 'neutral';
+const FALLBACK_CONFIDENCE = 0;
+const FALLBACK_SCORE = 0;
+const MAX_REASONING_LENGTH = 300;
+const MAX_KEY_SIGNALS = 8;
+const NEUTRAL_SCORE = 0;
+const MIXED_SCORE = 0;
+
+const responseSchema = z
+  .object({
+    label: z.enum(SENTIMENT_LABELS).optional(),
+    sentiment: z.enum(SENTIMENT_LABELS).optional(),
+    score: z.number().min(-1).max(1).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    confidenceScore: z.number().min(0).max(1).optional(),
+    category: z.enum([
+      'product_quality',
+      'delivery',
+      'customer_service',
+      'pricing',
+      'user_experience',
+      'other',
+    ]),
+    urgency: z.enum(['low', 'medium', 'high', 'critical']),
+    reasoningSummary: z.string().min(1).max(MAX_REASONING_LENGTH),
+    keySignals: z.array(z.string().min(1).max(80)).max(8),
+  })
+  .refine((value) => Boolean(value.label ?? value.sentiment), {
+    message: 'Either label or sentiment is required.',
+  });
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function normalizeConfidence(value: unknown): number {
+  return clamp(Number(value ?? FALLBACK_CONFIDENCE), 0, 1);
+}
+
+function deriveScoreFromLabel(
+  label: (typeof SENTIMENT_LABELS)[number],
+  confidence: number,
+): number {
+  switch (label) {
+    case 'positive':
+      return confidence;
+    case 'negative':
+      return -confidence;
+    case 'neutral':
+      return NEUTRAL_SCORE;
+    case 'mixed':
+      return MIXED_SCORE;
+    default:
+      return FALLBACK_SCORE;
+  }
+}
+
+function normalizeScore(
+  label: (typeof SENTIMENT_LABELS)[number],
+  score: unknown,
+  confidence: number,
+): number {
+  const hasExplicitScore = Number.isFinite(Number(score));
+
+  if (!hasExplicitScore) {
+    return deriveScoreFromLabel(label, confidence);
+  }
+
+  const parsedScore = clamp(Number(score), -1, 1);
+
+  if (label === 'positive') {
+    return Math.abs(parsedScore);
+  }
+
+  if (label === 'negative') {
+    return -Math.abs(parsedScore);
+  }
+
+  return MIXED_SCORE;
+}
 
 export class SentimentAgent extends BaseAgent<SentimentAnalysisPayload, SentimentAnalysisResult> {
   readonly name = 'sentiment';
@@ -33,8 +99,9 @@ export class SentimentAgent extends BaseAgent<SentimentAnalysisPayload, Sentimen
 
 Return JSON only with this exact structure:
 {
-  "sentiment": "positive | neutral | negative | mixed",
-  "confidenceScore": 0.0,
+  "label": "positive | neutral | negative | mixed",
+  "score": -1.0,
+  "confidence": 0.0,
   "category": "product_quality | delivery | customer_service | pricing | user_experience | other",
   "urgency": "low | medium | high | critical",
   "reasoningSummary": "brief explanation under 300 chars",
@@ -43,7 +110,8 @@ Return JSON only with this exact structure:
 
 Rules:
 - Base sentiment strictly on provided feedback text.
-- confidenceScore must be between 0 and 1.
+- score must be between -1 and 1.
+- confidence must be between 0 and 1.
 - reasoningSummary must be concise, factual, and non-sensitive.
 - keySignals should be short phrases and include only strongest cues.`;
 
@@ -54,11 +122,17 @@ Rules:
     }
 
     return {
-      sentiment: 'neutral',
-      confidenceScore: 0,
+      label: FALLBACK_LABEL,
+      sentiment: FALLBACK_LABEL,
+      score: FALLBACK_SCORE,
+      confidence: FALLBACK_CONFIDENCE,
+      confidenceScore: FALLBACK_CONFIDENCE,
       category: 'other',
       urgency: 'low',
-      reasoningSummary: (output.trim() || 'Sentiment analysis unavailable.').slice(0, 300),
+      reasoningSummary: (output.trim() || 'Sentiment analysis unavailable.').slice(
+        0,
+        MAX_REASONING_LENGTH,
+      ),
       keySignals: [],
     };
   }
@@ -72,13 +146,23 @@ Rules:
       try {
         const parsed = JSON.parse(candidate);
         const validated = responseSchema.parse(parsed);
+        const label = (validated.label ?? validated.sentiment ?? FALLBACK_LABEL) as
+          | 'positive'
+          | 'neutral'
+          | 'negative'
+          | 'mixed';
+        const confidence = normalizeConfidence(validated.confidence ?? validated.confidenceScore);
+        const score = normalizeScore(label, validated.score, confidence);
 
         return {
-          sentiment: validated.sentiment,
-          confidenceScore: Math.max(0, Math.min(1, Number(validated.confidenceScore))),
+          label,
+          sentiment: label,
+          score,
+          confidence,
+          confidenceScore: confidence,
           category: validated.category,
           urgency: validated.urgency,
-          reasoningSummary: validated.reasoningSummary.trim().slice(0, 300),
+          reasoningSummary: validated.reasoningSummary.trim().slice(0, MAX_REASONING_LENGTH),
           keySignals: this.normalizeSignals(validated.keySignals),
         };
       } catch {
@@ -111,7 +195,7 @@ Rules:
         signals
           .map((signal) => signal.trim())
           .filter((signal) => signal.length > 0)
-          .slice(0, 8),
+          .slice(0, MAX_KEY_SIGNALS),
       ),
     );
   }

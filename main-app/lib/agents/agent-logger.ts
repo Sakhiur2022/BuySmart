@@ -1,6 +1,6 @@
-import type { AgentInput, AgentResult, IAgent } from "@/lib/agents/types";
-import { getServiceRoleSupabase } from "@/lib/supabase/service-role";
-import type { Database, Json } from "@/lib/types/database.types";
+import type { AgentInput, AgentResult, IAgent } from '@/lib/agents/types';
+import { getServiceRoleSupabase } from '@/lib/supabase/service-role';
+import type { Database, Json } from '@/lib/types/database.types';
 
 interface AgentLogParams<TPayload, TResult> {
   agent: IAgent<TPayload, TResult>;
@@ -30,6 +30,15 @@ function extractConfidence(result: unknown): number | null {
     typeof (result as { confidence: unknown }).confidence === 'number'
   ) {
     return (result as { confidence: number }).confidence;
+  }
+
+  if (
+    result &&
+    typeof result === 'object' &&
+    'confidenceScore' in result &&
+    typeof (result as { confidenceScore: unknown }).confidenceScore === 'number'
+  ) {
+    return (result as { confidenceScore: number }).confidenceScore;
   }
 
   return null;
@@ -67,7 +76,7 @@ export class AgentLogger {
   async log<TPayload, TResult>(params: AgentLogParams<TPayload, TResult>): Promise<void> {
     if (!this.supabase) {
       if (!this.missingSupabaseLogged) {
-        console.warn("Agent logging is disabled because the service role client is unavailable.");
+        console.warn('Agent logging is disabled because the service role client is unavailable.');
         this.missingSupabaseLogged = true;
       }
       return;
@@ -90,7 +99,7 @@ export class AgentLogger {
       status: result.success ? 'success' : 'failure',
       error_message: result.success
         ? null
-        : result.errorMessage ?? extractErrorMessage(result.result),
+        : (result.errorMessage ?? extractErrorMessage(result.result)),
       entity_type: 'agent',
       entity_id: null,
       metadata: toJson({
