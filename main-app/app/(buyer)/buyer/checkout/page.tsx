@@ -122,7 +122,7 @@ function FieldError({ message }: { message?: string }) {
 export default function CheckoutPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { items, isLoading: isCartLoading, error: cartError } = useCart();
+  const { items, isLoading: isCartLoading, error: cartError, clearCart } = useCart();
 
   const cartItems = useMemo<CartItem[]>(
     () =>
@@ -193,6 +193,10 @@ export default function CheckoutPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source: 'cart',
+          items: cartItems.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+          })),
           shipping_address: form,
           payment_method: paymentMethod,
         }),
@@ -213,6 +217,7 @@ export default function CheckoutPage() {
         throw new Error('Order was created, but no order ID was returned.');
       }
 
+      clearCart();
       router.push(`/orders/${order_id}/confirmation`);
     } catch (err: unknown) {
       setGlobalError(
