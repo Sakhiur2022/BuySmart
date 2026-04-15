@@ -24,6 +24,8 @@ export interface FeedbackInsightsRecord {
   title: string | null;
   comment: string | null;
   created_at: string;
+  product_id: string | null;
+  product_name: string | null;
   ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'];
   ai_confidence_score: number | null;
 }
@@ -492,7 +494,9 @@ export async function fetchProcessedFeedbackForInsights(
 
   let query = supabase
     .from('feedback')
-    .select('feedback_id, title, comment, created_at, ai_sentiment, ai_confidence_score')
+    .select(
+      'feedback_id, title, comment, created_at, ai_sentiment, ai_confidence_score, product_id, products(name)',
+    )
     .eq('status', 'published')
     .not('ai_sentiment', 'is', null)
     .not('ai_processed_at', 'is', null)
@@ -514,20 +518,26 @@ export async function fetchProcessedFeedbackForInsights(
 
   return (
     (data ?? []) as Array<
-      Omit<FeedbackInsightsRecord, 'ai_sentiment'> & {
+      Omit<FeedbackInsightsRecord, 'ai_sentiment' | 'product_name'> & {
         ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'] | null;
+        products?: { name?: string | null } | Array<{ name?: string | null }> | null;
       }
     >
   )
     .filter(
       (
         row,
-      ): row is Omit<FeedbackInsightsRecord, 'ai_sentiment'> & {
+      ): row is Omit<FeedbackInsightsRecord, 'ai_sentiment' | 'product_name'> & {
         ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'];
+        products?: { name?: string | null } | Array<{ name?: string | null }> | null;
       } => row.ai_sentiment !== null,
     )
-    .map((row) => ({
-      ...row,
-      ai_sentiment: row.ai_sentiment,
-    }));
+    .map((row) => {
+      const productData = Array.isArray(row.products) ? row.products[0] : row.products;
+      return {
+        ...row,
+        ai_sentiment: row.ai_sentiment,
+        product_name: productData?.name ?? null,
+      };
+    });
 }

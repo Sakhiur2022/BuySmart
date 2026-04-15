@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   SalesOverviewChart,
   type SalesOverviewPoint,
@@ -351,65 +352,121 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
                 {feedbackInsightsError}
               </div>
             ) : feedbackInsights ? (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg border bg-muted/20 px-4 py-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Feedback Volume
-                    </p>
-                    <p className="mt-2 text-2xl font-semibold">
-                      {formatNumber(feedbackInsights.totalFeedbackCount)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Classified: {formatNumber(feedbackInsights.sentimentBreakdown.totalClassified)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/20 px-4 py-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Avg Sentiment Score
-                    </p>
-                    <div className="mt-2 flex items-baseline gap-3">
-                      <p className="text-2xl font-semibold">
-                        {feedbackInsights.averageSentimentScore.toFixed(2)}
+              <Tabs defaultValue="overall" className="space-y-4">
+                <TabsList className="w-full justify-start">
+                  <TabsTrigger value="overall">Overall</TabsTrigger>
+                  <TabsTrigger value="products">Per product</TabsTrigger>
+                </TabsList>
+                <TabsContent value="overall" className="space-y-6">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg border bg-muted/20 px-4 py-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Feedback Volume
                       </p>
-                      {scoreLabel ? (
-                        <span className={`text-xs font-semibold ${scoreLabel.className}`}>
-                          {scoreLabel.label}
-                        </span>
-                      ) : null}
+                      <p className="mt-2 text-2xl font-semibold">
+                        {formatNumber(feedbackInsights.totalFeedbackCount)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Classified: {formatNumber(feedbackInsights.sentimentBreakdown.totalClassified)}
+                      </p>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">Scale -1 to 1</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {(['positive', 'neutral', 'negative', 'mixed'] as const).map((sentiment) => {
-                    const metric = feedbackInsights.sentimentBreakdown[sentiment];
-                    const meta = SENTIMENT_META[sentiment];
-                    const percentage = Math.min(100, Math.max(0, metric.percentage));
-
-                    return (
-                      <div key={sentiment} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
-                            <span className="font-medium text-foreground">{meta.label}</span>
-                          </div>
-                          <span className="text-muted-foreground">
-                            {formatNumber(metric.count)} ({formatPercentage(percentage)}%)
+                    <div className="rounded-lg border bg-muted/20 px-4 py-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Avg Sentiment Score
+                      </p>
+                      <div className="mt-2 flex items-baseline gap-3">
+                        <p className="text-2xl font-semibold">
+                          {feedbackInsights.averageSentimentScore.toFixed(2)}
+                        </p>
+                        {scoreLabel ? (
+                          <span className={`text-xs font-semibold ${scoreLabel.className}`}>
+                            {scoreLabel.label}
                           </span>
-                        </div>
-                        <div className="h-2 rounded-full bg-muted">
-                          <div
-                            className={`h-2 rounded-full ${meta.dot}`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
+                        ) : null}
                       </div>
-                    );
-                  })}
-                </div>
-              </>
+                      <p className="mt-1 text-xs text-muted-foreground">Scale -1 to 1</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {(['positive', 'neutral', 'negative', 'mixed'] as const).map((sentiment) => {
+                      const metric = feedbackInsights.sentimentBreakdown[sentiment];
+                      const meta = SENTIMENT_META[sentiment];
+                      const percentage = Math.min(100, Math.max(0, metric.percentage));
+
+                      return (
+                        <div key={sentiment} className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
+                              <span className="font-medium text-foreground">{meta.label}</span>
+                            </div>
+                            <span className="text-muted-foreground">
+                              {formatNumber(metric.count)} ({formatPercentage(percentage)}%)
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted">
+                            <div
+                              className={`h-2 rounded-full ${meta.dot}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TabsContent>
+                <TabsContent value="products" className="space-y-4">
+                  {feedbackInsights.perProductSummaries.length === 0 ? (
+                    <div className="rounded-xl border border-dashed bg-muted/30 px-6 py-10 text-center text-sm text-muted-foreground">
+                      No product feedback yet. Per-product breakdown will appear here.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                            <th className="px-3 py-2">Product</th>
+                            <th className="px-3 py-2">Positive</th>
+                            <th className="px-3 py-2">Neutral</th>
+                            <th className="px-3 py-2">Negative</th>
+                            <th className="px-3 py-2">Mixed</th>
+                            <th className="px-3 py-2">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {feedbackInsights.perProductSummaries.map((summary) => (
+                            <tr key={summary.productId} className="border-b last:border-b-0">
+                              <td className="px-3 py-3 font-medium text-foreground">
+                                {summary.productName}
+                              </td>
+                              <td className="px-3 py-3 text-muted-foreground">
+                                {formatNumber(summary.sentimentBreakdown.positive.count)} (
+                                {formatPercentage(summary.sentimentBreakdown.positive.percentage)}%)
+                              </td>
+                              <td className="px-3 py-3 text-muted-foreground">
+                                {formatNumber(summary.sentimentBreakdown.neutral.count)} (
+                                {formatPercentage(summary.sentimentBreakdown.neutral.percentage)}%)
+                              </td>
+                              <td className="px-3 py-3 text-muted-foreground">
+                                {formatNumber(summary.sentimentBreakdown.negative.count)} (
+                                {formatPercentage(summary.sentimentBreakdown.negative.percentage)}%)
+                              </td>
+                              <td className="px-3 py-3 text-muted-foreground">
+                                {formatNumber(summary.sentimentBreakdown.mixed.count)} (
+                                {formatPercentage(summary.sentimentBreakdown.mixed.percentage)}%)
+                              </td>
+                              <td className="px-3 py-3 text-foreground">
+                                {formatNumber(summary.totalClassified)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             ) : (
               <div className="rounded-xl border border-dashed bg-muted/30 px-6 py-10 text-center text-sm text-muted-foreground">
                 No feedback insights yet. Check back once customers leave reviews.

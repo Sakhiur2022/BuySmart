@@ -58,11 +58,25 @@ export interface FeedbackInsightsResponse {
     mixed: SentimentMetric;
   };
   averageSentimentScore: number;
+  perProductSummaries: ProductSentimentSummary[];
   highlights: {
     positive: FeedbackHighlight[];
     negative: FeedbackHighlight[];
   };
   trend: FeedbackTrendPoint[];
+}
+
+export interface ProductSentimentSummary {
+  productId: string;
+  productName: string;
+  totalClassified: number;
+  sentimentBreakdown: {
+    positive: SentimentMetric;
+    neutral: SentimentMetric;
+    negative: SentimentMetric;
+    mixed: SentimentMetric;
+  };
+  averageSentimentScore: number;
 }
 
 const sentimentMetricSchema = z.object({
@@ -87,6 +101,19 @@ const feedbackTrendPointSchema = z.object({
   averageSentimentScore: z.number().min(-1).max(1),
 });
 
+const productSentimentSummarySchema = z.object({
+  productId: z.string().uuid(),
+  productName: z.string().min(1),
+  totalClassified: z.number().int().min(0),
+  sentimentBreakdown: z.object({
+    positive: sentimentMetricSchema,
+    neutral: sentimentMetricSchema,
+    negative: sentimentMetricSchema,
+    mixed: sentimentMetricSchema,
+  }),
+  averageSentimentScore: z.number().min(-1).max(1),
+});
+
 export const feedbackInsightsResponseSchema = z.object({
   timeframe: insightsTimeframeSchema,
   scope: z.object({
@@ -103,6 +130,7 @@ export const feedbackInsightsResponseSchema = z.object({
     mixed: sentimentMetricSchema,
   }),
   averageSentimentScore: z.number().min(-1).max(1),
+  perProductSummaries: z.array(productSentimentSummarySchema),
   highlights: z.object({
     positive: z.array(feedbackHighlightSchema),
     negative: z.array(feedbackHighlightSchema),
