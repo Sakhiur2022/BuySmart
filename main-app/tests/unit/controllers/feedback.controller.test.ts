@@ -17,7 +17,10 @@ describe('analyzeFeedbackSentiment controller', () => {
       feedback,
       analysis: {
         feedbackId: feedback.feedback_id,
+        label: 'positive',
         sentiment: 'positive',
+        score: 0.91,
+        confidence: 0.91,
         confidenceScore: 0.91,
         category: 'product_quality',
         urgency: 'low',

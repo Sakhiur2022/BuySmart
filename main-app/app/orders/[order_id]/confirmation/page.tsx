@@ -12,9 +12,12 @@ interface OrderItem {
 
 interface ShippingAddress {
   full_name: string;
-  street_address: string;
+  phone: string;
+  address_line_1: string;
+  address_line_2?: string | null;
   city: string;
-  postal_code: string;
+  state?: string | null;
+  postal_code?: string | null;
   country: string;
 }
 
@@ -90,7 +93,8 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
   const { order, items } = fetched;
   const shippingAddress = (order.shipping_address as ShippingAddress | null) ?? {
     full_name: '',
-    street_address: '',
+    phone: '',
+    address_line_1: '',
     city: '',
     postal_code: '',
     country: '',
@@ -158,16 +162,41 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
         </div>
 
         <div className="bg-card text-card-foreground border border-border rounded-lg shadow-sm p-5 mb-8 text-sm">
-          <h2 className="font-medium mb-2">Shipping to</h2>
-          <address className="not-italic text-muted-foreground leading-relaxed">
-            {shippingAddress.full_name}
-            <br />
-            {shippingAddress.street_address}
-            <br />
-            {shippingAddress.city}, {shippingAddress.postal_code}
-            <br />
-            {COUNTRY_LABELS[shippingAddress.country] ?? shippingAddress.country}
-          </address>
+          <h2 className="font-medium mb-3">Shipping to</h2>
+          <div className="space-y-2 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs font-medium mb-0.5">Name</p>
+              <p>{shippingAddress.full_name}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs font-medium mb-0.5">Phone</p>
+              <p>{shippingAddress.phone}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs font-medium mb-0.5">Address</p>
+              <address className="not-italic">
+                {shippingAddress.address_line_1}
+                {shippingAddress.address_line_2 && (
+                  <>
+                    <br />
+                    {shippingAddress.address_line_2}
+                  </>
+                )}
+              </address>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs font-medium mb-0.5">City/Area</p>
+              <p>{shippingAddress.city}{shippingAddress.state && `, ${shippingAddress.state}`}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs font-medium mb-0.5">Postal Code</p>
+              <p>{shippingAddress.postal_code}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs font-medium mb-0.5">Country</p>
+              <p>{COUNTRY_LABELS[shippingAddress.country] ?? shippingAddress.country}</p>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">

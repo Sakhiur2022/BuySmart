@@ -4,6 +4,7 @@ import { CartManagement } from '@/components/cart/cart-management';
 import { Button } from '@/components/ui/button';
 
 export default function BuyerCartPage() {
+  const continueShoppingHref = '/buyer?mode=buyer';
   return (
     <div className="space-y-6">
       <section className="rounded-xl border bg-linear-to-r from-primary/10 via-card to-card p-6 shadow-sm sm:p-8">
@@ -15,7 +16,7 @@ export default function BuyerCartPage() {
             </p>
           </div>
           <Button asChild variant="outline">
-            <Link href="/buyer">
+            <Link href={continueShoppingHref}>
               <ShoppingBag className="mr-2 h-4 w-4" />
               Continue shopping
             </Link>

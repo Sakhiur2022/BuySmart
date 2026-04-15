@@ -191,7 +191,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from('feedback')
       .select('rating')
       .eq('product_id', id)
-      .in('status', ['approved', 'verified']);
+      .in('status', ['published']);
 
     const reviewStats: ReviewStats = {
       average_rating: 0,
