@@ -133,6 +133,7 @@ export async function GET(request: NextRequest) {
     const result = await getFeedbackList(userId, parsed.data);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
+    console.error('Feedback API GET error:', error);
     const { status, body } = formatFeedbackErrorResponse(error);
     return NextResponse.json(body, { status });
   }
@@ -163,6 +164,7 @@ export async function POST(request: NextRequest) {
     const feedback = await createFeedbackController(userId, parsed.data);
     return NextResponse.json({ feedback }, { status: 201 });
   } catch (error) {
+    console.error('Feedback API POST error:', error);
     const { status, body } = formatFeedbackErrorResponse(error);
     return NextResponse.json(body, { status });
   }

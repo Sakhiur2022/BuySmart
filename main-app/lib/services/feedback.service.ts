@@ -118,7 +118,7 @@ async function assertReadAccess(scope: FeedbackViewerScope, feedback: Feedback):
 }
 
 function assertCanCreate(scope: FeedbackViewerScope): void {
-  if (scope.role !== 'buyer') {
+  if (scope.role !== 'buyer' && scope.role !== 'seller') {
     throw new Error('FORBIDDEN');
   }
 }
