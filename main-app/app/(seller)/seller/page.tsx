@@ -9,6 +9,10 @@ import {
   SalesOverviewChart,
   type SalesOverviewPoint,
 } from '@/components/seller/sales-overview-chart';
+import {
+  DeliveryQueue,
+  type DeliveryQueueItem,
+} from '@/components/seller/delivery-queue';
 import { DeleteProductForm } from '@/components/seller/delete-product-form';
 import { getFeedbackInsightsForUser } from '@/lib/services/insights.service';
 import { createClient } from '@/lib/supabase/server';
@@ -188,6 +192,16 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
     .order('created_at', { ascending: false })
     .limit(6);
 
+  const { data: deliveryQueueData } = await supabase
+    .from('order_items')
+    .select(
+      'order_item_id, order_id, status, created_at, products(name), orders(order_number, users_profile(full_name, display_name))',
+    )
+    .eq('seller_id', user.id)
+    .in('status', ['pending', 'confirmed', 'shipped'])
+    .order('created_at', { ascending: false })
+    .limit(8);
+
   let feedbackInsights = null;
   let feedbackInsightsError: string | null = null;
 
@@ -207,6 +221,27 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
   const products = productsData ?? [];
   const orderItems = orderItemsData ?? [];
   const recentOrders = recentOrderItemsData ?? [];
+  const deliveryQueueItems: DeliveryQueueItem[] = (deliveryQueueData ?? []).map((item) => {
+    const productName = item.products?.[0]?.name ?? 'Product';
+    const orderMeta = (item as { orders?: { order_number?: string; users_profile?: unknown } })
+      .orders;
+    const profile =
+      (orderMeta?.users_profile as Array<{ full_name: string | null; display_name: string | null }> | undefined)?.[0] ??
+      (item as { users_profile?: Array<{ full_name: string | null; display_name: string | null }> })
+        .users_profile?.[0] ??
+      null;
+    const orderNumber = orderMeta?.order_number ?? item.order_number ?? item.order_id;
+
+    return {
+      orderItemId: item.order_item_id,
+      orderId: item.order_id,
+      orderNumber,
+      productName,
+      customerName: resolveCustomerName(profile),
+      status: String(item.status ?? 'processing'),
+      createdAt: item.created_at,
+    };
+  });
 
   const resolvedSearchParams = await searchParams;
   const deleted = getSearchValue(resolvedSearchParams?.deleted);
@@ -619,6 +654,17 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
                 </table>
               </div>
             )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Delivery Confirmation</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DeliveryQueue items={deliveryQueueItems} />
           </CardContent>
         </Card>
       </section>
