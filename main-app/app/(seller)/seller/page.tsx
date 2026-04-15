@@ -230,7 +230,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
       (item as { users_profile?: Array<{ full_name: string | null; display_name: string | null }> })
         .users_profile?.[0] ??
       null;
-    const orderNumber = orderMeta?.order_number ?? item.order_number ?? item.order_id;
+    const orderNumber = orderMeta?.order_number ?? item.order_id;
 
     return {
       orderItemId: item.order_item_id,
