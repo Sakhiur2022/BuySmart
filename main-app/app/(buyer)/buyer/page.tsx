@@ -12,7 +12,6 @@ import { getBuyerProductsAction } from '@/lib/actions/buyer-products.actions';
 import { getActiveCategories } from '@/lib/controllers/category.controller';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import ProductListingPage from '@/components/products/product-listing-page';
 import { Suspense } from 'react';
 
@@ -45,33 +44,6 @@ function isBuyerMode(value: string | null): boolean {
   return value === 'buyer' || value === '1' || value === 'true';
 }
 
-function hasBuyerBrowseParams(
-  params:
-    | {
-        page?: string;
-        pageSize?: string;
-        priceMin?: string;
-        priceMax?: string;
-        categoryId?: string;
-        q?: string;
-        search?: string;
-      }
-    | undefined,
-): boolean {
-  if (!params) {
-    return false;
-  }
-
-  return Boolean(
-    params.page ||
-    params.pageSize ||
-    params.priceMin ||
-    params.priceMax ||
-    params.categoryId ||
-    params.q ||
-    params.search,
-  );
-}
 
 function parseOptionalNumber(value: string | undefined): number | undefined {
   if (!value) {
@@ -117,7 +89,6 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
   const buyerMode = getSearchValue(resolvedSearchParams?.mode);
   const searchQuery = resolvedSearchParams?.q ?? resolvedSearchParams?.search;
   const allowSellerView = isBuyerMode(buyerMode);
-  const hasBrowseParams = hasBuyerBrowseParams(resolvedSearchParams);
 
   let role: string | null = null;
   let profileName: string | null = null;
@@ -132,9 +103,6 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
     role = profile?.role ?? null;
     profileName = profile?.display_name || profile?.full_name || null;
 
-    if (role === 'seller' && !allowSellerView && !hasBrowseParams) {
-      redirect('/seller');
-    }
   }
 
   const isAuthenticated = Boolean(user);
