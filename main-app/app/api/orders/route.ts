@@ -68,6 +68,10 @@ function formatOrderErrorResponse(error: unknown): {
   body: { error: string };
 } {
   if (error instanceof Error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('Order API error:', error);
+    }
+
     if (error.message === 'UNAUTHENTICATED') {
       return { status: 401, body: { error: 'Unauthorized: Not authenticated' } };
     }
@@ -89,6 +93,10 @@ function formatOrderErrorResponse(error: unknown): {
     ) {
       return { status: 400, body: { error: error.message } };
     }
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Order API unknown error:', error);
   }
 
   return { status: 500, body: { error: 'Internal server error' } };

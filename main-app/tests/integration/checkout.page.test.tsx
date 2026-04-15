@@ -110,6 +110,7 @@ describe('Checkout page cart -> order integration', () => {
 
     expect(payload).toMatchObject({
       source: 'cart',
+      items: [{ product_id: 'p-1', quantity: 2 }],
       shipping_address: {
         full_name: 'Sakhiur Rahman',
         phone: '+8801712345678',
@@ -119,7 +120,6 @@ describe('Checkout page cart -> order integration', () => {
         country: 'BD',
       },
     });
-    expect(payload.items).toBeUndefined();
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith('/orders/ord-123/confirmation');

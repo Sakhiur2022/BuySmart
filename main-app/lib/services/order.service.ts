@@ -128,12 +128,13 @@ function computeOrderNumber(): string {
 
 async function requireBuyerRole(userId: string): Promise<void> {
   const role = await fetchUserRole(userId);
+  const allowedRoles = new Set(['buyer', 'seller']);
 
   if (!role) {
     throw new Error('UNAUTHENTICATED');
   }
 
-  if (role !== 'buyer') {
+  if (!allowedRoles.has(role)) {
     throw new Error('FORBIDDEN');
   }
 }
@@ -148,7 +149,8 @@ async function getSourceItems(
 
   const cart = await fetchCartByUserId(userId);
   if (!cart) {
-    return { cartId: null, items: [] };
+    const fallbackItems = normalizeDirectItems(input.items);
+    return { cartId: null, items: fallbackItems };
   }
 
   const cartItems = await fetchCartItems(cart.cart_id);
@@ -157,6 +159,13 @@ async function getSourceItems(
     .filter(
       (item) => item.product_id.length > 0 && Number.isFinite(item.quantity) && item.quantity > 0,
     );
+
+  if (items.length === 0) {
+    const fallbackItems = normalizeDirectItems(input.items);
+    if (fallbackItems.length > 0) {
+      return { cartId: cart.cart_id, items: fallbackItems };
+    }
+  }
 
   return { cartId: cart.cart_id, items };
 }
