@@ -57,6 +57,8 @@ export interface BuyerOrderListFilters {
   page: number;
   pageSize: number;
   status?: OrderStatus;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface BuyerOrderListResult {

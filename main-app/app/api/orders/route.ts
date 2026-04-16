@@ -61,6 +61,8 @@ const getOrdersQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).optional().default(DEFAULT_PAGE_SIZE),
   status: z.enum(ORDER_STATUS_VALUES).optional(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 function formatOrderErrorResponse(error: unknown): {
@@ -111,6 +113,8 @@ export async function GET(request: NextRequest) {
       page: searchParams.get('page') || undefined,
       pageSize: searchParams.get('pageSize') || undefined,
       status: searchParams.get('status') || undefined,
+      dateFrom: searchParams.get('dateFrom') || undefined,
+      dateTo: searchParams.get('dateTo') || undefined,
     };
 
     const parsed = getOrdersQuerySchema.safeParse(queryParams);

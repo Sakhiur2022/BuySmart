@@ -177,6 +177,8 @@ export async function fetchBuyerOrdersPaginated(input: {
   page: number;
   pageSize: number;
   status?: OrderStatus;
+  fromDateIso?: string;
+  toDateIso?: string;
 }): Promise<{ orders: OrderRow[]; totalCount: number }> {
   const supabase = await createClient();
   const offset = (input.page - 1) * input.pageSize;
@@ -190,6 +192,14 @@ export async function fetchBuyerOrdersPaginated(input: {
 
   if (input.status) {
     query = query.eq('status', input.status);
+  }
+
+  if (input.fromDateIso) {
+    query = query.gte('created_at', input.fromDateIso);
+  }
+
+  if (input.toDateIso) {
+    query = query.lte('created_at', input.toDateIso);
   }
 
   const { data, count, error } = await query;

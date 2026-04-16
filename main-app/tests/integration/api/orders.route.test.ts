@@ -32,6 +32,8 @@ describe('GET /api/orders', () => {
       page: 1,
       pageSize: 20,
       status: 'confirmed',
+      dateFrom: undefined,
+      dateTo: undefined,
     });
     expect(body.orders).toHaveLength(1);
   });

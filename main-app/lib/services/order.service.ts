@@ -126,6 +126,21 @@ function computeOrderNumber(): string {
   return `ORD-${stamp}-${suffix}`;
 }
 
+function normalizeDateInput(value: string, isEnd: boolean): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Invalid date range');
+  }
+
+  if (isEnd) {
+    parsed.setUTCHours(23, 59, 59, 999);
+  } else {
+    parsed.setUTCHours(0, 0, 0, 0);
+  }
+
+  return parsed.toISOString();
+}
+
 async function requireBuyerRole(userId: string): Promise<void> {
   const role = await fetchUserRole(userId);
   const allowedRoles = new Set(['buyer', 'seller']);
@@ -351,11 +366,20 @@ export async function getBuyerOrders(
   const pageSize =
     Number.isFinite(filters.pageSize) && filters.pageSize > 0 ? Math.trunc(filters.pageSize) : 20;
 
+  const fromDateIso = filters.dateFrom ? normalizeDateInput(filters.dateFrom, false) : undefined;
+  const toDateIso = filters.dateTo ? normalizeDateInput(filters.dateTo, true) : undefined;
+
+  if (fromDateIso && toDateIso && new Date(fromDateIso) > new Date(toDateIso)) {
+    throw new Error('Invalid date range');
+  }
+
   const { orders, totalCount } = await fetchBuyerOrdersPaginated({
     buyerId: normalizedUserId,
     page,
     pageSize,
     status: filters.status,
+    fromDateIso,
+    toDateIso,
   });
 
   return {

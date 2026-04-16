@@ -201,7 +201,7 @@ export default async function OrderConfirmationPage({ params }: PageProps) {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Button asChild className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
-            <Link href={`/orders/${order.order_id}`}>Track this order</Link>
+            <Link href={`/buyer/orders/${order.order_id}`}>Track this order</Link>
           </Button>
 
           <Button asChild variant="outline" className="flex-1">
