@@ -1,8 +1,28 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getBuyerOrderDashboardStats } from '@/lib/services/order.service';
+import { createClient } from '@/lib/supabase/server';
 
-export default function BuyerDashboardPage() {
+export default async function BuyerDashboardPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/auth/login');
+  }
+
+  let stats = { inProgressCount: 0, deliveriesThisWeek: 0 };
+
+  try {
+    stats = await getBuyerOrderDashboardStats(user.id);
+  } catch (error) {
+    console.error('Failed to load buyer dashboard stats.', error);
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-xl border bg-card p-6 shadow-sm sm:p-8">
@@ -22,11 +42,11 @@ export default function BuyerDashboardPage() {
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>In progress</span>
-              <span className="font-semibold text-foreground">2</span>
+              <span className="font-semibold text-foreground">{stats.inProgressCount}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Deliveries this week</span>
-              <span className="font-semibold text-foreground">1</span>
+              <span className="font-semibold text-foreground">{stats.deliveriesThisWeek}</span>
             </div>
             <Button asChild size="sm" className="w-full">
               <Link href="/buyer/orders">View orders</Link>

@@ -1,6 +1,7 @@
 import type { Database, Json } from '@/lib/types/database.types';
 import type {
   BuyerOrderDetailResult,
+  BuyerOrderDashboardStats,
   BuyerOrderListFilters,
   BuyerOrderListResult,
   CreateOrderInput,
@@ -17,6 +18,8 @@ import {
   fetchCartByUserId,
   fetchCartItems,
   fetchBuyerFeedbackByOrderItemIds,
+  fetchBuyerOrderCountByStatus,
+  fetchBuyerDeliveredCountByDateRange,
   fetchOrderByIdForBuyer,
   fetchOrderItemsByOrderId,
   fetchProductsByIds,
@@ -139,6 +142,24 @@ function normalizeDateInput(value: string, isEnd: boolean): string {
   }
 
   return parsed.toISOString();
+}
+
+function getWeekRangeUtc(now: Date = new Date()): { fromIso: string; toIso: string } {
+  const startOfDayUtc = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+  );
+  const dayOfWeek = startOfDayUtc.getUTCDay();
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  startOfDayUtc.setUTCDate(startOfDayUtc.getUTCDate() - daysSinceMonday);
+
+  const endOfWeekUtc = new Date(startOfDayUtc);
+  endOfWeekUtc.setUTCDate(endOfWeekUtc.getUTCDate() + 6);
+  endOfWeekUtc.setUTCHours(23, 59, 59, 999);
+
+  return {
+    fromIso: startOfDayUtc.toISOString(),
+    toIso: endOfWeekUtc.toISOString(),
+  };
 }
 
 async function requireBuyerRole(userId: string): Promise<void> {
@@ -390,6 +411,37 @@ export async function getBuyerOrders(
       totalCount,
       totalPages: totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0,
     },
+  };
+}
+
+export async function getBuyerOrderDashboardStats(
+  userId: string,
+): Promise<BuyerOrderDashboardStats> {
+  const normalizedUserId = normalizeUserId(userId);
+  await requireBuyerRole(normalizedUserId);
+
+  const inProgressStatuses: Database['public']['Enums']['order_status_enum'][] = [
+    'confirmed',
+    'processing',
+    'shipped',
+  ];
+  const { fromIso, toIso } = getWeekRangeUtc();
+
+  const [inProgressCount, deliveriesThisWeek] = await Promise.all([
+    fetchBuyerOrderCountByStatus({
+      buyerId: normalizedUserId,
+      statuses: inProgressStatuses,
+    }),
+    fetchBuyerDeliveredCountByDateRange({
+      buyerId: normalizedUserId,
+      fromIso,
+      toIso,
+    }),
+  ]);
+
+  return {
+    inProgressCount,
+    deliveriesThisWeek,
   };
 }
 

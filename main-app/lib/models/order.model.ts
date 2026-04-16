@@ -71,6 +71,11 @@ export interface BuyerOrderListResult {
   };
 }
 
+export interface BuyerOrderDashboardStats {
+  inProgressCount: number;
+  deliveriesThisWeek: number;
+}
+
 export interface BuyerOrderDetailResult {
   order: OrderRow;
   items: OrderItemRow[];
