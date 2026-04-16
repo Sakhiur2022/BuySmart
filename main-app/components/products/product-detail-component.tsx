@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -126,6 +126,25 @@ function RatingStars({ rating, size = 'default' }: { rating: number; size?: 'sm'
       ))}
     </div>
   );
+}
+
+function useProductViewLogger(productId: string | undefined, productName: string | undefined) {
+  const lastLoggedProductId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!productId || lastLoggedProductId.current === productId) {
+      return;
+    }
+
+    lastLoggedProductId.current = productId;
+
+    void fetch('/api/activity/product-view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId, productName }),
+      keepalive: true,
+    });
+  }, [productId, productName]);
 }
 
 function RatingDistribution({ distribution }: { distribution: { [key: string]: number } }) {
@@ -271,6 +290,8 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
   const [reviewsPagination, setReviewsPagination] = useState<ReviewsApiResponse['pagination'] | null>(null);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
+
+  useProductViewLogger(productData.product.product_id, productData.product.name);
 
   const prefillOrderId = searchParams.get('orderId')?.trim() || undefined;
   const prefillOrderItemId = searchParams.get('orderItemId')?.trim() || undefined;
