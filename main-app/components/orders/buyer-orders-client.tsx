@@ -133,7 +133,7 @@ function parseDateInput(value: string, isEnd: boolean): Date | null {
 }
 
 export default function BuyerOrdersClient({ orders, pageSize }: BuyerOrdersClientProps) {
-  const maxDate = useMemo(getLocalDateString, []);
+  const maxDate = useMemo(() => getLocalDateString(), []);
   const [status, setStatus] = useState<OrderStatus | 'all'>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
