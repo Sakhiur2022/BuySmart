@@ -61,11 +61,11 @@ export default async function BuyerDashboardPage() {
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>Wishlist items</span>
-              <span className="font-semibold text-foreground">8</span>
+              <span className="font-semibold text-foreground">0</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Price drops</span>
-              <span className="font-semibold text-foreground">2</span>
+              <span className="font-semibold text-foreground">0</span>
             </div>
             <Button asChild size="sm" variant="outline" className="w-full">
               <Link href="/buyer/products">Review saved list</Link>
