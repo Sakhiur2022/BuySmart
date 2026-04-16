@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import OrdersDateInput from '@/components/orders/orders-date-input';
 import { createClient } from '@/lib/supabase/server';
 import { getBuyerOrders } from '@/lib/services/order.service';
 import { formatCurrency } from '@/lib/utils';
@@ -173,14 +173,14 @@ export default async function BuyerOrdersPage({ searchParams }: BuyerOrdersPageP
               <label className="text-sm font-medium text-foreground" htmlFor="dateFrom">
                 From date
               </label>
-              <Input id="dateFrom" name="dateFrom" type="date" defaultValue={dateFrom} />
+              <OrdersDateInput id="dateFrom" name="dateFrom" defaultValue={dateFrom} />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground" htmlFor="dateTo">
                 To date
               </label>
-              <Input id="dateTo" name="dateTo" type="date" defaultValue={dateTo} />
+              <OrdersDateInput id="dateTo" name="dateTo" defaultValue={dateTo} />
             </div>
 
             <div className="flex items-end gap-2">
