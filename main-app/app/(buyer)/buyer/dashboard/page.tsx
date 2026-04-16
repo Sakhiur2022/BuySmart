@@ -172,7 +172,12 @@ export default async function BuyerDashboardPage() {
               <span>Price drops</span>
               <span className="font-semibold text-foreground">0</span>
             </div>
-            <Button asChild size="sm" variant="outline" className="w-full">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="w-full hover:bg-rose-50 hover:text-rose-700"
+            >
               <Link href="/buyer/products">Review saved list</Link>
             </Button>
           </CardContent>
@@ -203,7 +208,12 @@ export default async function BuyerDashboardPage() {
                 </Link>
               ))
             )}
-            <Button asChild size="sm" variant="ghost" className="w-full">
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              className="w-full hover:bg-rose-50 hover:text-rose-700"
+            >
               <Link href="/buyer/products">Keep browsing</Link>
             </Button>
           </CardContent>
