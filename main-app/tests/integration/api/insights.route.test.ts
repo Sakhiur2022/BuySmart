@@ -31,6 +31,7 @@ describe('GET /api/insights', () => {
         mixed: { count: 1, percentage: 8.33 },
       },
       averageSentimentScore: 0.29,
+      perProductSummaries: [],
       highlights: {
         positive: [
           {
