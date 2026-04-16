@@ -4,6 +4,7 @@ import type {
   BuyerOrderDashboardStats,
   BuyerOrderListFilters,
   BuyerOrderListResult,
+  BuyerOrderWithItemStatuses,
   CreateOrderInput,
   OrderAddress,
   OrderWithItemsResult,
@@ -14,6 +15,7 @@ import {
   createOrderItems,
   decreaseProductInventory,
   deleteOrder,
+  fetchBuyerOrdersWithItemStatuses,
   fetchBuyerOrdersPaginated,
   fetchCartByUserId,
   fetchCartItems,
@@ -28,6 +30,8 @@ import {
 } from '@/lib/repositories/order.repository';
 
 type ProductStatus = Database['public']['Enums']['product_status_enum'];
+type OrderItemStatus = Database['public']['Enums']['order_item_status_enum'];
+type OrderStatus = Database['public']['Enums']['order_status_enum'];
 
 type NormalizedSourceItem = {
   product_id: string;
@@ -142,6 +146,56 @@ function normalizeDateInput(value: string, isEnd: boolean): string {
   }
 
   return parsed.toISOString();
+}
+
+function mapItemStatusToOrderStatus(value: OrderItemStatus | null): OrderStatus | null {
+  if (!value) {
+    return null;
+  }
+
+  switch (value) {
+    case 'cancelled':
+      return 'cancelled';
+    case 'returned':
+      return 'cancelled';
+    case 'pending':
+      return 'confirmed';
+    case 'confirmed':
+      return 'confirmed';
+    case 'shipped':
+      return 'shipped';
+    case 'delivered':
+      return 'delivered';
+    default:
+      return null;
+  }
+}
+
+function getWorstCaseOrderStatus(itemStatuses: Array<OrderItemStatus | null>): OrderStatus | null {
+  const priority: Record<OrderStatus, number> = {
+    draft: 0,
+    cancelled: 0,
+    confirmed: 1,
+    processing: 2,
+    shipped: 3,
+    delivered: 4,
+    completed: 5,
+  };
+
+  let worst: OrderStatus | null = null;
+
+  itemStatuses.forEach((status) => {
+    const mapped = mapItemStatusToOrderStatus(status);
+    if (!mapped) {
+      return;
+    }
+
+    if (!worst || priority[mapped] < priority[worst]) {
+      worst = mapped;
+    }
+  });
+
+  return worst;
 }
 
 function getWeekRangeUtc(now: Date = new Date()): { fromIso: string; toIso: string } {
@@ -394,6 +448,37 @@ export async function getBuyerOrders(
     throw new Error('Invalid date range');
   }
 
+  if (filters.status) {
+    const ordersWithItems = await fetchBuyerOrdersWithItemStatuses({
+      buyerId: normalizedUserId,
+      fromDateIso,
+      toDateIso,
+    });
+
+    const filtered = ordersWithItems
+      .map((order) => {
+        const itemStatuses = (order.order_items ?? []).map((item) => item.status ?? null);
+        const derivedStatus = getWorstCaseOrderStatus(itemStatuses) ?? order.status;
+        return { order: { ...order, status: derivedStatus }, derivedStatus };
+      })
+      .filter((entry) => entry.derivedStatus === filters.status)
+      .map((entry) => entry.order);
+
+    const totalCount = filtered.length;
+    const startIndex = (page - 1) * pageSize;
+    const orders = filtered.slice(startIndex, startIndex + pageSize);
+
+    return {
+      orders,
+      pagination: {
+        page,
+        pageSize,
+        totalCount,
+        totalPages: totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0,
+      },
+    };
+  }
+
   const { orders, totalCount } = await fetchBuyerOrdersPaginated({
     buyerId: normalizedUserId,
     page,
@@ -412,6 +497,27 @@ export async function getBuyerOrders(
       totalPages: totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0,
     },
   };
+}
+
+export async function getBuyerOrdersWithItemStatuses(
+  userId: string,
+  filters?: { dateFrom?: string; dateTo?: string },
+): Promise<BuyerOrderWithItemStatuses[]> {
+  const normalizedUserId = normalizeUserId(userId);
+  await requireBuyerRole(normalizedUserId);
+
+  const fromDateIso = filters?.dateFrom ? normalizeDateInput(filters.dateFrom, false) : undefined;
+  const toDateIso = filters?.dateTo ? normalizeDateInput(filters.dateTo, true) : undefined;
+
+  if (fromDateIso && toDateIso && new Date(fromDateIso) > new Date(toDateIso)) {
+    throw new Error('Invalid date range');
+  }
+
+  return fetchBuyerOrdersWithItemStatuses({
+    buyerId: normalizedUserId,
+    fromDateIso,
+    toDateIso,
+  });
 }
 
 export async function getBuyerOrderDashboardStats(

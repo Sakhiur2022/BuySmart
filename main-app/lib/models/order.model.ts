@@ -88,6 +88,10 @@ export interface BuyerOrderDetailResult {
   >;
 }
 
+export type BuyerOrderWithItemStatuses = OrderRow & {
+  order_items: Array<{ status: OrderItemStatus | null }>;
+};
+
 export type Order = OrderRow;
 export type OrderItem = OrderItemRow;
 export type { OrderStatus, PaymentStatus, OrderItemStatus };
