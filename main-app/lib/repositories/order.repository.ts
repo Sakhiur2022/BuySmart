@@ -7,6 +7,7 @@ type OrderRow = Database['public']['Tables']['orders']['Row'];
 type OrderItemInsert = Database['public']['Tables']['order_items']['Insert'];
 type OrderItemRow = Database['public']['Tables']['order_items']['Row'];
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
+type OrderItemStatus = Database['public']['Enums']['order_item_status_enum'];
 type CartRow = Database['public']['Tables']['carts']['Row'];
 type CartItemRow = Database['public']['Tables']['cart_items']['Row'];
 
@@ -177,6 +178,8 @@ export async function fetchBuyerOrdersPaginated(input: {
   page: number;
   pageSize: number;
   status?: OrderStatus;
+  fromDateIso?: string;
+  toDateIso?: string;
 }): Promise<{ orders: OrderRow[]; totalCount: number }> {
   const supabase = await createClient();
   const offset = (input.page - 1) * input.pageSize;
@@ -192,6 +195,14 @@ export async function fetchBuyerOrdersPaginated(input: {
     query = query.eq('status', input.status);
   }
 
+  if (input.fromDateIso) {
+    query = query.gte('created_at', input.fromDateIso);
+  }
+
+  if (input.toDateIso) {
+    query = query.lte('created_at', input.toDateIso);
+  }
+
   const { data, count, error } = await query;
 
   if (error) {
@@ -202,6 +213,80 @@ export async function fetchBuyerOrdersPaginated(input: {
     orders: (data ?? []) as OrderRow[],
     totalCount: count ?? 0,
   };
+}
+
+export async function fetchBuyerOrdersWithItemStatuses(input: {
+  buyerId: string;
+  fromDateIso?: string;
+  toDateIso?: string;
+}): Promise<Array<OrderRow & { order_items: Array<{ status: OrderItemStatus | null }> }>> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('orders')
+    .select('*, order_items(status)')
+    .eq('buyer_id', input.buyerId)
+    .order('created_at', { ascending: false });
+
+  if (input.fromDateIso) {
+    query = query.gte('created_at', input.fromDateIso);
+  }
+
+  if (input.toDateIso) {
+    query = query.lte('created_at', input.toDateIso);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as Array<OrderRow & { order_items: Array<{ status: OrderItemStatus | null }> }>;
+}
+
+export async function fetchBuyerOrderCountByStatus(input: {
+  buyerId: string;
+  statuses: OrderStatus[];
+}): Promise<number> {
+  if (input.statuses.length === 0) {
+    return 0;
+  }
+
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from('orders')
+    .select('order_id', { count: 'exact', head: true })
+    .eq('buyer_id', input.buyerId)
+    .in('status', input.statuses);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
+}
+
+export async function fetchBuyerDeliveredCountByDateRange(input: {
+  buyerId: string;
+  fromIso: string;
+  toIso: string;
+}): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from('orders')
+    .select('order_id', { count: 'exact', head: true })
+    .eq('buyer_id', input.buyerId)
+    .not('delivered_at', 'is', null)
+    .gte('delivered_at', input.fromIso)
+    .lte('delivered_at', input.toIso)
+    .in('status', ['delivered', 'completed']);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return count ?? 0;
 }
 
 export async function fetchOrderByIdForBuyer(

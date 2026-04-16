@@ -1,8 +1,10 @@
 import type { Database, Json } from '@/lib/types/database.types';
 import type {
   BuyerOrderDetailResult,
+  BuyerOrderDashboardStats,
   BuyerOrderListFilters,
   BuyerOrderListResult,
+  BuyerOrderWithItemStatuses,
   CreateOrderInput,
   OrderAddress,
   OrderWithItemsResult,
@@ -13,10 +15,13 @@ import {
   createOrderItems,
   decreaseProductInventory,
   deleteOrder,
+  fetchBuyerOrdersWithItemStatuses,
   fetchBuyerOrdersPaginated,
   fetchCartByUserId,
   fetchCartItems,
   fetchBuyerFeedbackByOrderItemIds,
+  fetchBuyerOrderCountByStatus,
+  fetchBuyerDeliveredCountByDateRange,
   fetchOrderByIdForBuyer,
   fetchOrderItemsByOrderId,
   fetchProductsByIds,
@@ -25,6 +30,8 @@ import {
 } from '@/lib/repositories/order.repository';
 
 type ProductStatus = Database['public']['Enums']['product_status_enum'];
+type OrderItemStatus = Database['public']['Enums']['order_item_status_enum'];
+type OrderStatus = Database['public']['Enums']['order_status_enum'];
 
 type NormalizedSourceItem = {
   product_id: string;
@@ -124,6 +131,89 @@ function computeOrderNumber(): string {
     .slice(0, 14);
   const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `ORD-${stamp}-${suffix}`;
+}
+
+function normalizeDateInput(value: string, isEnd: boolean): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Invalid date range');
+  }
+
+  if (isEnd) {
+    parsed.setUTCHours(23, 59, 59, 999);
+  } else {
+    parsed.setUTCHours(0, 0, 0, 0);
+  }
+
+  return parsed.toISOString();
+}
+
+function mapItemStatusToOrderStatus(value: OrderItemStatus | null): OrderStatus | null {
+  if (!value) {
+    return null;
+  }
+
+  switch (value) {
+    case 'cancelled':
+      return 'cancelled';
+    case 'returned':
+      return 'cancelled';
+    case 'pending':
+      return 'confirmed';
+    case 'confirmed':
+      return 'confirmed';
+    case 'shipped':
+      return 'shipped';
+    case 'delivered':
+      return 'delivered';
+    default:
+      return null;
+  }
+}
+
+function getWorstCaseOrderStatus(itemStatuses: Array<OrderItemStatus | null>): OrderStatus | null {
+  const priority: Record<OrderStatus, number> = {
+    draft: 0,
+    cancelled: 0,
+    confirmed: 1,
+    processing: 2,
+    shipped: 3,
+    delivered: 4,
+    completed: 5,
+  };
+
+  let worst: OrderStatus | null = null;
+
+  itemStatuses.forEach((status) => {
+    const mapped = mapItemStatusToOrderStatus(status);
+    if (!mapped) {
+      return;
+    }
+
+    if (!worst || priority[mapped] < priority[worst]) {
+      worst = mapped;
+    }
+  });
+
+  return worst;
+}
+
+function getWeekRangeUtc(now: Date = new Date()): { fromIso: string; toIso: string } {
+  const startOfDayUtc = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+  );
+  const dayOfWeek = startOfDayUtc.getUTCDay();
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  startOfDayUtc.setUTCDate(startOfDayUtc.getUTCDate() - daysSinceMonday);
+
+  const endOfWeekUtc = new Date(startOfDayUtc);
+  endOfWeekUtc.setUTCDate(endOfWeekUtc.getUTCDate() + 6);
+  endOfWeekUtc.setUTCHours(23, 59, 59, 999);
+
+  return {
+    fromIso: startOfDayUtc.toISOString(),
+    toIso: endOfWeekUtc.toISOString(),
+  };
 }
 
 async function requireBuyerRole(userId: string): Promise<void> {
@@ -351,11 +441,51 @@ export async function getBuyerOrders(
   const pageSize =
     Number.isFinite(filters.pageSize) && filters.pageSize > 0 ? Math.trunc(filters.pageSize) : 20;
 
+  const fromDateIso = filters.dateFrom ? normalizeDateInput(filters.dateFrom, false) : undefined;
+  const toDateIso = filters.dateTo ? normalizeDateInput(filters.dateTo, true) : undefined;
+
+  if (fromDateIso && toDateIso && new Date(fromDateIso) > new Date(toDateIso)) {
+    throw new Error('Invalid date range');
+  }
+
+  if (filters.status) {
+    const ordersWithItems = await fetchBuyerOrdersWithItemStatuses({
+      buyerId: normalizedUserId,
+      fromDateIso,
+      toDateIso,
+    });
+
+    const filtered = ordersWithItems
+      .map((order) => {
+        const itemStatuses = (order.order_items ?? []).map((item) => item.status ?? null);
+        const derivedStatus = getWorstCaseOrderStatus(itemStatuses) ?? order.status;
+        return { order: { ...order, status: derivedStatus }, derivedStatus };
+      })
+      .filter((entry) => entry.derivedStatus === filters.status)
+      .map((entry) => entry.order);
+
+    const totalCount = filtered.length;
+    const startIndex = (page - 1) * pageSize;
+    const orders = filtered.slice(startIndex, startIndex + pageSize);
+
+    return {
+      orders,
+      pagination: {
+        page,
+        pageSize,
+        totalCount,
+        totalPages: totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0,
+      },
+    };
+  }
+
   const { orders, totalCount } = await fetchBuyerOrdersPaginated({
     buyerId: normalizedUserId,
     page,
     pageSize,
     status: filters.status,
+    fromDateIso,
+    toDateIso,
   });
 
   return {
@@ -366,6 +496,58 @@ export async function getBuyerOrders(
       totalCount,
       totalPages: totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0,
     },
+  };
+}
+
+export async function getBuyerOrdersWithItemStatuses(
+  userId: string,
+  filters?: { dateFrom?: string; dateTo?: string },
+): Promise<BuyerOrderWithItemStatuses[]> {
+  const normalizedUserId = normalizeUserId(userId);
+  await requireBuyerRole(normalizedUserId);
+
+  const fromDateIso = filters?.dateFrom ? normalizeDateInput(filters.dateFrom, false) : undefined;
+  const toDateIso = filters?.dateTo ? normalizeDateInput(filters.dateTo, true) : undefined;
+
+  if (fromDateIso && toDateIso && new Date(fromDateIso) > new Date(toDateIso)) {
+    throw new Error('Invalid date range');
+  }
+
+  return fetchBuyerOrdersWithItemStatuses({
+    buyerId: normalizedUserId,
+    fromDateIso,
+    toDateIso,
+  });
+}
+
+export async function getBuyerOrderDashboardStats(
+  userId: string,
+): Promise<BuyerOrderDashboardStats> {
+  const normalizedUserId = normalizeUserId(userId);
+  await requireBuyerRole(normalizedUserId);
+
+  const inProgressStatuses: Database['public']['Enums']['order_status_enum'][] = [
+    'confirmed',
+    'processing',
+    'shipped',
+  ];
+  const { fromIso, toIso } = getWeekRangeUtc();
+
+  const [inProgressCount, deliveriesThisWeek] = await Promise.all([
+    fetchBuyerOrderCountByStatus({
+      buyerId: normalizedUserId,
+      statuses: inProgressStatuses,
+    }),
+    fetchBuyerDeliveredCountByDateRange({
+      buyerId: normalizedUserId,
+      fromIso,
+      toIso,
+    }),
+  ]);
+
+  return {
+    inProgressCount,
+    deliveriesThisWeek,
   };
 }
 

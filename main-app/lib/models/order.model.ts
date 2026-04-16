@@ -57,6 +57,8 @@ export interface BuyerOrderListFilters {
   page: number;
   pageSize: number;
   status?: OrderStatus;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface BuyerOrderListResult {
@@ -67,6 +69,11 @@ export interface BuyerOrderListResult {
     totalCount: number;
     totalPages: number;
   };
+}
+
+export interface BuyerOrderDashboardStats {
+  inProgressCount: number;
+  deliveriesThisWeek: number;
 }
 
 export interface BuyerOrderDetailResult {
@@ -80,6 +87,10 @@ export interface BuyerOrderDetailResult {
     }
   >;
 }
+
+export type BuyerOrderWithItemStatuses = OrderRow & {
+  order_items: Array<{ status: OrderItemStatus | null }>;
+};
 
 export type Order = OrderRow;
 export type OrderItem = OrderItemRow;
