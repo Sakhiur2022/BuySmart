@@ -16,7 +16,7 @@ function getLocalDateString(): string {
 }
 
 export default function OrdersDateInput({ id, name, defaultValue }: OrdersDateInputProps) {
-  const maxDate = useMemo(getLocalDateString, []);
+  const maxDate = useMemo(() => getLocalDateString(), []);
   const [value, setValue] = useState(() => {
     if (defaultValue && defaultValue > maxDate) {
       return maxDate;
