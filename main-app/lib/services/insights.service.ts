@@ -34,6 +34,14 @@ interface SentimentCounters {
   mixed: number;
 }
 
+interface ProductSummaryAccumulator {
+  productId: string;
+  productName: string;
+  counters: SentimentCounters;
+  totalClassified: number;
+  scoreTotal: number;
+}
+
 function roundTo(value: number, precision: number): number {
   return Math.round(value * precision) / precision;
 }
@@ -158,6 +166,15 @@ function toSentimentMetric(count: number, denominator: number): SentimentMetric 
   return {
     count,
     percentage: roundTo((count / denominator) * PERCENTAGE_PRECISION, PERCENTAGE_PRECISION),
+  };
+}
+
+function buildSentimentBreakdown(counters: SentimentCounters, totalClassified: number) {
+  return {
+    positive: toSentimentMetric(counters.positive, totalClassified),
+    neutral: toSentimentMetric(counters.neutral, totalClassified),
+    negative: toSentimentMetric(counters.negative, totalClassified),
+    mixed: toSentimentMetric(counters.mixed, totalClassified),
   };
 }
 
@@ -290,6 +307,64 @@ function calculateAverageSentimentScore(records: FeedbackInsightsRecord[]): numb
   return roundTo(totalScore / records.length, SCORE_PRECISION);
 }
 
+function buildPerProductSummaries(records: FeedbackInsightsRecord[]) {
+  const summaryMap = new Map<string, ProductSummaryAccumulator>();
+
+  records.forEach((record) => {
+    if (!record.product_id) {
+      return;
+    }
+
+    const existing = summaryMap.get(record.product_id);
+    const accumulator: ProductSummaryAccumulator = existing ?? {
+      productId: record.product_id,
+      productName: record.product_name ?? 'Untitled product',
+      counters: {
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+        mixed: 0,
+      },
+      totalClassified: 0,
+      scoreTotal: 0,
+    };
+
+    switch (record.ai_sentiment) {
+      case 'positive':
+        accumulator.counters.positive += 1;
+        break;
+      case 'neutral':
+        accumulator.counters.neutral += 1;
+        break;
+      case 'negative':
+        accumulator.counters.negative += 1;
+        break;
+      case 'mixed':
+        accumulator.counters.mixed += 1;
+        break;
+    }
+
+    const confidence = clampConfidence(record.ai_confidence_score);
+    accumulator.scoreTotal += deriveSentimentScore(record.ai_sentiment, confidence);
+    accumulator.totalClassified += 1;
+
+    summaryMap.set(record.product_id, accumulator);
+  });
+
+  return Array.from(summaryMap.values())
+    .map((summary) => ({
+      productId: summary.productId,
+      productName: summary.productName,
+      totalClassified: summary.totalClassified,
+      sentimentBreakdown: buildSentimentBreakdown(summary.counters, summary.totalClassified),
+      averageSentimentScore:
+        summary.totalClassified > 0
+          ? roundTo(summary.scoreTotal / summary.totalClassified, SCORE_PRECISION)
+          : 0,
+    }))
+    .sort((first, second) => second.totalClassified - first.totalClassified);
+}
+
 export async function getFeedbackInsightsForUser(
   userId: string,
   query: InsightsQueryInput,
@@ -305,6 +380,7 @@ export async function getFeedbackInsightsForUser(
 
   const counters = calculateCounters(processedFeedback);
   const totalClassified = counters.positive + counters.neutral + counters.negative + counters.mixed;
+  const perProductSummaries = buildPerProductSummaries(processedFeedback);
 
   const sortedPositive = processedFeedback
     .filter((record) => record.ai_sentiment === 'positive')
@@ -342,12 +418,10 @@ export async function getFeedbackInsightsForUser(
     totalFeedbackCount,
     sentimentBreakdown: {
       totalClassified,
-      positive: toSentimentMetric(counters.positive, totalClassified),
-      neutral: toSentimentMetric(counters.neutral, totalClassified),
-      negative: toSentimentMetric(counters.negative, totalClassified),
-      mixed: toSentimentMetric(counters.mixed, totalClassified),
+      ...buildSentimentBreakdown(counters, totalClassified),
     },
     averageSentimentScore: calculateAverageSentimentScore(processedFeedback),
+    perProductSummaries,
     highlights: {
       positive: sortedPositive,
       negative: sortedNegative,

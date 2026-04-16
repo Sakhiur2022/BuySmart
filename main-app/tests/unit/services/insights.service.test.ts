@@ -23,6 +23,8 @@ describe('getFeedbackInsightsForUser', () => {
         title: 'Excellent',
         comment: 'Loved it',
         created_at: '2026-04-14T00:00:00.000Z',
+        product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
+        product_name: 'Smart Blender',
         ai_sentiment: 'positive',
         ai_confidence_score: 0.9,
       },
@@ -31,6 +33,8 @@ describe('getFeedbackInsightsForUser', () => {
         title: 'Average',
         comment: 'It is okay',
         created_at: '2026-04-14T01:00:00.000Z',
+        product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
+        product_name: 'Smart Blender',
         ai_sentiment: 'neutral',
         ai_confidence_score: 0.4,
       },
@@ -39,6 +43,8 @@ describe('getFeedbackInsightsForUser', () => {
         title: 'Not good',
         comment: 'Bad quality',
         created_at: '2026-04-14T02:00:00.000Z',
+        product_id: '8f4a72f7-7c81-4047-87f0-c2744f2abfd5',
+        product_name: 'Noise Cancelling Headphones',
         ai_sentiment: 'negative',
         ai_confidence_score: 0.8,
       },
@@ -56,6 +62,7 @@ describe('getFeedbackInsightsForUser', () => {
     expect(result.sentimentBreakdown.neutral.count).toBe(1);
     expect(result.sentimentBreakdown.negative.count).toBe(1);
     expect(result.averageSentimentScore).toBeCloseTo(0.033, 3);
+    expect(result.perProductSummaries.length).toBe(2);
     expect(result.highlights.positive.length).toBeGreaterThanOrEqual(1);
     expect(result.highlights.negative.length).toBeGreaterThanOrEqual(1);
     expect(result.trend.length).toBe(30);
@@ -110,6 +117,8 @@ describe('getFeedbackInsightsForUser', () => {
         title: null,
         comment: 'Historic feedback',
         created_at: '2026-01-12T00:00:00.000Z',
+        product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
+        product_name: 'Smart Blender',
         ai_sentiment: 'mixed',
         ai_confidence_score: 0.5,
       },
@@ -118,6 +127,8 @@ describe('getFeedbackInsightsForUser', () => {
         title: null,
         comment: 'Recent feedback',
         created_at: '2026-04-01T00:00:00.000Z',
+        product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
+        product_name: 'Smart Blender',
         ai_sentiment: 'positive',
         ai_confidence_score: 0.7,
       },
