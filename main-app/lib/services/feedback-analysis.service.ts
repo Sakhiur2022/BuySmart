@@ -4,7 +4,8 @@ import type {
   SentimentAnalysisPayload,
   SentimentAnalysisResult,
 } from '@/lib/agents/sentiment/types';
-import { normalizeAIError } from '@/lib/services/ai/error-handler';
+import { categorizeAIError, normalizeAIError } from '@/lib/services/ai/error-handler';
+import type { Feedback } from '@/lib/models/feedback.model';
 import type {
   FeedbackSentimentAnalysisResult,
   FeedbackSentimentPersistenceInput,
@@ -14,6 +15,7 @@ import { updateFeedbackSentimentAnalysisById } from '@/lib/repositories/feedback
 
 const orchestrator = new AgentOrchestrator();
 orchestrator.register(new SentimentAgent());
+const FEEDBACK_TEXT_REQUIRED_ERROR = 'Feedback text is required for sentiment analysis';
 
 function buildFeedbackText(title: string | null, comment: string | null): string {
   const normalizedTitle = title?.trim() ?? '';
@@ -50,7 +52,7 @@ export async function analyzeFeedbackSentimentForScope(
   const text = buildFeedbackText(feedback.title, feedback.comment);
 
   if (!text.trim()) {
-    throw new Error('Feedback text is required for sentiment analysis');
+    throw new Error(FEEDBACK_TEXT_REQUIRED_ERROR);
   }
 
   let agentResult;
@@ -70,12 +72,13 @@ export async function analyzeFeedbackSentimentForScope(
     );
   } catch (error) {
     const normalized = normalizeAIError(error);
-    throw new Error(`AI_ANALYSIS_FAILED:${normalized.message}`);
+    const category = categorizeAIError(normalized);
+    throw new Error(`AI_ANALYSIS_FAILED:${category}:${normalized.message}`);
   }
 
   if (!agentResult.success) {
     throw new Error(
-      `AI_ANALYSIS_FAILED:${agentResult.errorMessage ?? 'Sentiment analysis failed'}`,
+      `AI_ANALYSIS_FAILED:provider:${agentResult.errorMessage ?? 'Sentiment analysis failed'}`,
     );
   }
 
@@ -102,4 +105,31 @@ export async function analyzeFeedbackSentimentForScope(
       cached: agentResult.cached,
     },
   };
+}
+
+function isNonBlockingSubmissionAnalysisError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message === FEEDBACK_TEXT_REQUIRED_ERROR ||
+    error.message.startsWith('AI_ANALYSIS_FAILED:')
+  );
+}
+
+export async function analyzeFeedbackSentimentForCreatedFeedback(
+  userId: string,
+  feedback: Feedback,
+): Promise<Feedback> {
+  try {
+    const analyzed = await analyzeFeedbackSentimentForScope(userId, feedback.feedback_id);
+    return analyzed.feedback;
+  } catch (error) {
+    if (isNonBlockingSubmissionAnalysisError(error)) {
+      return feedback;
+    }
+
+    throw error;
+  }
 }

@@ -13,7 +13,10 @@ import {
   softDeleteFeedbackForScope,
   updateFeedbackForScope,
 } from '@/lib/services/feedback.service';
-import { analyzeFeedbackSentimentForScope } from '@/lib/services/feedback-analysis.service';
+import {
+  analyzeFeedbackSentimentForCreatedFeedback,
+  analyzeFeedbackSentimentForScope,
+} from '@/lib/services/feedback-analysis.service';
 
 export async function getFeedbackList(
   userId: string,
@@ -30,7 +33,8 @@ export async function createFeedback(
   userId: string,
   input: CreateFeedbackInput,
 ): Promise<Feedback> {
-  return createFeedbackForUser(userId, input);
+  const created = await createFeedbackForUser(userId, input);
+  return analyzeFeedbackSentimentForCreatedFeedback(userId, created);
 }
 
 export async function updateFeedback(

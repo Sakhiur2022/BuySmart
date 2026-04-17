@@ -7,6 +7,26 @@ const feedbackIdParamsSchema = z.object({
   id: z.string().uuid(),
 });
 
+function describeAnalysisFailureCategory(errorMessage: string): string {
+  const [, category = 'provider'] = errorMessage.split(':', 3);
+
+  switch (category) {
+    case 'timeout':
+      return 'timeout';
+    case 'rate_limit':
+      return 'rate limit';
+    case 'configuration':
+      return 'configuration';
+    case 'response':
+      return 'response parsing';
+    case 'request':
+      return 'request';
+    case 'provider':
+    default:
+      return 'provider';
+  }
+}
+
 function formatFeedbackSentimentErrorResponse(error: unknown): {
   status: number;
   body: { error: string };
@@ -25,9 +45,12 @@ function formatFeedbackSentimentErrorResponse(error: unknown): {
     }
 
     if (error.message.startsWith('AI_ANALYSIS_FAILED:')) {
+      const category = describeAnalysisFailureCategory(error.message);
       return {
         status: 502,
-        body: { error: 'Sentiment analysis provider failed. Please retry shortly.' },
+        body: {
+          error: `Sentiment analysis provider failed (${category}). Please retry shortly.`,
+        },
       };
     }
 
