@@ -79,7 +79,7 @@ describe('POST /api/feedback/[id]/analyze-sentiment', () => {
     const feedbackId = '84213b38-4a50-4b68-bc3d-b2ba3fdc6f5d';
     vi.mocked(requireAuthenticatedUser).mockResolvedValue({ userId: 'user-test-1' });
     vi.mocked(analyzeFeedbackSentiment).mockRejectedValue(
-      new Error('AI_ANALYSIS_FAILED:provider timeout'),
+      new Error('AI_ANALYSIS_FAILED:timeout:provider timeout'),
     );
 
     const request = createJsonRequest(
@@ -89,7 +89,24 @@ describe('POST /api/feedback/[id]/analyze-sentiment', () => {
     const body = await response.json();
 
     expect(response.status).toBe(502);
-    expect(body.error).toContain('provider failed');
+    expect(body.error).toContain('provider failed (timeout)');
+  });
+
+  it('returns categorized 502 message for rate limited provider failures', async () => {
+    const feedbackId = '84213b38-4a50-4b68-bc3d-b2ba3fdc6f5d';
+    vi.mocked(requireAuthenticatedUser).mockResolvedValue({ userId: 'user-test-1' });
+    vi.mocked(analyzeFeedbackSentiment).mockRejectedValue(
+      new Error('AI_ANALYSIS_FAILED:rate_limit:too many requests'),
+    );
+
+    const request = createJsonRequest(
+      'http://localhost/api/feedback/' + feedbackId + '/analyze-sentiment',
+    );
+    const response = await POST(request, createRouteParams({ id: feedbackId }));
+    const body = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(body.error).toContain('provider failed (rate limit)');
   });
 
   it('returns 404 when feedback cannot be found', async () => {
