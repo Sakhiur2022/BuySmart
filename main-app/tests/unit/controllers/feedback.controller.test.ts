@@ -12,8 +12,10 @@ vi.mock('@/lib/services/feedback-analysis.service', () => ({
 }));
 
 import { createFeedbackForUser } from '@/lib/services/feedback.service';
-import { analyzeFeedbackSentimentForScope } from '@/lib/services/feedback-analysis.service';
-import { analyzeFeedbackSentimentForCreatedFeedback } from '@/lib/services/feedback-analysis.service';
+import {
+  analyzeFeedbackSentimentForCreatedFeedback,
+  analyzeFeedbackSentimentForScope,
+} from '@/lib/services/feedback-analysis.service';
 import { analyzeFeedbackSentiment, createFeedback } from '@/lib/controllers/feedback.controller';
 
 describe('analyzeFeedbackSentiment controller', () => {
