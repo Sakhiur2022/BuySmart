@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeftRight, BarChart3, ClipboardList, Store } from 'lucide-react';
+import { CartNavButton } from '@/components/shared/cart-nav-button';
 
 type NavbarRole = 'buyer' | 'seller' | 'admin' | 'moderator' | null;
 
@@ -47,6 +48,7 @@ export function NavbarRoleActions({ role }: NavbarRoleActionsProps) {
 
       {showBuyerActions ? (
         <>
+          <CartNavButton />
           <Link
             href="/buyer/dashboard"
             className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-50"

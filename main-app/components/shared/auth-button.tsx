@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from './logout-button';
 import { NavbarRoleActions } from './navbar-role-actions';
+import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 
 export async function AuthButton() {
   const supabase = await createClient();
@@ -64,6 +65,7 @@ export async function AuthButton() {
         {userName}
       </Link>
       <NavbarRoleActions role={role} />
+      <ThemeSwitcher />
       <Link
         href="/profile/settings"
         className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"

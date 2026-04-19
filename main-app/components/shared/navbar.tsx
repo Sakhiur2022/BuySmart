@@ -1,13 +1,11 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
-import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import { AuthButton } from '@/components/shared/auth-button';
 import { hasEnvVars } from '@/lib/utils';
 import { EnvVarWarning } from '@/components/shared/env-var-warning';
 import { createClient } from '@/lib/supabase/server';
 import { PromotionalBanner } from '@/components/shared/promotional-banner';
-import { CartNavButton } from '@/components/shared/cart-nav-button';
 import { MobileNavMenu } from '@/components/shared/mobile-nav-menu';
 import { NavbarCenterNav } from '@/components/shared/navbar-center-nav';
 
@@ -83,8 +81,6 @@ export async function Navbar() {
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-              <CartNavButton />
-              <ThemeSwitcher />
               {!hasEnvVars ? (
                 <EnvVarWarning />
               ) : (
