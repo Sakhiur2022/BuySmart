@@ -58,7 +58,7 @@ export async function AuthButton() {
       )}
       <Link
         href="/profile"
-        className="text-sm font-medium hover:text-foreground/80"
+        className="text-sm font-medium text-rose-700 transition-colors hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-100"
         title="Go to profile"
         aria-label={`Go to profile: ${userName}`}
       >
@@ -68,7 +68,7 @@ export async function AuthButton() {
       <ThemeSwitcher />
       <Link
         href="/profile/settings"
-        className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-100"
         title="Settings"
         aria-label="Settings"
       >
