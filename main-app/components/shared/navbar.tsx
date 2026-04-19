@@ -14,17 +14,17 @@ type NavbarRole = 'buyer' | 'seller' | 'admin' | 'moderator' | null;
 const buyerNav = [
   { href: '/buyer/dashboard', label: 'Buyer Dashboard', icon: 'bar-chart-3' },
   { href: '/buyer/orders', label: 'Orders', icon: 'clipboard-list' },
-];
+] as const;
 
 const adminNav = [
   { href: '/buyer', label: 'Buyer', icon: 'shopping-bag' },
   { href: '/admin', label: 'Admin Dashboard', icon: 'shield-check' },
-];
+] as const;
 
 const sellerNav = [
   { href: '/seller', label: 'Seller Dashboard', icon: 'store' },
   { href: '/buyer?mode=buyer', label: 'Switch to Buyer', icon: 'arrow-left-right' },
-];
+] as const;
 
 export async function Navbar() {
   const supabase = await createClient();
