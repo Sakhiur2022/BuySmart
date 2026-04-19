@@ -1,9 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { BarChart3, ClipboardList, ShieldCheck, ShoppingBag } from 'lucide-react';
-import { SellerNavLink } from '@/components/shared/seller-nav-link';
+import { ShieldCheck, ShoppingBag } from 'lucide-react';
 
 type NavbarRole = 'buyer' | 'seller' | 'admin' | 'moderator' | null;
 
@@ -12,10 +10,6 @@ type NavbarCenterNavProps = {
 };
 
 export function NavbarCenterNav({ role }: NavbarCenterNavProps) {
-  const searchParams = useSearchParams();
-  const buyerModeParam = searchParams?.get('mode');
-  const isBuyerMode = buyerModeParam === 'buyer' || buyerModeParam === '1' || buyerModeParam === 'true';
-
   if (role === 'admin' || role === 'moderator') {
     return (
       <>
@@ -38,29 +32,5 @@ export function NavbarCenterNav({ role }: NavbarCenterNavProps) {
       </>
     );
   }
-
-  if (role === 'buyer' || (role === 'seller' && isBuyerMode)) {
-    return (
-      <>
-        <Link
-          href="/buyer/dashboard"
-          className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-50"
-          title="Open buyer dashboard"
-          aria-label="Open buyer dashboard"
-        >
-          <BarChart3 className="h-4 w-4" title="Open buyer dashboard" />
-        </Link>
-        <Link
-          href="/buyer/orders"
-          className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-50"
-          title="View orders"
-          aria-label="View orders"
-        >
-          <ClipboardList className="h-4 w-4" title="View orders" />
-        </Link>
-      </>
-    );
-  }
-
-  return <SellerNavLink role={role} />;
+  return null;
 }

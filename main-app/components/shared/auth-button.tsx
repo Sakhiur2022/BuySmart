@@ -4,6 +4,7 @@ import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { LogoutButton } from './logout-button';
+import { NavbarRoleActions } from './navbar-role-actions';
 
 export async function AuthButton() {
   const supabase = await createClient();
@@ -27,7 +28,7 @@ export async function AuthButton() {
   // Fetch user profile to get display_name and avatar_url
   const { data: userProfile } = await supabase
     .from('users_profile')
-    .select('display_name, avatar_url')
+    .select('display_name, avatar_url, role')
     .eq('user_id', user.id)
     .single();
 
@@ -45,6 +46,8 @@ export async function AuthButton() {
     (user.user_metadata?.avatar_url as string) ||
     (user.user_metadata?.picture as string);
 
+  const role = (userProfile?.role as 'buyer' | 'seller' | 'admin' | 'moderator' | null) ?? null;
+
   return (
     <div className="flex items-center gap-3">
       {avatarUrl && (
@@ -60,6 +63,7 @@ export async function AuthButton() {
       >
         {userName}
       </Link>
+      <NavbarRoleActions role={role} />
       <Link
         href="/profile/settings"
         className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
