@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { ShoppingBag } from 'lucide-react';
 
 const PROMOS = [
   {
@@ -58,25 +59,27 @@ export function PromotionalBanner({ visiblePaths }: PromotionalBannerProps) {
           Hot
         </span>
         <div className="relative flex-1 overflow-hidden">
-          <div className="flex w-max items-center gap-6 pr-6 banner-marquee">
+          <div className="flex w-max items-center gap-4 pr-6 banner-marquee">
             {PROMOS.map((promo) => (
               <span
                 key={`promo-a-${promo.id}`}
-                className="inline-flex items-center gap-2 whitespace-nowrap"
+                className="inline-flex items-center gap-4 whitespace-nowrap"
               >
                 <span>{promo.title}</span>
-                <span className="text-rose-500/80">•</span>
+                <ShoppingBag className="h-3.5 w-3.5 text-rose-500/80" aria-hidden="true" />
                 <span className="text-rose-600/90">{promo.detail}</span>
+                <ShoppingBag className="h-3.5 w-3.5 text-rose-500/80" aria-hidden="true" />
               </span>
             ))}
             {PROMOS.map((promo) => (
               <span
                 key={`promo-b-${promo.id}`}
-                className="inline-flex items-center gap-2 whitespace-nowrap"
+                className="inline-flex items-center gap-4 whitespace-nowrap"
               >
                 <span>{promo.title}</span>
-                <span className="text-rose-500/80">•</span>
+                <ShoppingBag className="h-3.5 w-3.5 text-rose-500/80" aria-hidden="true" />
                 <span className="text-rose-600/90">{promo.detail}</span>
+                <ShoppingBag className="h-3.5 w-3.5 text-rose-500/80" aria-hidden="true" />
               </span>
             ))}
           </div>
