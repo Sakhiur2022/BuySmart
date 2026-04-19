@@ -20,11 +20,10 @@ type NavMenuItem = {
 };
 
 type MobileNavMenuProps = {
-  items: NavMenuItem[];
-  role?: string | null;
+  items: readonly NavMenuItem[];
 };
 
-export function MobileNavMenu({ items, role }: MobileNavMenuProps) {
+export function MobileNavMenu({ items }: MobileNavMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -111,17 +110,17 @@ export function MobileNavMenu({ items, role }: MobileNavMenuProps) {
               const Icon = item.icon ? iconMap[item.icon] : null;
 
               return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-500/10 dark:hover:text-rose-100 ${
-                  index === 0 ? 'rounded-t-lg' : ''
-                } ${index === items.length - 1 ? 'rounded-b-lg' : ''}`}
-                onClick={handleLinkClick}
-              >
-                {Icon ? <Icon className="h-4 w-4" /> : null}
-                {item.label}
-              </Link>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-500/10 dark:hover:text-rose-100 ${
+                    index === 0 ? 'rounded-t-lg' : ''
+                  } ${index === items.length - 1 ? 'rounded-b-lg' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  {Icon ? <Icon className="h-4 w-4" /> : null}
+                  {item.label}
+                </Link>
               );
             })}
           </div>

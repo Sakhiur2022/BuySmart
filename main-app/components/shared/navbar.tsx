@@ -58,7 +58,6 @@ export async function Navbar() {
                       ? [...sellerNav, ...buyerNav]
                       : buyerNav
                 }
-                role={role}
               />
 
               {/* Brand - Logo */}
