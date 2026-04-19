@@ -209,7 +209,7 @@
 }
 
 .banner-marquee {
-  animation: banner-marquee 22s linear infinite;
+  animation: banner-marquee 38s linear infinite;
 }
 
 @keyframes banner-marquee {
