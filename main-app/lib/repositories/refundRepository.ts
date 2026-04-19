@@ -19,6 +19,7 @@ import {
   RefundConstraintError,
   RefundForeignKeyError,
   RefundRepositoryError,
+  type RefundEligibilitySnapshotDTO,
   type IRefundRepository,
 } from '@/lib/repositories/refund.repository';
 
@@ -27,6 +28,14 @@ type RefundInsert = Database['public']['Tables']['refunds']['Insert'];
 type OrderRow = Database['public']['Tables']['orders']['Row'];
 type OrderItemRow = Database['public']['Tables']['order_items']['Row'];
 type UserProfileRow = Database['public']['Tables']['users_profile']['Row'];
+type OrderStatus = Database['public']['Enums']['order_status_enum'];
+type RefundStatus = Database['public']['Enums']['refund_status_enum'];
+
+const AMOUNT_ACCUMULATION_REFUND_STATUSES: readonly RefundStatus[] = [
+  'approved',
+  'processing',
+  'completed',
+];
 
 type NormalizedFilters = {
   page: number;
@@ -214,6 +223,56 @@ export class RefundRepository implements IRefundRepository {
     const entity = this.toEntity(row, items);
 
     return this.toDetailDTO(entity, relations);
+  }
+
+  public async getEligibilitySnapshot(input: {
+    orderId: string;
+    buyerId: string;
+  }): Promise<RefundEligibilitySnapshotDTO | null> {
+    const supabase = await this.clientFactory();
+    const { data: orderRow, error: orderError } = await supabase
+      .from('orders')
+      .select('order_id, buyer_id, status, total_amount, currency')
+      .eq('order_id', input.orderId)
+      .eq('buyer_id', input.buyerId)
+      .maybeSingle();
+
+    if (orderError) {
+      this.throwMappedError(orderError, 'Failed to fetch refund eligibility order');
+    }
+
+    if (!orderRow) {
+      return null;
+    }
+
+    const { data: refunds, error: refundError } = await supabase
+      .from('refunds')
+      .select('refund_amount, status')
+      .eq('order_id', input.orderId)
+      .in('status', [...AMOUNT_ACCUMULATION_REFUND_STATUSES]);
+
+    if (refundError) {
+      this.throwMappedError(refundError, 'Failed to fetch existing refunds for eligibility');
+    }
+
+    const processedRefundTotal = (refunds ?? []).reduce((sum, row) => {
+      const amount = typeof row.refund_amount === 'number' ? row.refund_amount : 0;
+      return sum + amount;
+    }, 0);
+
+    const orderTotal = this.roundCurrency(orderRow.total_amount);
+    const accumulated = this.roundCurrency(processedRefundTotal);
+    const remaining = this.roundCurrency(Math.max(orderTotal - accumulated, 0));
+
+    return {
+      order_id: orderRow.order_id,
+      buyer_id: orderRow.buyer_id,
+      order_status: orderRow.status as OrderStatus,
+      order_total_amount: orderTotal,
+      processed_refund_total: accumulated,
+      remaining_refundable_amount: remaining,
+      currency: orderRow.currency,
+    };
   }
 
   private normalizeFilters(filters: RefundFilterDTO): NormalizedFilters {
@@ -686,6 +745,10 @@ export class RefundRepository implements IRefundRepository {
     }
 
     return value;
+  }
+
+  private roundCurrency(value: number): number {
+    return Number(value.toFixed(2));
   }
 
   private throwMappedError(error: PostgrestError, fallbackMessage: string): never {
