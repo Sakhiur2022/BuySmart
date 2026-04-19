@@ -50,21 +50,24 @@ export async function AuthButton() {
   const role = (userProfile?.role as 'buyer' | 'seller' | 'admin' | 'moderator' | null) ?? null;
 
   return (
-    <div className="flex items-center gap-3">
-      {avatarUrl && (
-        <div className="relative h-8 w-8 overflow-hidden rounded-full">
-          <Image src={avatarUrl} alt={userName} fill className="object-cover" sizes="32px" />
-        </div>
-      )}
+    <div className="flex items-center gap-2">
       <Link
         href="/profile"
-        className="text-sm font-medium text-rose-700 transition-colors hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-100"
+        className="relative inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-rose-700 transition-colors hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-100"
         title="Go to profile"
         aria-label={`Go to profile: ${userName}`}
       >
-        {userName}
+        {avatarUrl ? (
+          <Image src={avatarUrl} alt={userName} fill className="object-cover" sizes="28px" />
+        ) : (
+          <span className="text-xs font-semibold">
+            {userName.charAt(0).toUpperCase()}
+          </span>
+        )}
       </Link>
-      <NavbarRoleActions role={role} />
+      <div className="ml-2">
+        <NavbarRoleActions role={role} />
+      </div>
       <ThemeSwitcher />
       <Link
         href="/profile/settings"
