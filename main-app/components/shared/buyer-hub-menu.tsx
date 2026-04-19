@@ -99,6 +99,3 @@ export function BuyerHubMenu({ items }: BuyerHubMenuProps) {
     </div>
   );
 }
-    </div>
-  );
-}
