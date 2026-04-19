@@ -6,17 +6,26 @@ import { AuthButton } from '@/components/shared/auth-button';
 import { hasEnvVars } from '@/lib/utils';
 import { EnvVarWarning } from '@/components/shared/env-var-warning';
 import { createClient } from '@/lib/supabase/server';
-import { SellerNavLink } from '@/components/shared/seller-nav-link';
 import { PromotionalBanner } from '@/components/shared/promotional-banner';
 import { CartNavButton } from '@/components/shared/cart-nav-button';
-import { BuyerHubMenu } from '@/components/shared/buyer-hub-menu';
+import { MobileNavMenu } from '@/components/shared/mobile-nav-menu';
+import { NavbarCenterNav } from '@/components/shared/navbar-center-nav';
 
 type NavbarRole = 'buyer' | 'seller' | 'admin' | 'moderator' | null;
 
 const buyerNav = [
-  { href: '/buyer/dashboard', label: 'Buyer Dashboard' },
-  { href: '/buyer/orders', label: 'Orders' },
-  { href: '/buyer/cart', label: 'Cart' },
+  { href: '/buyer/dashboard', label: 'Buyer Dashboard', icon: 'bar-chart-3' },
+  { href: '/buyer/orders', label: 'Orders', icon: 'clipboard-list' },
+];
+
+const adminNav = [
+  { href: '/buyer', label: 'Buyer', icon: 'shopping-bag' },
+  { href: '/admin', label: 'Admin Dashboard', icon: 'shield-check' },
+];
+
+const sellerNav = [
+  { href: '/seller', label: 'Seller Dashboard', icon: 'store' },
+  { href: '/buyer?mode=buyer', label: 'Switch to Buyer', icon: 'arrow-left-right' },
 ];
 
 export async function Navbar() {
@@ -37,51 +46,43 @@ export async function Navbar() {
   return (
     <div className="sticky top-0 z-40">
       <PromotionalBanner visiblePaths={['/', '/buyer']} />
-      <header className="w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+      <header className="w-full border-b border-rose-200/70 bg-linear-to-r from-rose-50 via-white to-rose-50 backdrop-blur supports-backdrop-filter:bg-background/60 dark:border-rose-500/30 dark:from-rose-950/40 dark:via-background/70 dark:to-rose-950/40">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between gap-4">
-            <div className="flex items-center gap-3 shrink-0">
-              <BuyerHubMenu items={buyerNav} />
+          <div className="flex h-16 items-center justify-between gap-2 sm:gap-4">
+            {/* Left: Mobile menu + Logo */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              {/* Mobile nav menu - always show */}
+              <MobileNavMenu
+                items={
+                  role === 'admin' || role === 'moderator'
+                    ? adminNav
+                    : role === 'seller'
+                      ? [...sellerNav, ...buyerNav]
+                      : buyerNav
+                }
+                role={role}
+              />
 
               {/* Brand - Logo */}
-              <Link href="/" className="flex items-center gap-2 shrink-0">
+              <Link href="/" className="flex items-center shrink-0">
                 <Image
                   src="/icons/CSE327_Logo_red.jpg"
                   alt="BuySmart Logo"
                   height={40}
-                  width={140}
+                  width={160}
                   priority
                   className="object-contain h-8 w-auto md:h-10"
                 />
               </Link>
             </div>
 
-            {/* Main Nav */}
+            {/* Center: Desktop Nav Links */}
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-              {role === 'admin' || role === 'moderator' ? (
-                <>
-                  <Link
-                    href="/buyer"
-                    className="rounded-full border border-pink-300/70 bg-linear-to-r from-pink-100 via-rose-100 to-amber-100 px-4 py-1.5 font-semibold text-rose-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:from-pink-200 hover:to-amber-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:border-pink-500/40 dark:from-rose-900/40 dark:via-pink-900/30 dark:to-amber-900/30 dark:text-pink-100"
-                    title="Browse products"
-                  >
-                    Buyer
-                  </Link>
-                  <Link
-                    href="/admin"
-                    className="rounded-full border border-pink-300/70 bg-linear-to-r from-pink-100 via-rose-100 to-amber-100 px-4 py-1.5 font-semibold text-rose-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:from-pink-200 hover:to-amber-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:border-pink-500/40 dark:from-rose-900/40 dark:via-pink-900/30 dark:to-amber-900/30 dark:text-pink-100"
-                    title="Open admin dashboard"
-                  >
-                    Admin Dashboard
-                  </Link>
-                </>
-              ) : (
-                <SellerNavLink role={role} />
-              )}
+              <NavbarCenterNav role={role} />
             </nav>
 
-            {/* Right side */}
-            <div className="flex items-center gap-3">
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2 sm:gap-3 ml-auto">
               <CartNavButton />
               <ThemeSwitcher />
               {!hasEnvVars ? (
@@ -93,7 +94,6 @@ export async function Navbar() {
               )}
             </div>
           </div>
-
         </div>
       </header>
     </div>
