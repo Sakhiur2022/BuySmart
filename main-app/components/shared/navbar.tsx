@@ -52,13 +52,10 @@ export async function Navbar() {
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* Mobile nav menu - always show */}
               <MobileNavMenu
-                items={
-                  role === 'admin' || role === 'moderator'
-                    ? adminNav
-                    : role === 'seller'
-                      ? [...sellerNav, ...buyerNav]
-                      : buyerNav
-                }
+                buyerItems={buyerNav}
+                adminItems={adminNav}
+                sellerItems={sellerNav}
+                role={role}
               />
 
               {/* Brand - Logo */}

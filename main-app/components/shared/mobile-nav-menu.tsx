@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ArrowLeftRight,
   BarChart3,
@@ -20,13 +21,18 @@ type NavMenuItem = {
 };
 
 type MobileNavMenuProps = {
-  items: readonly NavMenuItem[];
+  buyerItems: readonly NavMenuItem[];
+  adminItems: readonly NavMenuItem[];
+  sellerItems: readonly NavMenuItem[];
+  role: 'buyer' | 'seller' | 'admin' | 'moderator' | null;
 };
 
-export function MobileNavMenu({ items }: MobileNavMenuProps) {
+export function MobileNavMenu({ buyerItems, adminItems, sellerItems, role }: MobileNavMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // Handle click outside to close menu
   useEffect(() => {
@@ -67,6 +73,34 @@ export function MobileNavMenu({ items }: MobileNavMenuProps) {
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
+
+  const buyerModeParam = searchParams?.get('mode');
+  const isBuyerMode = buyerModeParam === 'buyer' || buyerModeParam === '1' || buyerModeParam === 'true';
+
+  const inferredRole = (() => {
+    if (pathname.startsWith('/admin')) {
+      return 'admin';
+    }
+    if (pathname.startsWith('/seller')) {
+      return 'seller';
+    }
+    if (pathname.startsWith('/buyer')) {
+      return 'buyer';
+    }
+    return null;
+  })();
+
+  const resolvedRole = role ?? inferredRole;
+
+  const items = (() => {
+    if (resolvedRole === 'admin' || resolvedRole === 'moderator') {
+      return adminItems;
+    }
+    if (resolvedRole === 'seller') {
+      return isBuyerMode ? [...sellerItems, ...buyerItems] : sellerItems;
+    }
+    return buyerItems;
+  })();
 
   // Only show menu dropdown if there are items
   const hasItems = items && items.length > 0;

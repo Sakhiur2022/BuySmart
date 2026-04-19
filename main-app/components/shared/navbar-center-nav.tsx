@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ShieldCheck, ShoppingBag } from 'lucide-react';
 
 type NavbarRole = 'buyer' | 'seller' | 'admin' | 'moderator' | null;
@@ -10,6 +11,21 @@ type NavbarCenterNavProps = {
 };
 
 export function NavbarCenterNav({ role }: NavbarCenterNavProps) {
+  const pathname = usePathname();
+  const inferredRole = (() => {
+    if (pathname.startsWith('/seller')) {
+      return 'seller';
+    }
+    if (pathname.startsWith('/admin')) {
+      return 'admin';
+    }
+    if (pathname.startsWith('/buyer')) {
+      return 'buyer';
+    }
+    return null;
+  })();
+  const resolvedRole = role ?? inferredRole;
+
   if (role === 'admin' || role === 'moderator') {
     return (
       <>
@@ -31,6 +47,10 @@ export function NavbarCenterNav({ role }: NavbarCenterNavProps) {
         </Link>
       </>
     );
+  }
+
+  if (resolvedRole === 'seller') {
+    return null;
   }
 
   return (
