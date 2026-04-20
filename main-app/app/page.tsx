@@ -106,6 +106,9 @@ export default function Home() {
         .limit(100);
 
       if (isMounted) {
+        if (products && products.length > 0) {
+          console.log('First product.images:', products[0].images);
+        }
         console.log('Supabase products:', products);
         const mapped = (products ?? []).map((product) => ({
           id: product.product_id,
