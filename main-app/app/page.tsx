@@ -58,15 +58,19 @@ export default function Home() {
   const [bestSellerProducts, setBestSellerProducts] = useState<ProductCandidate[]>([]);
   const [trendingProducts, setTrendingProducts] = useState<ProductCandidate[]>([]);
   const [latestProducts, setLatestProducts] = useState<ProductCandidate[]>([]);
+  const [productRatings, setProductRatings] = useState<Record<string, number>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [shouldShowSellerCTA, setShouldShowSellerCTA] = useState(false);
 
-  // Dummy hero slides for now
-  const heroSlides = [
-    { id: 'slide1', title: 'Shop the Latest', image: '' },
-    { id: 'slide2', title: 'Best Sellers', image: '' },
-    { id: 'slide3', title: 'Trending Now', image: '' },
-  ];
+  // Use up to 3 latest products with images for the hero slideshow
+  const heroSlides = latestProducts
+    .filter((p) => p.image)
+    .slice(0, 3)
+    .map((p, idx) => ({
+      id: p.id,
+      title: p.title,
+      image: p.image,
+    }));
 
   // Dummy price formatter
   const priceFormatter = new Intl.NumberFormat('en-US', {
@@ -95,9 +99,10 @@ export default function Home() {
         setShouldShowSellerCTA(true);
       }
 
+      // Fetch products with sales_count and average_rating
       const { data: products } = await supabase
         .from('products')
-        .select('product_id, name, category_id, price, tags, images')
+        .select('product_id, name, category_id, price, tags, images, created_at, sales_count, average_rating')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(100);
@@ -110,11 +115,25 @@ export default function Home() {
           price: product.price,
           image: getFirstImageUrl(product.images),
           tags: product.tags ?? undefined,
+          created_at: product.created_at,
+          sales_count: product.sales_count ?? 0,
+          average_rating: product.average_rating ?? 0,
         }));
         setCandidates(mapped);
-        setBestSellerProducts(mapped.slice(0, 6));
+        // Best sellers: sort by sales_count descending
+        const sortedBySales = [...mapped].sort((a, b) => b.sales_count - a.sales_count);
+        setBestSellerProducts(sortedBySales.slice(0, 6));
         setTrendingProducts(mapped.slice(6, 12));
-        setLatestProducts(mapped.slice(12, 18));
+        // Sort by created_at descending for new arrivals
+        const sortedByCreated = [...mapped].sort((a, b) => {
+          if (!a.created_at || !b.created_at) return 0;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+        setLatestProducts(sortedByCreated.slice(0, 6));
+        // Set ratings map for quick lookup
+        const ratings: Record<string, number> = {};
+        mapped.forEach((p) => { ratings[p.id] = p.average_rating ?? 0; });
+        setProductRatings(ratings);
       }
     };
     hydrateHome();
@@ -232,7 +251,7 @@ export default function Home() {
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {(rail.items.length > 0 ? rail.items : latestProducts).map((product) => {
-                  const rating = getRatingFromId(product.id);
+                  const rating = productRatings[product.id] ?? 0;
                   const productHref = `/buyer/products/${product.id}`;
                   return (
                     <div
