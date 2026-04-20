@@ -451,6 +451,11 @@ export function OrderDetailView({
             Buy again
           </Link>
         </Button>
+        <Button asChild variant="destructive">
+          <Link href={`/buyer/orders/${order.order_id}/refund`}>
+            Request Refund
+          </Link>
+        </Button>
       </div>
     </div>
   );
