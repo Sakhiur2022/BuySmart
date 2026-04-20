@@ -10,12 +10,12 @@ import { createClient } from '@/lib/supabase/client';
 import { hasEnvVars } from '@/lib/utils';
 
 const TOP_CATEGORIES = [
-  { label: 'Electronics', href: '/products' },
-  { label: 'Home', href: '/products' },
-  { label: 'Style', href: '/products' },
-  { label: 'Outdoor', href: '/products' },
-  { label: 'Beauty', href: '/products' },
-  { label: 'Gifts', href: '/products' },
+  { label: 'Electronics', href: '/buyer' },
+  { label: 'Home', href: '/buyer' },
+  { label: 'Style', href: '/buyer' },
+  { label: 'Outdoor', href: '/buyer' },
+  { label: 'Beauty', href: '/buyer' },
+  { label: 'Gifts', href: '/buyer' },
 ];
 
 interface Product {
@@ -30,8 +30,47 @@ interface Product {
   category_id?: number | null;
   tags?: unknown;
   created_at?: string;
-  sales_count?: number;
-  average_rating?: number;
+}
+
+interface OrderItemMetricRow {
+  product_id: string;
+  quantity: number | null;
+}
+
+interface FeedbackMetricRow {
+  product_id: string | null;
+  rating: number | null;
+}
+
+type HomeProduct = ProductCandidate & {
+  created_at?: string;
+  sales_count: number;
+  average_rating: number;
+};
+
+const MAX_HOME_PRODUCTS = 100;
+const RAIL_ITEM_COUNT = 6;
+
+function getCreatedAtTimestamp(date?: string) {
+  if (!date) return 0;
+  const timestamp = new Date(date).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function withNewestFallback(primary: HomeProduct[], fallback: HomeProduct[]) {
+  if (primary.length >= RAIL_ITEM_COUNT) {
+    return primary.slice(0, RAIL_ITEM_COUNT);
+  }
+
+  const seenIds = new Set(primary.map((item) => item.id));
+  const merged = [...primary];
+  for (const item of fallback) {
+    if (seenIds.has(item.id)) continue;
+    merged.push(item);
+    if (merged.length >= RAIL_ITEM_COUNT) break;
+  }
+
+  return merged;
 }
 
 function getImageUrl(product: Product) {
@@ -64,7 +103,6 @@ function getImageUrl(product: Product) {
   return 'https://via.placeholder.com/300';
 }
 
-
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -89,7 +127,7 @@ export default function Home() {
   // Dummy price formatter
   const priceFormatter = new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'BDT',
   });
 
   useEffect(() => {
@@ -113,44 +151,125 @@ export default function Home() {
         setShouldShowSellerCTA(true);
       }
 
-      // Fetch products with sales_count and average_rating
-      const { data: products } = await supabase
+      const { data: products, error: productsError } = await supabase
         .from('products')
-        .select('product_id, name, category_id, price, tags, images, created_at, sales_count, average_rating')
+        .select('product_id, name, category_id, price, tags, images, created_at')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(MAX_HOME_PRODUCTS);
+
+      if (productsError) {
+        console.error('Failed to load active products for home page rails:', productsError);
+      }
 
       if (isMounted) {
-        if (products && products.length > 0) {
-          console.log('First product.images:', products[0].images);
+        if (!products || products.length === 0) {
+          setBestSellerProducts([]);
+          setTrendingProducts([]);
+          setLatestProducts([]);
+          setProductRatings({});
+          return;
         }
-        console.log('Supabase products:', products);
-        const mapped = (products ?? []).map((product) => ({
-          id: product.product_id,
-          title: product.name,
-          category_id: product.category_id ?? undefined,
-          price: product.price,
-          image: getImageUrl(product),
-          tags: product.tags ?? undefined,
-          created_at: product.created_at,
-          sales_count: product.sales_count ?? 0,
-          average_rating: product.average_rating ?? 0,
-        }));
-        // setCandidates(mapped); // Removed unused state update
-        // Best sellers: sort by sales_count descending
-        const sortedBySales = [...mapped].sort((a, b) => b.sales_count - a.sales_count);
-        setBestSellerProducts(sortedBySales.slice(0, 6));
-        setTrendingProducts(mapped.slice(6, 12));
-        // Sort by created_at descending for new arrivals
-        const sortedByCreated = [...mapped].sort((a, b) => {
-          if (!a.created_at || !b.created_at) return 0;
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+
+        const productIds = products.map((product) => product.product_id);
+        const [{ data: orderItems }, { data: feedbackRows }] = await Promise.all([
+          supabase
+            .from('order_items')
+            .select('product_id, quantity')
+            .in('product_id', productIds)
+            .in('status', ['confirmed', 'shipped', 'delivered']),
+          supabase
+            .from('feedback')
+            .select('product_id, rating')
+            .eq('status', 'published')
+            .in('product_id', productIds)
+            .not('rating', 'is', null),
+        ]);
+
+        const salesByProduct = new Map<string, number>();
+        (orderItems as OrderItemMetricRow[] | null)?.forEach((row) => {
+          const quantity = row.quantity ?? 0;
+          salesByProduct.set(row.product_id, (salesByProduct.get(row.product_id) ?? 0) + quantity);
         });
-        setLatestProducts(sortedByCreated.slice(0, 6));
-        // Set ratings map for quick lookup
+
+        const ratingAccumulator = new Map<string, { total: number; count: number }>();
+        (feedbackRows as FeedbackMetricRow[] | null)?.forEach((row) => {
+          if (!row.product_id || row.rating === null) return;
+          const existing = ratingAccumulator.get(row.product_id) ?? { total: 0, count: 0 };
+          ratingAccumulator.set(row.product_id, {
+            total: existing.total + row.rating,
+            count: existing.count + 1,
+          });
+        });
+
+        const mapped: HomeProduct[] = products.map((product) => {
+          const ratingAggregate = ratingAccumulator.get(product.product_id);
+          const averageRating =
+            ratingAggregate && ratingAggregate.count > 0
+              ? Math.round((ratingAggregate.total / ratingAggregate.count) * 10) / 10
+              : 0;
+
+          return {
+            id: product.product_id,
+            title: product.name,
+            category_id: product.category_id ?? undefined,
+            price: product.price,
+            image: getImageUrl(product),
+            tags: product.tags ?? undefined,
+            created_at: product.created_at,
+            sales_count: salesByProduct.get(product.product_id) ?? 0,
+            average_rating: averageRating,
+          };
+        });
+
+        const newestProducts = [...mapped].sort(
+          (a, b) => getCreatedAtTimestamp(b.created_at) - getCreatedAtTimestamp(a.created_at),
+        );
+
+        const now = Date.now();
+        const bestSellerRanked = [...mapped].sort((a, b) => {
+          if (b.sales_count !== a.sales_count) return b.sales_count - a.sales_count;
+          return getCreatedAtTimestamp(b.created_at) - getCreatedAtTimestamp(a.created_at);
+        });
+
+        const trendingRanked = [...mapped].sort((a, b) => {
+          const aAgeDays = Math.max(
+            0,
+            (now - getCreatedAtTimestamp(a.created_at)) / (1000 * 60 * 60 * 24),
+          );
+          const bAgeDays = Math.max(
+            0,
+            (now - getCreatedAtTimestamp(b.created_at)) / (1000 * 60 * 60 * 24),
+          );
+          const aRecencyBoost = Math.max(0, 10 - aAgeDays / 3);
+          const bRecencyBoost = Math.max(0, 10 - bAgeDays / 3);
+          const aScore = a.sales_count * 4 + a.average_rating * 12 + aRecencyBoost;
+          const bScore = b.sales_count * 4 + b.average_rating * 12 + bRecencyBoost;
+          if (bScore !== aScore) return bScore - aScore;
+          return getCreatedAtTimestamp(b.created_at) - getCreatedAtTimestamp(a.created_at);
+        });
+
+        const latestSelection = newestProducts.slice(0, RAIL_ITEM_COUNT);
+        const hasSalesSignal = bestSellerRanked.some((product) => product.sales_count > 0);
+        const hasTrendingSignal = trendingRanked.some(
+          (product) => product.sales_count > 0 || product.average_rating > 0,
+        );
+
+        const bestSellerSelection = hasSalesSignal
+          ? withNewestFallback(bestSellerRanked, newestProducts)
+          : latestSelection;
+        const trendingSelection = hasTrendingSignal
+          ? withNewestFallback(trendingRanked, newestProducts)
+          : latestSelection;
+
+        setBestSellerProducts(bestSellerSelection);
+        setTrendingProducts(trendingSelection);
+        setLatestProducts(latestSelection);
+
         const ratings: Record<string, number> = {};
-        mapped.forEach((p) => { ratings[p.id] = p.average_rating ?? 0; });
+        mapped.forEach((p) => {
+          ratings[p.id] = p.average_rating ?? 0;
+        });
         setProductRatings(ratings);
       }
     };
@@ -185,7 +304,7 @@ export default function Home() {
                 Shop new arrivals
               </Link>
               <Link
-                href="/products"
+                href="/buyer"
                 className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-foreground transition hover:border-primary hover:text-primary"
               >
                 Browse all products
@@ -225,7 +344,7 @@ export default function Home() {
                   ) : (
                     <div className="h-full w-full bg-[linear-gradient(135deg,rgba(230,57,70,0.3),rgba(255,255,255,0.7))]" />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/50 via-black/5 to-transparent" />
                   <div className="absolute bottom-4 left-4 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
                     {slide.title}
                   </div>
@@ -263,7 +382,7 @@ export default function Home() {
                   </span>
                 </div>
                 <Link
-                  href="/products"
+                  href="/buyer"
                   className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground transition hover:border-primary hover:text-primary"
                 >
                   Shop all
@@ -272,13 +391,16 @@ export default function Home() {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {(rail.items.length > 0 ? rail.items : latestProducts).map((product) => {
                   const rating = productRatings[product.id] ?? 0;
-                  const productHref = `/buyer/products/${product.id}`;
+                  const productHref = '/buyer';
                   return (
                     <div
                       key={`${rail.id}-${product.id}`}
                       className="group overflow-hidden rounded-3xl border border-white/10 bg-card/80 shadow-lg shadow-primary/5"
                     >
-                      <Link href={productHref} className="relative block h-52 overflow-hidden bg-neutral-100">
+                      <Link
+                        href={productHref}
+                        className="relative block h-52 overflow-hidden bg-neutral-100"
+                      >
                         {product.image ? (
                           <Image
                             src={product.image}
