@@ -18,31 +18,35 @@ const TOP_CATEGORIES = [
   { label: 'Gifts', href: '/products' },
 ];
 
-function getFirstImageUrl(images: unknown): string | undefined {
-  if (!Array.isArray(images) || images.length === 0) {
-    return undefined;
+function getImageUrl(product: any) {
+  if (product.image_url) {
+    return product.image_url;
   }
-
-  const first = images[0] as unknown;
-
-  if (typeof first === 'string' && first.trim().length > 0) {
-    return first;
+  if (!product.images) {
+    return 'https://via.placeholder.com/300';
   }
-
-  if (first && typeof first === 'object') {
-    const record = first as Record<string, unknown>;
-    const url =
-      (typeof record.url === 'string' && record.url) ||
-      (typeof record.src === 'string' && record.src) ||
-      (typeof record.path === 'string' && record.path) ||
-      undefined;
-
-    return url && url.trim().length > 0 ? url : undefined;
+  if (typeof product.images === 'string') {
+    return product.images;
   }
-
-  return undefined;
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const first = product.images[0];
+    if (typeof first === 'string') {
+      return first;
+    }
+    if (first && typeof first === 'object' && 'url' in first && typeof first.url === 'string') {
+      return first.url;
+    }
+  }
+  if (
+    product.images &&
+    typeof product.images === 'object' &&
+    'url' in product.images &&
+    typeof product.images.url === 'string'
+  ) {
+    return product.images.url;
+  }
+  return 'https://via.placeholder.com/300';
 }
-
 
 
 export default function Home() {
@@ -102,12 +106,13 @@ export default function Home() {
         .limit(100);
 
       if (isMounted) {
+        console.log('Supabase products:', products);
         const mapped = (products ?? []).map((product) => ({
           id: product.product_id,
           title: product.name,
           category_id: product.category_id ?? undefined,
           price: product.price,
-          image: getFirstImageUrl(product.images),
+          image: getImageUrl(product),
           tags: product.tags ?? undefined,
           created_at: product.created_at,
           sales_count: product.sales_count ?? 0,
