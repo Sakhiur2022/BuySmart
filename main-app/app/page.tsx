@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { SellerUpgradeCta } from '@/components/shared/seller-upgrade-cta';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
@@ -42,19 +43,12 @@ function getFirstImageUrl(images: unknown): string | undefined {
   return undefined;
 }
 
-function getRatingFromId(id: string) {
-  let hash = 0;
-  for (let index = 0; index < id.length; index += 1) {
-    hash = (hash + id.charCodeAt(index) * (index + 3)) % 1000;
-  }
-  const rating = 4 + (hash % 10) / 10;
-  return Number(rating.toFixed(1));
-}
+
 
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [candidates, setCandidates] = useState<ProductCandidate[]>([]);
+  // Removed candidates state as it is unused
   const [bestSellerProducts, setBestSellerProducts] = useState<ProductCandidate[]>([]);
   const [trendingProducts, setTrendingProducts] = useState<ProductCandidate[]>([]);
   const [latestProducts, setLatestProducts] = useState<ProductCandidate[]>([]);
@@ -66,7 +60,7 @@ export default function Home() {
   const heroSlides = latestProducts
     .filter((p) => p.image)
     .slice(0, 3)
-    .map((p, idx) => ({
+    .map((p) => ({
       id: p.id,
       title: p.title,
       image: p.image,
@@ -119,7 +113,7 @@ export default function Home() {
           sales_count: product.sales_count ?? 0,
           average_rating: product.average_rating ?? 0,
         }));
-        setCandidates(mapped);
+        // setCandidates(mapped); // Removed unused state update
         // Best sellers: sort by sales_count descending
         const sortedBySales = [...mapped].sort((a, b) => b.sales_count - a.sales_count);
         setBestSellerProducts(sortedBySales.slice(0, 6));
@@ -196,11 +190,13 @@ export default function Home() {
                   className={`hero-slide hero-slide--${index + 1} absolute inset-0`}
                 >
                   {slide.image ? (
-                    <img
+                    <Image
                       src={slide.image}
                       alt={slide.title}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      priority={index === 0}
                     />
                   ) : (
                     <div className="h-full w-full bg-[linear-gradient(135deg,rgba(230,57,70,0.3),rgba(255,255,255,0.7))]" />
@@ -260,10 +256,12 @@ export default function Home() {
                     >
                       <Link href={productHref} className="relative block h-52 overflow-hidden bg-neutral-100">
                         {product.image ? (
-                          <img
+                          <Image
                             src={product.image}
                             alt={product.title}
-                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                            fill
+                            className="object-cover transition duration-500 group-hover:scale-105"
+                            sizes="(max-width: 768px) 100vw, 33vw"
                             loading="lazy"
                           />
                         ) : (
