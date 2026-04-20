@@ -18,7 +18,23 @@ const TOP_CATEGORIES = [
   { label: 'Gifts', href: '/products' },
 ];
 
-function getImageUrl(product: any) {
+interface Product {
+  product_id: string;
+  id?: string;
+  title?: string;
+  name?: string;
+  description?: string | null;
+  price?: number;
+  image_url?: string;
+  images?: unknown;
+  category_id?: number | null;
+  tags?: unknown;
+  created_at?: string;
+  sales_count?: number;
+  average_rating?: number;
+}
+
+function getImageUrl(product: Product) {
   if (product.image_url) {
     return product.image_url;
   }
