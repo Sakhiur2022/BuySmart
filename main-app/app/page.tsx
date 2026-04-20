@@ -2,48 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { RecommendationPanel } from '@/components/recommendations/recommendation-panel';
 import { SellerUpgradeCta } from '@/components/shared/seller-upgrade-cta';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
-import { ConnectSupabaseSteps } from '@/components/shared/tutorial/connect-supabase-steps';
-import { SignUpUserSteps } from '@/components/shared/tutorial/sign-up-user-steps';
 import type { ProductCandidate } from '@/lib/agents/recommendation/types';
 import { createClient } from '@/lib/supabase/client';
 import { hasEnvVars } from '@/lib/utils';
 
-const STAT_BLOCKS = [
-  { label: 'SKUs enriched', value: '18k+', detail: 'Synced every 24h' },
-  { label: 'Cohort playbooks', value: '42', detail: 'Buyer archetypes live' },
-  { label: 'Latency p95', value: '520ms', detail: 'Edge orchestration' },
-  { label: 'Budget compliance', value: '94%', detail: 'Constraints honored' },
-];
-
-const WORKFLOW_STEPS = [
-  {
-    title: 'Intent orchestration',
-    detail:
-      'Capture multi-sentence briefs, clean them, and stream context to the agent in seconds.',
-  },
-  {
-    title: 'Constraint enforcement',
-    detail: 'Tight budget, brand, and availability guardrails run before the API call is made.',
-  },
-  {
-    title: 'Multi-signal scoring',
-    detail: 'Blend embeddings, behavioral metrics, and stock freshness to rank every SKU.',
-  },
-  {
-    title: 'Explainable outputs',
-    detail: 'Present marketing-ready reasoning your sales team can reuse instantly.',
-  },
-];
-
-const SIGNALS = [
-  'Clickstream quality tiers',
-  'Inventory freshness windows',
-  'Vector similarities in Supabase',
-  'Margin guardrails & promo flags',
-  'Post-purchase sentiment',
+const TOP_CATEGORIES = [
+  { label: 'Electronics', href: '/products' },
+  { label: 'Home', href: '/products' },
+  { label: 'Style', href: '/products' },
+  { label: 'Outdoor', href: '/products' },
+  { label: 'Beauty', href: '/products' },
+  { label: 'Gifts', href: '/products' },
 ];
 
 function getFirstImageUrl(images: unknown): string | undefined {
@@ -71,45 +42,57 @@ function getFirstImageUrl(images: unknown): string | undefined {
   return undefined;
 }
 
+function getRatingFromId(id: string) {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = (hash + id.charCodeAt(index) * (index + 3)) % 1000;
+  }
+  const rating = 4 + (hash % 10) / 10;
+  return Number(rating.toFixed(1));
+}
+
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<ProductCandidate[]>([]);
+  const [bestSellerProducts, setBestSellerProducts] = useState<ProductCandidate[]>([]);
+  const [trendingProducts, setTrendingProducts] = useState<ProductCandidate[]>([]);
+  const [latestProducts, setLatestProducts] = useState<ProductCandidate[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [shouldShowSellerCTA, setShouldShowSellerCTA] = useState(false);
+
+  // Dummy hero slides for now
+  const heroSlides = [
+    { id: 'slide1', title: 'Shop the Latest', image: '' },
+    { id: 'slide2', title: 'Best Sellers', image: '' },
+    { id: 'slide3', title: 'Trending Now', image: '' },
+  ];
+
+  // Dummy price formatter
+  const priceFormatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  });
 
   useEffect(() => {
-    if (!hasEnvVars) {
-      return;
-    }
-
+    if (!hasEnvVars) return;
     const supabase = createClient();
     let isMounted = true;
 
     const hydrateHome = async () => {
       const profileResponse = await fetch('/api/auth/me', { cache: 'no-store' });
-
-      if (!isMounted) {
-        return;
-      }
-
+      if (!isMounted) return;
       if (profileResponse.ok) {
-        const profile = (await profileResponse.json()) as {
-          userId: string;
-          email: string | null;
-          fullName: string | null;
-          role: string | null;
-        };
-
+        const profile = (await profileResponse.json()) as { userId: string; role: string | null };
         setUserId(profile.userId);
-        setUserEmail(profile.email ?? null);
-        setUserDisplayName(profile.fullName ?? null);
         setUserRole(profile.role ?? null);
+        setIsAuthenticated(true);
+        setShouldShowSellerCTA(!profile.role || profile.role !== 'seller');
       } else {
         setUserId(null);
-        setUserEmail(null);
-        setUserDisplayName(null);
         setUserRole(null);
+        setIsAuthenticated(false);
+        setShouldShowSellerCTA(true);
       }
 
       const { data: products } = await supabase
@@ -120,201 +103,191 @@ export default function Home() {
         .limit(100);
 
       if (isMounted) {
-        setCandidates(
-          (products ?? []).map((product) => ({
-            id: product.product_id,
-            title: product.name,
-            category_id: product.category_id ?? undefined,
-            price: product.price,
-            image: getFirstImageUrl(product.images),
-            tags: product.tags ?? undefined,
-          })),
-        );
+        const mapped = (products ?? []).map((product) => ({
+          id: product.product_id,
+          title: product.name,
+          category_id: product.category_id ?? undefined,
+          price: product.price,
+          image: getFirstImageUrl(product.images),
+          tags: product.tags ?? undefined,
+        }));
+        setCandidates(mapped);
+        setBestSellerProducts(mapped.slice(0, 6));
+        setTrendingProducts(mapped.slice(6, 12));
+        setLatestProducts(mapped.slice(12, 18));
       }
     };
-
-    void hydrateHome();
-
+    hydrateHome();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const isAuthenticated = Boolean(userId ?? userEmail);
-  const shouldShowSellerCTA = userRole !== 'seller';
-
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="relative isolate flex min-h-screen flex-col">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(230,57,70,0.15),transparent_65%)]"
-        />
-        <section className="relative w-full border-b border-white/5 bg-linear-to-br from-primary/5 via-background to-background">
-          <div
-            aria-hidden
-            className="absolute left-1/2 top-10 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/20 blur-[120px]"
-          />
-
-          <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-24 lg:flex-row lg:items-center">
-            <div className="flex-1 space-y-6">
-              <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-primary">
-                Recommendation studio
-              </span>
-              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground md:text-5xl">
-                Build a contextual buying copilot your sales team can trust.
-              </h1>
-              <p className="max-w-xl text-base text-muted-foreground">
-                BuySmart ingests customer intent, catalog data, and live constraints to produce
-                ranked product shortlists with explanations that feel hand-written. Plug it into
-                your marketplace or internal tooling without babysitting prompts.
-              </p>
-
-              <div className="flex flex-wrap gap-4">
+    <main className="min-h-screen w-full bg-background">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-2 pb-10 pt-6">
+        {/* Hero Section */}
+        <section className="flex flex-col gap-8 rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl shadow-primary/10 md:flex-row md:items-center md:gap-12">
+          <div className="flex flex-1 flex-col gap-6">
+            <div className="flex flex-wrap gap-3">
+              {TOP_CATEGORIES.map((category) => (
                 <Link
-                  href="#recommendation-workspace"
-                  className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition hover:translate-y-0.5"
+                  key={category.label}
+                  href={category.href}
+                  className="rounded-full border border-white/30 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground transition hover:border-primary hover:text-primary"
                 >
-                  Use the recommendation workspace
+                  {category.label}
                 </Link>
-                <Link
-                  href="#integration-playbook"
-                  className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-foreground transition hover:border-primary hover:text-primary"
-                >
-                  Review the integration plan
-                </Link>
-              </div>
-              {shouldShowSellerCTA ? (
-                <p className="flex items-center gap-2 text-lg font-medium text-muted-foreground">
-                  <span
-                    className="inline-flex items-center justify-center rounded-full border border-primary/20 bg-primary/10 p-1 text-primary"
-                    aria-hidden
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3 10h18" />
-                      <path d="M4 10l2-6h12l2 6" />
-                      <path d="M5 10v8h14v-8" />
-                      <path d="M9 18v-6h6v6" />
-                    </svg>
-                  </span>
-                  <span>Want to sell on BuySmart? </span>
-                  <SellerUpgradeCta
-                    isAuthenticated={isAuthenticated}
-                    userId={userId}
-                    userRole={userRole}
-                    buttonVariant="ghost"
-                    buttonClassName="h-auto p-0 text-left font-semibold text-primary hover:bg-transparent hover:text-primary"
-                  >
-                    Sign up as a seller
-                  </SellerUpgradeCta>
-                </p>
-              ) : null}
+              ))}
             </div>
-
-            <div className="flex flex-1 flex-col gap-4 rounded-3xl border border-white/10 bg-background/80 p-6 shadow-xl shadow-primary/10">
-              {STAT_BLOCKS.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-5 dark:bg-white/5"
+            <div className="flex flex-wrap gap-4">
+              <Link
+                href="#new-arrivals"
+                className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition hover:translate-y-0.5"
+              >
+                Shop new arrivals
+              </Link>
+              <Link
+                href="/products"
+                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-foreground transition hover:border-primary hover:text-primary"
+              >
+                Browse all products
+              </Link>
+            </div>
+            {shouldShowSellerCTA ? (
+              <div className="rounded-2xl border border-white/20 bg-white/70 p-4 text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">Want to sell on BuySmart?</span>{' '}
+                <SellerUpgradeCta
+                  isAuthenticated={isAuthenticated}
+                  userId={userId}
+                  userRole={userRole}
+                  buttonVariant="ghost"
+                  buttonClassName="h-auto p-0 align-baseline font-semibold text-primary hover:bg-transparent hover:text-primary"
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {stat.label}
-                  </p>
-                  <p className="mt-2 text-3xl font-semibold text-primary">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.detail}</p>
+                  Sign up as a seller
+                </SellerUpgradeCta>
+              </div>
+            ) : null}
+          </div>
+          <div className="flex flex-1 flex-col gap-6">
+            <div className="hero-slideshow relative h-72 overflow-hidden rounded-3xl border border-white/10 bg-background/80 shadow-xl shadow-primary/10">
+              {heroSlides.map((slide, index) => (
+                <div
+                  key={slide.id}
+                  className={`hero-slide hero-slide--${index + 1} absolute inset-0`}
+                >
+                  {slide.image ? (
+                    <img
+                      src={slide.image}
+                      alt={slide.title}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-[linear-gradient(135deg,rgba(230,57,70,0.3),rgba(255,255,255,0.7))]" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/5 to-transparent" />
+                  <div className="absolute bottom-4 left-4 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
+                    {slide.title}
+                  </div>
                 </div>
               ))}
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                  Best sellers
+                </p>
+                <p className="mt-2 text-lg font-semibold text-foreground">Top-rated essentials</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                  Trending now
+                </p>
+                <p className="mt-2 text-lg font-semibold text-foreground">Most wishlisted</p>
+              </div>
+            </div>
           </div>
         </section>
-
-        <section
-          id="recommendation-workspace"
-          className="w-full bg-neutral-50/70 px-6 py-20 dark:bg-neutral-950/40"
-        >
-          <div className="mx-auto grid max-w-6xl items-start gap-10 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="space-y-6">
-              <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-primary dark:bg-background">
-                Live control room
-              </span>
-              <h2 className="text-3xl font-semibold leading-tight">Recommendation Workbench</h2>
-              <p className="text-base text-muted-foreground">
-                Configure constraints, inspect agent rationales, and monitor latency from a single
-                surface. Your merchandisers gain a tactile way to test briefs before exposing them
-                to buyers.
-              </p>
-
-              <ul className="space-y-4">
-                {WORKFLOW_STEPS.map((step) => (
-                  <li key={step.title} className="flex items-start gap-3">
-                    <span className="mt-1 inline-block size-2 rounded-full bg-primary" />
-                    <div>
-                      <p className="text-sm font-semibold">{step.title}</p>
-                      <p className="text-sm text-muted-foreground">{step.detail}</p>
+        {/* Product Rails */}
+        {[
+          { id: 'best-sellers', title: 'Best seller', items: bestSellerProducts },
+          { id: 'trending', title: 'Trending', items: trendingProducts },
+          { id: 'new-arrivals', title: 'New arrival', items: latestProducts },
+        ].map((rail) => (
+          <section key={rail.id} id={rail.id} className="w-full px-6 py-20">
+            <div className="mx-auto flex max-w-6xl flex-col gap-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
+                    {rail.title}
+                  </span>
+                </div>
+                <Link
+                  href="/products"
+                  className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground transition hover:border-primary hover:text-primary"
+                >
+                  Shop all
+                </Link>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {(rail.items.length > 0 ? rail.items : latestProducts).map((product) => {
+                  const rating = getRatingFromId(product.id);
+                  const productHref = `/buyer/products/${product.id}`;
+                  return (
+                    <div
+                      key={`${rail.id}-${product.id}`}
+                      className="group overflow-hidden rounded-3xl border border-white/10 bg-card/80 shadow-lg shadow-primary/5"
+                    >
+                      <Link href={productHref} className="relative block h-52 overflow-hidden bg-neutral-100">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.title}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-[linear-gradient(135deg,rgba(230,57,70,0.25),rgba(255,255,255,0.65))]" />
+                        )}
+                        <div className="absolute inset-0 flex items-end justify-center bg-black/0 opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                          <span className="mb-4 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
+                            Quick view
+                          </span>
+                        </div>
+                      </Link>
+                      <div className="space-y-3 p-5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                            Fresh drop
+                          </span>
+                          <span className="rounded-full border border-white/20 bg-white/60 px-2 py-1 text-xs font-semibold text-foreground">
+                            {priceFormatter.format(product.price ?? 0)}
+                          </span>
+                        </div>
+                        <p className="text-base font-semibold text-foreground">{product.title}</p>
+                        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                          <span className="inline-flex items-center gap-1 text-foreground">
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4 text-primary"
+                              fill="currentColor"
+                            >
+                              <path d="M12 2l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17l-5.9 3.1 1.2-6.5L2.5 8.9l6.6-.9L12 2z" />
+                            </svg>
+                            {rating}
+                          </span>
+                          <span>Top rated</span>
+                        </div>
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="rounded-2xl border border-primary/20 bg-white/70 p-5 text-sm dark:bg-background">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
-                  Signal coverage
-                </p>
-                <ul className="mt-4 space-y-2 text-muted-foreground">
-                  {SIGNALS.map((signal) => (
-                    <li key={signal} className="flex items-center gap-2">
-                      <span className="inline-block size-1.5 rounded-full bg-primary" />
-                      {signal}
-                    </li>
-                  ))}
-                </ul>
+                  );
+                })}
               </div>
             </div>
-
-            <div className="rounded-4xlrder border-white/20 bg-background/90 p-2 shadow-2xl shadow-primary/20">
-              <RecommendationPanel
-                isAuthenticated={isAuthenticated}
-                userEmail={userEmail}
-                userDisplayName={userDisplayName ?? undefined}
-                candidates={candidates}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section id="integration-playbook" className="w-full px-6 py-20">
-          <div className="mx-auto max-w-5xl rounded-4xl border border-white/10 bg-card/70 p-8 shadow-xl shadow-primary/10">
-            <div className="grid gap-10 md:grid-cols-2">
-              <div className="space-y-4">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em]">
-                  Integration runbook
-                </span>
-                <h3 className="text-2xl font-semibold">Connect Supabase & hydrate the agent</h3>
-                <p className="text-base text-muted-foreground">
-                  Wire up authentication, stream embeddings, and ship your first recommendation API
-                  call. Follow the guided runbook on the right to decide whether you want buyer
-                  onboarding or internal QA first.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Everything runs on the same Supabase stack that powers the starter kit, so you
-                  keep type safety, row-level security, and deploys through Vercel.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-muted/50 p-4">
-                {hasEnvVars ? <SignUpUserSteps /> : <ConnectSupabaseSteps />}
-              </div>
-            </div>
-          </div>
-        </section>
-
+          </section>
+        ))}
+        {/* Footer */}
         <footer className="border-t border-white/10 bg-background/80 px-6 py-10">
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <p>Built with Supabase, hardened for AI commerce.</p>
