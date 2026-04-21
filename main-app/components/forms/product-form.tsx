@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition, type FormEvent } from 'react';
+import { MultiImageUpload } from '@/components/seller/multi-image-upload';
 import type { Category } from '@/lib/models/category.model';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +26,17 @@ type ProductFormValues = {
   status: 'draft' | 'active' | 'inactive' | 'out_of_stock';
   shortDescription: string;
   description: string;
-  imageUrl: string;
+  imageUrls: string[];
+};
+
+type ProductImageOrderRef = { kind: 'existing'; value: string } | { kind: 'new'; value: string };
+
+type ProductImageUploadState = {
+  imageOrder: ProductImageOrderRef[];
+  newUploads: Array<{
+    token: string;
+    file: File;
+  }>;
 };
 
 type ProductFormProps = {
@@ -44,8 +55,15 @@ const DEFAULT_VALUES: ProductFormValues = {
   status: 'active',
   shortDescription: '',
   description: '',
-  imageUrl: '',
+  imageUrls: [],
 };
+
+function createInitialImageUploadState(imageUrls: string[]): ProductImageUploadState {
+  return {
+    imageOrder: imageUrls.map((url) => ({ kind: 'existing', value: url })),
+    newUploads: [],
+  };
+}
 
 export function ProductForm({
   title,
@@ -59,14 +77,35 @@ export function ProductForm({
     ...DEFAULT_VALUES,
     ...values,
   };
+  const [isSubmitting, startTransition] = useTransition();
   const [selectedCategoryId, setSelectedCategoryId] = useState(
     formValues.categoryId ? String(formValues.categoryId) : 'none',
+  );
+  const [imageUploadState, setImageUploadState] = useState<ProductImageUploadState>(() =>
+    createInitialImageUploadState(formValues.imageUrls),
   );
   const categoryOptions = useMemo(
     () =>
       categories.map((category) => ({ id: String(category.category_id), label: category.name })),
     [categories],
   );
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+
+    formData.set('image_order', JSON.stringify(imageUploadState.imageOrder));
+
+    for (const upload of imageUploadState.newUploads) {
+      formData.append('new_image_tokens', upload.token);
+      formData.append('new_images', upload.file);
+    }
+
+    startTransition(() => {
+      void action(formData);
+    });
+  };
 
   return (
     <Card className="shadow-sm">
@@ -75,7 +114,7 @@ export function ProductForm({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={action} className="grid gap-5">
+        <form onSubmit={handleSubmit} className="grid gap-5">
           {formValues.productId ? (
             <input type="hidden" name="product_id" value={formValues.productId} />
           ) : null}
@@ -157,16 +196,11 @@ export function ProductForm({
             </select>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="image_url">Primary Image URL</Label>
-            <Input
-              id="image_url"
-              name="image_url"
-              type="url"
-              placeholder="https://images.example.com/product.jpg"
-              defaultValue={formValues.imageUrl}
-            />
-          </div>
+          <MultiImageUpload
+            initialImageUrls={formValues.imageUrls}
+            submitting={isSubmitting}
+            onChange={setImageUploadState}
+          />
 
           <div className="grid gap-2">
             <Label htmlFor="short_description">Short Description</Label>
@@ -196,7 +230,9 @@ export function ProductForm({
             <Button asChild variant="outline" type="button">
               <Link href="/seller/products">Cancel</Link>
             </Button>
-            <Button type="submit">{submitLabel}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : submitLabel}
+            </Button>
           </div>
         </form>
       </CardContent>
