@@ -52,9 +52,7 @@ interface ProductData {
 // METADATA GENERATION
 // ============================================================================
 
-export async function generateMetadata(
-  { params }: PageProps
-): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const requestHeaders = await headers();
   const host = requestHeaders.get('host') || 'localhost:3000';
@@ -91,8 +89,9 @@ export async function generateMetadata(
       title: `${product.name} | BuySmart`,
       description:
         product.short_description || product.description || 'View product details on BuySmart',
-      keywords: [product.name, product.category?.name, 'buy', 'shopping']
-        .filter((k) => k !== undefined) as string[],
+      keywords: [product.name, product.category?.name, 'buy', 'shopping'].filter(
+        (k) => k !== undefined,
+      ) as string[],
       openGraph: {
         title: product.name,
         description: product.short_description || product.description || undefined,
@@ -161,6 +160,20 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </div>
     );
   } catch (error) {
+    if (error instanceof Error) {
+      const digest = (error as Error & { digest?: string }).digest;
+
+      if (typeof digest === 'string') {
+        if (digest.startsWith('NEXT_REDIRECT')) {
+          throw error;
+        }
+
+        if (digest.startsWith('NEXT_HTTP_ERROR_FALLBACK;404')) {
+          throw error;
+        }
+      }
+    }
+
     console.error('Error loading product page:', error);
     notFound();
   }
