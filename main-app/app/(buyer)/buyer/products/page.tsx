@@ -20,6 +20,7 @@ interface PageProps {
     priceMin?: string;
     priceMax?: string;
     categoryId?: string;
+    category?: string;
     q?: string;
     search?: string;
   }>;
@@ -53,18 +54,8 @@ export default async function BuyerProductsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const query = params.q ?? params.search;
 
-  const [categoriesData, productsResult] = await Promise.all([
-    getActiveCategories(),
-    getBuyerProductsAction({
-      page: parseOptionalNumber(params.page),
-      pageSize: parseOptionalNumber(params.pageSize),
-      priceMin: parseOptionalNumber(params.priceMin),
-      priceMax: parseOptionalNumber(params.priceMax),
-      categoryId: parseOptionalNumber(params.categoryId),
-      q: query,
-    }),
-  ]).catch((error: unknown) => {
-    console.error('Error loading products page:', error);
+  const categoriesData = await getActiveCategories().catch((error: unknown) => {
+    console.error('Error loading products categories:', error);
     throw error;
   });
 
@@ -72,6 +63,24 @@ export default async function BuyerProductsPage({ searchParams }: PageProps) {
     category_id: cat.category_id,
     name: cat.name,
   }));
+
+  const normalizedCategoryName = params.category?.trim().toLowerCase();
+  const categoryMatch = normalizedCategoryName
+    ? categories.find((cat) => cat.name.trim().toLowerCase() === normalizedCategoryName)
+    : undefined;
+  const resolvedCategoryId = parseOptionalNumber(params.categoryId) ?? categoryMatch?.category_id;
+
+  const productsResult = await getBuyerProductsAction({
+    page: parseOptionalNumber(params.page),
+    pageSize: parseOptionalNumber(params.pageSize),
+    priceMin: parseOptionalNumber(params.priceMin),
+    priceMax: parseOptionalNumber(params.priceMax),
+    categoryId: resolvedCategoryId,
+    q: query,
+  }).catch((error: unknown) => {
+    console.error('Error loading products page:', error);
+    throw error;
+  });
 
   const products = productsResult.products as BuyerProductListItem[];
   const pagination = productsResult.pagination as BuyerProductPagination;
@@ -84,7 +93,7 @@ export default async function BuyerProductsPage({ searchParams }: PageProps) {
       initialFilters={{
         priceMin: parseOptionalNumber(params.priceMin),
         priceMax: parseOptionalNumber(params.priceMax),
-        categoryId: parseOptionalNumber(params.categoryId),
+        categoryId: resolvedCategoryId,
         query,
       }}
     />
