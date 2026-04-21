@@ -9,14 +9,7 @@ import type { ProductCandidate } from '@/lib/agents/recommendation/types';
 import { createClient } from '@/lib/supabase/client';
 import { hasEnvVars } from '@/lib/utils';
 
-const TOP_CATEGORIES = [
-  { label: 'Electronics', href: '/buyer' },
-  { label: 'Home', href: '/buyer' },
-  { label: 'Style', href: '/buyer' },
-  { label: 'Outdoor', href: '/buyer' },
-  { label: 'Beauty', href: '/buyer' },
-  { label: 'Gifts', href: '/buyer' },
-];
+const TOP_CATEGORIES = ['Electronics', 'Fashion', 'Home & Living', 'Kitchen', 'Footwear'];
 
 interface Product {
   product_id: string;
@@ -288,11 +281,11 @@ export default function Home() {
             <div className="flex flex-wrap gap-3">
               {TOP_CATEGORIES.map((category) => (
                 <Link
-                  key={category.label}
-                  href={category.href}
+                  key={category}
+                  href={`/buyer/products?category=${encodeURIComponent(category)}`}
                   className="rounded-full border border-white/30 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground transition hover:border-primary hover:text-primary"
                 >
-                  {category.label}
+                  {category}
                 </Link>
               ))}
             </div>
