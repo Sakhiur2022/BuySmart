@@ -21,19 +21,14 @@ function getSearchValue(value: string | string[] | undefined): string | null {
   return value ?? null;
 }
 
-function pickImage(images: unknown): string {
-  if (Array.isArray(images) && typeof images[0] === 'string') {
-    return images[0];
+function pickImages(images: unknown): string[] {
+  if (!Array.isArray(images)) {
+    return [];
   }
 
-  if (images && typeof images === 'object') {
-    const record = images as Record<string, unknown>;
-    if (typeof record.url === 'string') {
-      return record.url;
-    }
-  }
-
-  return '';
+  return images.filter(
+    (image): image is string => typeof image === 'string' && image.trim().length > 0,
+  );
 }
 
 export default async function EditProductPage({ params, searchParams }: EditProductPageProps) {
@@ -96,7 +91,7 @@ export default async function EditProductPage({ params, searchParams }: EditProd
           status: product.status,
           shortDescription: product.short_description ?? '',
           description: product.description ?? '',
-          imageUrl: pickImage(product.images),
+          imageUrls: pickImages(product.images),
         }}
       />
     </div>
