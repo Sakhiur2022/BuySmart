@@ -29,6 +29,7 @@ type OrderRow = Database['public']['Tables']['orders']['Row'];
 type OrderItemRow = Database['public']['Tables']['order_items']['Row'];
 type UserProfileRow = Database['public']['Tables']['users_profile']['Row'];
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
+type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
 type RefundStatus = Database['public']['Enums']['refund_status_enum'];
 
 const AMOUNT_ACCUMULATION_REFUND_STATUSES: readonly RefundStatus[] = [
