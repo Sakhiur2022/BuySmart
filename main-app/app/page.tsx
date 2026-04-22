@@ -44,6 +44,16 @@ type HomeProductsApiResponse = {
   products: HomeProduct[];
 };
 
+type PublicProductsApiResponse = {
+  products: Array<{
+    product_id: string;
+    name: string;
+    price: number;
+    image?: string;
+    short_description?: string | null;
+  }>;
+};
+
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -76,15 +86,30 @@ export default function Home() {
     let isMounted = true;
 
     const hydrateHome = async () => {
-      const profileResponse = await fetch('/api/auth/me', { cache: 'no-store' });
-      if (!isMounted) return;
-      if (profileResponse.ok) {
-        const profile = (await profileResponse.json()) as { userId: string; role: string | null };
-        setUserId(profile.userId);
-        setUserRole(profile.role ?? null);
-        setIsAuthenticated(true);
-        setShouldShowSellerCTA(!profile.role || profile.role !== 'seller');
-      } else {
+      try {
+        const profileResponse = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (!isMounted) return;
+        if (profileResponse.ok) {
+          const contentType = profileResponse.headers.get('content-type') ?? '';
+          if (contentType.includes('application/json')) {
+            const profile = (await profileResponse.json()) as { userId: string; role: string | null };
+            setUserId(profile.userId);
+            setUserRole(profile.role ?? null);
+            setIsAuthenticated(true);
+            setShouldShowSellerCTA(!profile.role || profile.role !== 'seller');
+          } else {
+            setUserId(null);
+            setUserRole(null);
+            setIsAuthenticated(false);
+            setShouldShowSellerCTA(true);
+          }
+        } else {
+          setUserId(null);
+          setUserRole(null);
+          setIsAuthenticated(false);
+          setShouldShowSellerCTA(true);
+        }
+      } catch {
         setUserId(null);
         setUserRole(null);
         setIsAuthenticated(false);
@@ -104,6 +129,36 @@ export default function Home() {
         mapped = Array.isArray(homeProductsPayload.products) ? homeProductsPayload.products : [];
       } catch (error) {
         console.error('Failed to load active products for home page rails:', error);
+      }
+
+      if (mapped.length === 0) {
+        try {
+          const publicProductsResponse = await fetch('/api/products?page=1&pageSize=18', {
+            cache: 'no-store',
+          });
+
+          if (!publicProductsResponse.ok) {
+            throw new Error(
+              `Public products API failed with status ${publicProductsResponse.status}`,
+            );
+          }
+
+          const publicProductsPayload =
+            (await publicProductsResponse.json()) as PublicProductsApiResponse;
+
+          mapped = Array.isArray(publicProductsPayload.products)
+            ? publicProductsPayload.products.map((product) => ({
+                id: product.product_id,
+                title: product.name,
+                price: product.price ?? 0,
+                image: product.image,
+                sales_count: 0,
+                average_rating: 0,
+              }))
+            : [];
+        } catch (error) {
+          console.error('Failed to load public fallback products for home page rails:', error);
+        }
       }
 
       if (isMounted) {
