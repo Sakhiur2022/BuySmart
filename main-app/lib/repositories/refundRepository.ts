@@ -232,7 +232,7 @@ export class RefundRepository implements IRefundRepository {
     const supabase = await this.clientFactory();
     const { data: orderRow, error: orderError } = await supabase
       .from('orders')
-      .select('order_id, buyer_id, status, total_amount, currency')
+      .select('order_id, buyer_id, status, payment_status, total_amount, currency')
       .eq('order_id', input.orderId)
       .eq('buyer_id', input.buyerId)
       .maybeSingle();
@@ -268,6 +268,7 @@ export class RefundRepository implements IRefundRepository {
       order_id: orderRow.order_id,
       buyer_id: orderRow.buyer_id,
       order_status: orderRow.status as OrderStatus,
+      payment_status: orderRow.payment_status as PaymentStatus,
       order_total_amount: orderTotal,
       processed_refund_total: accumulated,
       remaining_refundable_amount: remaining,

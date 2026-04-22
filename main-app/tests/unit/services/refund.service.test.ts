@@ -41,6 +41,7 @@ describe('refund.service eligibility', () => {
       order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
       buyer_id: 'buyer-1',
       order_status: 'processing',
+      payment_status: 'pending',
       order_total_amount: 120,
       processed_refund_total: 0,
       remaining_refundable_amount: 120,
@@ -68,6 +69,7 @@ describe('refund.service eligibility', () => {
       order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
       buyer_id: 'buyer-1',
       order_status: 'completed',
+      payment_status: 'paid',
       order_total_amount: 120,
       processed_refund_total: 90,
       remaining_refundable_amount: 30,
@@ -80,11 +82,30 @@ describe('refund.service eligibility', () => {
     expect(repository.create).not.toHaveBeenCalled();
   });
 
+  it('rejects refund creation when payment status is not paid', async () => {
+    vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
+      order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
+      buyer_id: 'buyer-1',
+      order_status: 'delivered',
+      payment_status: 'pending',
+      order_total_amount: 120,
+      processed_refund_total: 20,
+      remaining_refundable_amount: 100,
+      currency: 'USD',
+    });
+
+    await expect(service.createRefund('buyer-1', buildCreateRefundInput())).rejects.toMatchObject({
+      code: 'REFUND_INELIGIBLE_PAYMENT_STATUS',
+    });
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
   it('creates refund when status and amount are eligible', async () => {
     vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
       order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
       buyer_id: 'buyer-1',
       order_status: 'delivered',
+      payment_status: 'paid',
       order_total_amount: 120,
       processed_refund_total: 20,
       remaining_refundable_amount: 100,

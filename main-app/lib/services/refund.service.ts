@@ -15,8 +15,10 @@ import type {
 import { RefundRepository } from '@/lib/repositories/refundRepository';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
+type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
 
 const ELIGIBLE_ORDER_STATUSES: ReadonlySet<OrderStatus> = new Set(['delivered', 'completed']);
+const ELIGIBLE_PAYMENT_STATUSES: ReadonlySet<PaymentStatus> = new Set(['paid']);
 
 export class RefundIneligibleStatusError extends Error {
   public readonly code = 'REFUND_INELIGIBLE_STATUS';
@@ -26,6 +28,17 @@ export class RefundIneligibleStatusError extends Error {
     super(`Refund not allowed for order status: ${orderStatus}`);
     this.name = 'RefundIneligibleStatusError';
     this.orderStatus = orderStatus;
+  }
+}
+
+export class RefundIneligiblePaymentStatusError extends Error {
+  public readonly code = 'REFUND_INELIGIBLE_PAYMENT_STATUS';
+  public readonly paymentStatus: PaymentStatus;
+
+  public constructor(paymentStatus: PaymentStatus) {
+    super(`Refund not allowed for payment status: ${paymentStatus}`);
+    this.name = 'RefundIneligiblePaymentStatusError';
+    this.paymentStatus = paymentStatus;
   }
 }
 
@@ -86,6 +99,12 @@ function assertRefundOwnership(userId: string, refund: RefundResponseDTO | Refun
 function assertEligibleOrderStatus(snapshot: RefundEligibilitySnapshotDTO): void {
   if (!ELIGIBLE_ORDER_STATUSES.has(snapshot.order_status)) {
     throw new RefundIneligibleStatusError(snapshot.order_status);
+  }
+}
+
+function assertEligiblePaymentStatus(snapshot: RefundEligibilitySnapshotDTO): void {
+  if (!ELIGIBLE_PAYMENT_STATUSES.has(snapshot.payment_status)) {
+    throw new RefundIneligiblePaymentStatusError(snapshot.payment_status);
   }
 }
 
@@ -152,6 +171,7 @@ export class RefundService implements IRefundService {
     }
 
     assertEligibleOrderStatus(snapshot);
+    assertEligiblePaymentStatus(snapshot);
     assertAmountWithinRemainingBalance(requestedAmount, snapshot.remaining_refundable_amount);
 
     return this.refundRepository.create({

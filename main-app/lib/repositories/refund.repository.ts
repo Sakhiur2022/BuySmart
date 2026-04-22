@@ -8,11 +8,13 @@ import type {
 import type { Database } from '@/lib/types/database.types';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
+type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
 
 export interface RefundEligibilitySnapshotDTO {
   order_id: string;
   buyer_id: string;
   order_status: OrderStatus;
+  payment_status: PaymentStatus;
   order_total_amount: number;
   processed_refund_total: number;
   remaining_refundable_amount: number;
