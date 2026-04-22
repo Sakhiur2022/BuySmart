@@ -13,6 +13,7 @@ vi.mock('@/lib/controllers/refund.controller', () => ({
 import { requireAuthenticatedUser } from '@/app/api/cart/_shared';
 import { createRefund, listRefunds } from '@/lib/controllers/refund.controller';
 import {
+  RefundIneligiblePaymentStatusError,
   RefundIneligibleStatusError,
   RefundInvalidAmountError,
 } from '@/lib/services/refund.service';
@@ -130,6 +131,30 @@ describe('POST /api/refunds', () => {
 
     expect(res.status).toBe(422);
     expect(body.code).toBe('REFUND_INELIGIBLE_STATUS');
+  });
+
+  it('returns 422 when payment status is ineligible', async () => {
+    vi.mocked(requireAuthenticatedUser).mockResolvedValue({ userId: 'buyer-1' });
+    vi.mocked(createRefund).mockRejectedValue(
+      new RefundIneligiblePaymentStatusError('pending'),
+    );
+
+    const req = new NextRequest('http://localhost/api/refunds', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: '03f14e69-cd59-44a8-b63d-f2f59ab9f62e',
+        refund_type: 'full_order',
+        reason_code: 'damaged',
+        requested_amount: 20,
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(422);
+    expect(body.code).toBe('REFUND_INELIGIBLE_PAYMENT_STATUS');
   });
 
   it('returns 400 when amount is invalid', async () => {

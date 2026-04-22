@@ -78,21 +78,19 @@ export async function POST(
       return NextResponse.json({ error: 'Order item not found' }, { status: 404 });
     }
 
-    if (orderItem.status === 'delivered') {
-      return NextResponse.json({ ok: true, orderId: orderItem.order_id }, { status: 200 });
-    }
+    if (orderItem.status !== 'delivered') {
+      if (!ALLOWED_STATUSES.has(orderItem.status)) {
+        throw new Error('INVALID_STATUS');
+      }
 
-    if (!ALLOWED_STATUSES.has(orderItem.status)) {
-      throw new Error('INVALID_STATUS');
-    }
+      const { error: updateError } = await supabase
+        .from('order_items')
+        .update({ status: 'delivered' })
+        .eq('order_item_id', orderItem.order_item_id);
 
-    const { error: updateError } = await supabase
-      .from('order_items')
-      .update({ status: 'delivered' })
-      .eq('order_item_id', orderItem.order_item_id);
-
-    if (updateError) {
-      throw new Error(updateError.message);
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
     }
 
     const { data: orderItems, error: orderItemsError } = await supabase
@@ -110,7 +108,7 @@ export async function POST(
       const deliveredAt = new Date().toISOString();
       const { error: orderUpdateError } = await supabase
         .from('orders')
-        .update({ status: 'delivered', delivered_at: deliveredAt })
+        .update({ status: 'delivered', delivered_at: deliveredAt, payment_status: 'paid' })
         .eq('order_id', orderItem.order_id);
 
       if (orderUpdateError) {
