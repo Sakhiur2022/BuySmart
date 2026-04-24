@@ -51,8 +51,8 @@ export default function BuyerChatbotWidget() {
               <Sparkles className="h-4 w-4" />
               Support
             </div>
-            <h2 className="text-lg font-semibold leading-none">Chat with us 👋</h2>
-            <p className="text-sm text-white/85">BuySmart assistant · typically replies in minutes</p>
+            <h2 className="text-lg font-semibold leading-none">Chat with us</h2>
+            <p className="text-sm text-white/85">BuySmart assistant - typically replies in minutes</p>
           </div>
 
           <button
@@ -85,7 +85,7 @@ export default function BuyerChatbotWidget() {
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm focus-within:border-rose-300 focus-within:ring-2 focus-within:ring-rose-100">
               <input
                 type="text"
-                placeholder="Type a message…"
+                placeholder="Type a message..."
                 className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
                 aria-label="Type a message"
               />
