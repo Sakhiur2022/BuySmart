@@ -6,34 +6,9 @@ import Link from 'next/link';
 import { SellerUpgradeCta } from '@/components/shared/seller-upgrade-cta';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import type { ProductCandidate } from '@/lib/agents/recommendation/types';
-import { createClient } from '@/lib/supabase/client';
 import { hasEnvVars } from '@/lib/utils';
 
 const TOP_CATEGORIES = ['Electronics', 'Fashion', 'Home & Living', 'Kitchen', 'Footwear'];
-
-interface Product {
-  product_id: string;
-  id?: string;
-  title?: string;
-  name?: string;
-  description?: string | null;
-  price?: number;
-  image_url?: string;
-  images?: unknown;
-  category_id?: number | null;
-  tags?: unknown;
-  created_at?: string;
-}
-
-interface OrderItemMetricRow {
-  product_id: string;
-  quantity: number | null;
-}
-
-interface FeedbackMetricRow {
-  product_id: string | null;
-  rating: number | null;
-}
 
 type HomeProduct = ProductCandidate & {
   created_at?: string;
@@ -41,7 +16,6 @@ type HomeProduct = ProductCandidate & {
   average_rating: number;
 };
 
-const MAX_HOME_PRODUCTS = 100;
 const RAIL_ITEM_COUNT = 6;
 
 function getCreatedAtTimestamp(date?: string) {
@@ -66,35 +40,19 @@ function withNewestFallback(primary: HomeProduct[], fallback: HomeProduct[]) {
   return merged;
 }
 
-function getImageUrl(product: Product) {
-  if (product.image_url) {
-    return product.image_url;
-  }
-  if (!product.images) {
-    return 'https://via.placeholder.com/300';
-  }
-  if (typeof product.images === 'string') {
-    return product.images;
-  }
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    const first = product.images[0];
-    if (typeof first === 'string') {
-      return first;
-    }
-    if (first && typeof first === 'object' && 'url' in first && typeof first.url === 'string') {
-      return first.url;
-    }
-  }
-  if (
-    product.images &&
-    typeof product.images === 'object' &&
-    'url' in product.images &&
-    typeof product.images.url === 'string'
-  ) {
-    return product.images.url;
-  }
-  return 'https://via.placeholder.com/300';
-}
+type HomeProductsApiResponse = {
+  products: HomeProduct[];
+};
+
+type PublicProductsApiResponse = {
+  products: Array<{
+    product_id: string;
+    name: string;
+    price: number;
+    image?: string;
+    short_description?: string | null;
+  }>;
+};
 
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -125,95 +83,92 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasEnvVars) return;
-    const supabase = createClient();
     let isMounted = true;
 
     const hydrateHome = async () => {
-      const profileResponse = await fetch('/api/auth/me', { cache: 'no-store' });
-      if (!isMounted) return;
-      if (profileResponse.ok) {
-        const profile = (await profileResponse.json()) as { userId: string; role: string | null };
-        setUserId(profile.userId);
-        setUserRole(profile.role ?? null);
-        setIsAuthenticated(true);
-        setShouldShowSellerCTA(!profile.role || profile.role !== 'seller');
-      } else {
+      try {
+        const profileResponse = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (!isMounted) return;
+        if (profileResponse.ok) {
+          const contentType = profileResponse.headers.get('content-type') ?? '';
+          if (contentType.includes('application/json')) {
+            const profile = (await profileResponse.json()) as { userId: string; role: string | null };
+            setUserId(profile.userId);
+            setUserRole(profile.role ?? null);
+            setIsAuthenticated(true);
+            setShouldShowSellerCTA(!profile.role || profile.role !== 'seller');
+          } else {
+            setUserId(null);
+            setUserRole(null);
+            setIsAuthenticated(false);
+            setShouldShowSellerCTA(true);
+          }
+        } else {
+          setUserId(null);
+          setUserRole(null);
+          setIsAuthenticated(false);
+          setShouldShowSellerCTA(true);
+        }
+      } catch {
         setUserId(null);
         setUserRole(null);
         setIsAuthenticated(false);
         setShouldShowSellerCTA(true);
       }
 
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('product_id, name, category_id, price, tags, images, created_at')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(MAX_HOME_PRODUCTS);
+      let mapped: HomeProduct[] = [];
 
-      if (productsError) {
-        console.error('Failed to load active products for home page rails:', productsError);
+      try {
+        const homeProductsResponse = await fetch('/api/products/home', { cache: 'no-store' });
+        if (!homeProductsResponse.ok) {
+          throw new Error(`Home products API failed with status ${homeProductsResponse.status}`);
+        }
+
+        const homeProductsPayload =
+          (await homeProductsResponse.json()) as HomeProductsApiResponse;
+        mapped = Array.isArray(homeProductsPayload.products) ? homeProductsPayload.products : [];
+      } catch (error) {
+        console.error('Failed to load active products for home page rails:', error);
+      }
+
+      if (mapped.length === 0) {
+        try {
+          const publicProductsResponse = await fetch('/api/products?page=1&pageSize=18', {
+            cache: 'no-store',
+          });
+
+          if (!publicProductsResponse.ok) {
+            throw new Error(
+              `Public products API failed with status ${publicProductsResponse.status}`,
+            );
+          }
+
+          const publicProductsPayload =
+            (await publicProductsResponse.json()) as PublicProductsApiResponse;
+
+          mapped = Array.isArray(publicProductsPayload.products)
+            ? publicProductsPayload.products.map((product) => ({
+                id: product.product_id,
+                title: product.name,
+                price: product.price ?? 0,
+                image: product.image,
+                sales_count: 0,
+                average_rating: 0,
+              }))
+            : [];
+        } catch (error) {
+          console.error('Failed to load public fallback products for home page rails:', error);
+        }
       }
 
       if (isMounted) {
-        if (!products || products.length === 0) {
+        if (mapped.length === 0) {
           setBestSellerProducts([]);
           setTrendingProducts([]);
           setLatestProducts([]);
           setProductRatings({});
           return;
         }
-
-        const productIds = products.map((product) => product.product_id);
-        const [{ data: orderItems }, { data: feedbackRows }] = await Promise.all([
-          supabase
-            .from('order_items')
-            .select('product_id, quantity')
-            .in('product_id', productIds)
-            .in('status', ['confirmed', 'shipped', 'delivered']),
-          supabase
-            .from('feedback')
-            .select('product_id, rating')
-            .eq('status', 'published')
-            .in('product_id', productIds)
-            .not('rating', 'is', null),
-        ]);
-
-        const salesByProduct = new Map<string, number>();
-        (orderItems as OrderItemMetricRow[] | null)?.forEach((row) => {
-          const quantity = row.quantity ?? 0;
-          salesByProduct.set(row.product_id, (salesByProduct.get(row.product_id) ?? 0) + quantity);
-        });
-
-        const ratingAccumulator = new Map<string, { total: number; count: number }>();
-        (feedbackRows as FeedbackMetricRow[] | null)?.forEach((row) => {
-          if (!row.product_id || row.rating === null) return;
-          const existing = ratingAccumulator.get(row.product_id) ?? { total: 0, count: 0 };
-          ratingAccumulator.set(row.product_id, {
-            total: existing.total + row.rating,
-            count: existing.count + 1,
-          });
-        });
-
-        const mapped: HomeProduct[] = products.map((product) => {
-          const ratingAggregate = ratingAccumulator.get(product.product_id);
-          const averageRating =
-            ratingAggregate && ratingAggregate.count > 0
-              ? Math.round((ratingAggregate.total / ratingAggregate.count) * 10) / 10
-              : 0;
-
-          return {
-            id: product.product_id,
-            title: product.name,
-            category_id: product.category_id ?? undefined,
-            price: product.price,
-            image: getImageUrl(product),
-            tags: product.tags ?? undefined,
-            created_at: product.created_at,
-            sales_count: salesByProduct.get(product.product_id) ?? 0,
-            average_rating: averageRating,
-          };
-        });
 
         const newestProducts = [...mapped].sort(
           (a, b) => getCreatedAtTimestamp(b.created_at) - getCreatedAtTimestamp(a.created_at),
