@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ListTree, Menu, Package, Settings, Users, X } from 'lucide-react';
+import { LayoutDashboard, ListTree, Menu, Package, Receipt, Settings, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { useState } from 'react';
 const primaryLinks = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/categories', label: 'Categories', icon: ListTree },
+  { href: '/admin/refunds', label: 'Refunds', icon: Receipt },
 ];
 
 const comingSoonLinks = [
