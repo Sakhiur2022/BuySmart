@@ -172,6 +172,10 @@ export type CreateRefundDTO = z.infer<typeof createRefundDTOSchema>;
 export type UpdateRefundDTO = z.infer<typeof updateRefundDTOSchema>;
 export type RefundStatusTransitionDTO = z.infer<typeof refundStatusTransitionSchema>;
 export type RefundFilterDTO = z.infer<typeof refundFilterDTOSchema>;
+export type RefundRepositoryFilterDTO = RefundFilterDTO & {
+  buyer_id?: string;
+  seller_id?: string;
+};
 export type RefundSortBy = z.infer<typeof refundSortSchema>;
 
 export interface RefundItemDTO {

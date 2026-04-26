@@ -3,6 +3,7 @@ import type {
   RefundDetailDTO,
   RefundFilterDTO,
   RefundListResponseDTO,
+  RefundRepositoryFilterDTO,
   RefundResponseDTO,
   RefundStatusTransitionDTO,
   UpdateRefundDTO,
@@ -16,6 +17,7 @@ import { RefundRepository } from '@/lib/repositories/refundRepository';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
+type UserRole = Database['public']['Enums']['user_role_enum'];
 
 const ELIGIBLE_ORDER_STATUSES: ReadonlySet<OrderStatus> = new Set(['delivered', 'completed']);
 const ELIGIBLE_PAYMENT_STATUSES: ReadonlySet<PaymentStatus> = new Set(['paid']);
@@ -82,13 +84,10 @@ function buildRefundNumber(now: Date = new Date()): string {
   return `RFD-${stamp}-${suffix}`;
 }
 
-function normalizeListFilters(userId: string, filters: RefundFilterDTO): RefundFilterDTO {
-  return {
-    ...filters,
-    buyer_id: userId,
-    seller_id: undefined,
-  };
-}
+type RefundActor = {
+  userId: string;
+  role: UserRole;
+};
 
 function assertRefundOwnership(userId: string, refund: RefundResponseDTO | RefundDetailDTO): void {
   if (refund.user_id !== userId) {
@@ -119,6 +118,42 @@ function assertAmountWithinRemainingBalance(
       `Requested refund amount exceeds remaining refundable balance (${normalizedRemaining.toFixed(2)})`,
     );
   }
+}
+
+async function resolveActor(
+  refundRepository: IRefundRepository,
+  userId: string,
+): Promise<RefundActor> {
+  const role = await refundRepository.getUserRole(userId);
+
+  if (!role) {
+    throw new Error('FORBIDDEN');
+  }
+
+  return { userId, role };
+}
+
+function toScopedListFilters(
+  actor: RefundActor,
+  filters: RefundFilterDTO,
+): RefundRepositoryFilterDTO {
+  if (actor.role === 'buyer') {
+    return {
+      ...filters,
+      buyer_id: actor.userId,
+      seller_id: undefined,
+    };
+  }
+
+  if (actor.role === 'seller') {
+    return {
+      ...filters,
+      buyer_id: undefined,
+      seller_id: actor.userId,
+    };
+  }
+
+  throw new Error('FORBIDDEN');
 }
 
 export class RefundService implements IRefundService {
@@ -155,11 +190,18 @@ export class RefundService implements IRefundService {
     filters: RefundFilterDTO,
   ): Promise<RefundListResponseDTO> {
     const normalizedUserId = normalizeUserId(userId);
-    return this.refundRepository.list(normalizeListFilters(normalizedUserId, filters));
+    const actor = await resolveActor(this.refundRepository, normalizedUserId);
+    return this.refundRepository.list(toScopedListFilters(actor, filters));
   }
 
   public async createRefund(userId: string, input: CreateRefundDTO): Promise<RefundResponseDTO> {
     const normalizedUserId = normalizeUserId(userId);
+    const actor = await resolveActor(this.refundRepository, normalizedUserId);
+
+    if (actor.role !== 'buyer') {
+      throw new Error('FORBIDDEN');
+    }
+
     const requestedAmount = ensureRequestedAmountIsValid(input.requested_amount);
     const snapshot = await this.refundRepository.getEligibilitySnapshot({
       orderId: input.order_id,
