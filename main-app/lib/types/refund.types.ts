@@ -243,9 +243,11 @@ export interface RefundDetailDTO extends RefundSummaryDTO {
   ai_recommendation: RefundAIDecision | null;
   ai_risk_score: number | null;
   ai_processed_at: string | null;
+  processed_at: string | null;
   return_required: boolean;
   return_tracking: string | null;
   return_received_at: string | null;
+  payment_reference: string | null;
   refunded_at: string | null;
 }
 

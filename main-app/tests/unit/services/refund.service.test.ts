@@ -49,9 +49,11 @@ function buildRefundDetail(overrides: Partial<RefundDetailDTO> = {}): RefundDeta
     ai_recommendation: null,
     ai_risk_score: null,
     ai_processed_at: null,
+    processed_at: null,
     return_required: false,
     return_tracking: null,
     return_received_at: null,
+    payment_reference: null,
     refunded_at: null,
     ...overrides,
   };
