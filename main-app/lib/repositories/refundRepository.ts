@@ -8,6 +8,7 @@ import type {
   RefundFilterDTO,
   RefundItemDTO,
   RefundListResponseDTO,
+  RefundRepositoryFilterDTO,
   RefundResponseDTO,
   RefundSummaryDTO,
 } from '@/lib/types/refund.types';
@@ -31,6 +32,7 @@ type UserProfileRow = Database['public']['Tables']['users_profile']['Row'];
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
 type RefundStatus = Database['public']['Enums']['refund_status_enum'];
+type UserRole = Database['public']['Enums']['user_role_enum'];
 
 const AMOUNT_ACCUMULATION_REFUND_STATUSES: readonly RefundStatus[] = [
   'approved',
@@ -76,6 +78,21 @@ type DetailRelations = {
 export class RefundRepository implements IRefundRepository {
   public constructor(private readonly clientFactory: typeof createClient = createClient) {}
 
+  public async getUserRole(userId: string): Promise<UserRole | null> {
+    const supabase = await this.clientFactory();
+    const { data, error } = await supabase
+      .from('users_profile')
+      .select('role')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      this.throwMappedError(error, 'Failed to fetch user role');
+    }
+
+    return (data?.role as UserRole | undefined) ?? null;
+  }
+
   public async create(
     input: CreateRefundDTO & { user_id: string; refund_number: string },
   ): Promise<RefundResponseDTO> {
@@ -97,7 +114,7 @@ export class RefundRepository implements IRefundRepository {
     return this.toResponseDTO(entity);
   }
 
-  public async list(filters: RefundFilterDTO): Promise<RefundListResponseDTO> {
+  public async list(filters: RefundRepositoryFilterDTO): Promise<RefundListResponseDTO> {
     const supabase = await this.clientFactory();
     const normalized = this.normalizeFilters(filters);
     const offset = (normalized.page - 1) * normalized.pageSize;
@@ -277,7 +294,7 @@ export class RefundRepository implements IRefundRepository {
     };
   }
 
-  private normalizeFilters(filters: RefundFilterDTO): NormalizedFilters {
+  private normalizeFilters(filters: RefundRepositoryFilterDTO): NormalizedFilters {
     const raw = filters as Record<string, unknown>;
     const page = Number.isInteger(filters.page) && filters.page > 0 ? filters.page : 1;
     const pageSize =
@@ -403,8 +420,8 @@ export class RefundRepository implements IRefundRepository {
   }
 
   private hasSellerScope(
-    filters: RefundFilterDTO,
-  ): filters is RefundFilterDTO & { seller_id: string } {
+    filters: RefundRepositoryFilterDTO,
+  ): filters is RefundRepositoryFilterDTO & { seller_id: string } {
     return typeof filters.seller_id === 'string' && filters.seller_id.trim().length > 0;
   }
 
