@@ -116,6 +116,20 @@ export const updateRefundDTOSchema = z
     }
   });
 
+const decisionNotesSchema = z.string().trim().max(1800);
+
+export const approveRefundDecisionDTOSchema = z.object({
+  processing_notes: decisionNotesSchema.optional(),
+});
+
+export const rejectRefundDecisionDTOSchema = z.object({
+  processing_notes: decisionNotesSchema.min(1),
+});
+
+export const reviewRefundDecisionDTOSchema = z.object({
+  processing_notes: decisionNotesSchema.optional(),
+});
+
 export const REFUND_SORT_VALUES = ['recent', 'oldest', 'amount_high', 'amount_low'] as const;
 export const refundSortSchema = z.enum(REFUND_SORT_VALUES);
 
@@ -177,6 +191,9 @@ export type RefundRepositoryFilterDTO = RefundFilterDTO & {
   seller_id?: string;
 };
 export type RefundSortBy = z.infer<typeof refundSortSchema>;
+export type ApproveRefundDecisionDTO = z.infer<typeof approveRefundDecisionDTOSchema>;
+export type RejectRefundDecisionDTO = z.infer<typeof rejectRefundDecisionDTOSchema>;
+export type ReviewRefundDecisionDTO = z.infer<typeof reviewRefundDecisionDTOSchema>;
 
 export interface RefundItemDTO {
   product_id: string;
