@@ -5,6 +5,8 @@ import {
   RefundRepositoryError,
 } from '@/lib/repositories/refund.repository';
 import {
+  RefundInvalidDecisionPayloadError,
+  RefundInvalidDecisionTransitionError,
   RefundIneligiblePaymentStatusError,
   RefundIneligibleStatusError,
   RefundInvalidAmountError,
@@ -70,6 +72,16 @@ export function formatRefundErrorResponse(error: unknown): {
       return { status: 404, body: { error: error.message } };
     }
 
+    if (error.message === 'REFUND_CONFLICT') {
+      return {
+        status: 409,
+        body: {
+          error: 'Refund was updated by another request',
+          code: 'REFUND_CONFLICT',
+        },
+      };
+    }
+
     if (error instanceof RefundIneligibleStatusError) {
       return {
         status: 422,
@@ -93,6 +105,26 @@ export function formatRefundErrorResponse(error: unknown): {
     if (error instanceof RefundInvalidAmountError) {
       return {
         status: 400,
+        body: {
+          error: error.message,
+          code: error.code,
+        },
+      };
+    }
+
+    if (error instanceof RefundInvalidDecisionPayloadError) {
+      return {
+        status: 400,
+        body: {
+          error: error.message,
+          code: error.code,
+        },
+      };
+    }
+
+    if (error instanceof RefundInvalidDecisionTransitionError) {
+      return {
+        status: 422,
         body: {
           error: error.message,
           code: error.code,
