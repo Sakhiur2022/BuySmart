@@ -1,7 +1,7 @@
 import type {
   CreateRefundDTO,
   RefundDetailDTO,
-  RefundFilterDTO,
+  RefundRepositoryFilterDTO,
   RefundListResponseDTO,
   RefundResponseDTO,
 } from '@/lib/types/refund.types';
@@ -9,6 +9,7 @@ import type { Database } from '@/lib/types/database.types';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
+type UserRole = Database['public']['Enums']['user_role_enum'];
 
 export interface RefundEligibilitySnapshotDTO {
   order_id: string;
@@ -53,9 +54,10 @@ export class RefundConstraintError extends RefundRepositoryError {
 }
 
 export interface IRefundReadRepository {
+  getUserRole(userId: string): Promise<UserRole | null>;
   findById(refundId: string): Promise<RefundResponseDTO | null>;
   findDetailById(refundId: string): Promise<RefundDetailDTO | null>;
-  list(filters: RefundFilterDTO): Promise<RefundListResponseDTO>;
+  list(filters: RefundRepositoryFilterDTO): Promise<RefundListResponseDTO>;
   getEligibilitySnapshot(input: {
     orderId: string;
     buyerId: string;

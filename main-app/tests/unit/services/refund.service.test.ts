@@ -26,6 +26,7 @@ describe('refund.service eligibility', () => {
 
   beforeEach(() => {
     repository = {
+      getUserRole: vi.fn(),
       create: vi.fn(),
       list: vi.fn(),
       findById: vi.fn(),
@@ -37,6 +38,7 @@ describe('refund.service eligibility', () => {
   });
 
   it('rejects refund creation when order status is not delivered/completed', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
     vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
       order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
       buyer_id: 'buyer-1',
@@ -55,6 +57,7 @@ describe('refund.service eligibility', () => {
   });
 
   it('rejects refund creation when requested amount is zero', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
     const input = buildCreateRefundInput();
     input.requested_amount = 0;
 
@@ -65,6 +68,7 @@ describe('refund.service eligibility', () => {
   });
 
   it('rejects refund creation when requested amount exceeds remaining refundable balance', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
     vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
       order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
       buyer_id: 'buyer-1',
@@ -83,6 +87,7 @@ describe('refund.service eligibility', () => {
   });
 
   it('rejects refund creation when payment status is not paid', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
     vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
       order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
       buyer_id: 'buyer-1',
@@ -101,6 +106,7 @@ describe('refund.service eligibility', () => {
   });
 
   it('creates refund when status and amount are eligible', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
     vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
       order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
       buyer_id: 'buyer-1',
@@ -139,7 +145,7 @@ describe('refund.service eligibility', () => {
       ai_processed_at: null,
       evidence_images: [],
       items: [],
-    });
+    } as never);
 
     const result = await service.createRefund('buyer-1', buildCreateRefundInput());
 
@@ -151,5 +157,82 @@ describe('refund.service eligibility', () => {
       requested_amount: 50,
     });
     expect(vi.mocked(repository.create).mock.calls[0]?.[0].refund_number).toMatch(/^RFD-/);
+  });
+
+  it('applies buyer scope when listing refunds for buyer role', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
+    vi.mocked(repository.list).mockResolvedValue({
+      refunds: [],
+      pagination: {
+        page: 2,
+        pageSize: 10,
+        totalCount: 0,
+        totalPages: 0,
+      },
+    });
+
+    await service.listRefunds('buyer-1', {
+      page: 2,
+      pageSize: 10,
+      sortBy: 'recent',
+    });
+
+    expect(repository.list).toHaveBeenCalledWith({
+      page: 2,
+      pageSize: 10,
+      sortBy: 'recent',
+      buyer_id: 'buyer-1',
+      seller_id: undefined,
+    });
+  });
+
+  it('applies seller scope when listing refunds for seller role', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('seller');
+    vi.mocked(repository.list).mockResolvedValue({
+      refunds: [],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        totalCount: 0,
+        totalPages: 0,
+      },
+    });
+
+    await service.listRefunds('seller-1', {
+      page: 1,
+      pageSize: 20,
+      sortBy: 'recent',
+    });
+
+    expect(repository.list).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'recent',
+      buyer_id: undefined,
+      seller_id: 'seller-1',
+    });
+  });
+
+  it('rejects list refunds for unsupported role', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('admin');
+
+    await expect(
+      service.listRefunds('admin-1', {
+        page: 1,
+        pageSize: 20,
+        sortBy: 'recent',
+      }),
+    ).rejects.toThrow('FORBIDDEN');
+    expect(repository.list).not.toHaveBeenCalled();
+  });
+
+  it('rejects refund creation for non-buyer role before eligibility lookup', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('seller');
+
+    await expect(service.createRefund('seller-1', buildCreateRefundInput())).rejects.toThrow(
+      'FORBIDDEN',
+    );
+    expect(repository.getEligibilitySnapshot).not.toHaveBeenCalled();
+    expect(repository.create).not.toHaveBeenCalled();
   });
 });
