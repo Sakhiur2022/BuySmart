@@ -3,6 +3,7 @@ import { Geist } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import { Navbar } from '@/components/shared/navbar';
 import { Footer } from '@/components/shared/footer';
+import BuyerChatbotWidget from '@/components/shared/buyer-chatbot-widget';
 import { CartProvider } from '@/lib/context/cart-context';
 import './globals.css';
 
@@ -41,6 +42,7 @@ export default function RootLayout({
             <Navbar />
             <main className="min-h-screen">{children}</main>
             <Footer />
+            <BuyerChatbotWidget />
           </CartProvider>
         </ThemeProvider>
       </body>
