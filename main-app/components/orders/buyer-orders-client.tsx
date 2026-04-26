@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -279,7 +280,12 @@ export default function BuyerOrdersClient({ orders, pageSize }: BuyerOrdersClien
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-foreground">#{order.order_number}</p>
                       <p className="text-xs text-muted-foreground">Placed {formatDate(order.created_at)}</p>
-                      <p className="text-xs text-muted-foreground">Payment: {order.payment_status}</p>
+                      <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        {order.payment_status === 'paid' ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : null}
+                        <span>Payment: {order.payment_status}</span>
+                      </p>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-3 sm:mt-0">
                       <Badge variant="outline" className={getStatusBadgeClasses(derivedStatus)}>
