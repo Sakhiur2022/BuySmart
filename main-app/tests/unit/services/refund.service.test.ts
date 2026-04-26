@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IRefundRepository } from '@/lib/repositories/refund.repository';
 import {
+  RefundInvalidDecisionTransitionError,
   RefundIneligibleStatusError,
   RefundInvalidAmountError,
   RefundService,
@@ -32,6 +33,7 @@ describe('refund.service eligibility', () => {
       findById: vi.fn(),
       findDetailById: vi.fn(),
       getEligibilitySnapshot: vi.fn(),
+      applyDecision: vi.fn(),
     };
 
     service = new RefundService(repository);
@@ -234,5 +236,77 @@ describe('refund.service eligibility', () => {
     );
     expect(repository.getEligibilitySnapshot).not.toHaveBeenCalled();
     expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('approves refund for admin and writes processing metadata', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('admin');
+    vi.mocked(repository.findById).mockResolvedValue({
+      refund_id: 'ref-1',
+      status: 'pending',
+    } as never);
+    vi.mocked(repository.applyDecision).mockResolvedValue({
+      refund_id: 'ref-1',
+      status: 'approved',
+      processed_by: 'admin-1',
+      processed_at: '2026-04-26T00:00:00.000Z',
+      processing_notes: 'notes',
+    } as never);
+
+    const result = await service.approveRefund('admin-1', 'ref-1', {
+      processing_notes: 'Approved by policy',
+    });
+
+    expect(result.status).toBe('approved');
+    expect(repository.applyDecision).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(repository.applyDecision).mock.calls[0]?.[0]).toMatchObject({
+      refundId: 'ref-1',
+      fromStatus: 'pending',
+      toStatus: 'approved',
+      processedBy: 'admin-1',
+    });
+  });
+
+  it('rejects refund for non-admin actor', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
+
+    await expect(
+      service.rejectRefund('buyer-1', 'ref-1', {
+        processing_notes: 'Not allowed',
+      }),
+    ).rejects.toThrow('FORBIDDEN');
+
+    expect(repository.findById).not.toHaveBeenCalled();
+    expect(repository.applyDecision).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid decision transitions', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('admin');
+    vi.mocked(repository.findById).mockResolvedValue({
+      refund_id: 'ref-1',
+      status: 'completed',
+    } as never);
+
+    await expect(
+      service.reviewRefund('admin-1', 'ref-1', {
+        processing_notes: 'Reopen request',
+      }),
+    ).rejects.toBeInstanceOf(RefundInvalidDecisionTransitionError);
+
+    expect(repository.applyDecision).not.toHaveBeenCalled();
+  });
+
+  it('throws conflict when decision write loses status race', async () => {
+    vi.mocked(repository.getUserRole).mockResolvedValue('admin');
+    vi.mocked(repository.findById).mockResolvedValue({
+      refund_id: 'ref-1',
+      status: 'pending',
+    } as never);
+    vi.mocked(repository.applyDecision).mockResolvedValue(null);
+
+    await expect(
+      service.approveRefund('admin-1', 'ref-1', {
+        processing_notes: 'Approve',
+      }),
+    ).rejects.toThrow('REFUND_CONFLICT');
   });
 });

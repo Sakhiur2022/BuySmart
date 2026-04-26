@@ -1,17 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/services/refund.service', () => ({
+  approveRefundForAdmin: vi.fn(),
   createRefundForUser: vi.fn(),
   getRefundDetailForUser: vi.fn(),
   listRefundsForUser: vi.fn(),
+  rejectRefundForAdmin: vi.fn(),
+  reviewRefundForAdmin: vi.fn(),
 }));
 
 import {
+  approveRefundForAdmin,
   createRefundForUser,
   getRefundDetailForUser,
   listRefundsForUser,
+  rejectRefundForAdmin,
+  reviewRefundForAdmin,
 } from '@/lib/services/refund.service';
-import { createRefund, getRefundById, listRefunds } from '@/lib/controllers/refund.controller';
+import {
+  approveRefund,
+  createRefund,
+  getRefundById,
+  listRefunds,
+  rejectRefund,
+  reviewRefund,
+} from '@/lib/controllers/refund.controller';
 
 describe('refund controller delegation', () => {
   it('delegates createRefund to createRefundForUser with unchanged args', async () => {
@@ -73,5 +86,44 @@ describe('refund controller delegation', () => {
         currency: 'USD',
       } as never),
     ).rejects.toThrow('FORBIDDEN');
+  });
+
+  it('delegates approveRefund to approveRefundForAdmin with unchanged args', async () => {
+    vi.mocked(approveRefundForAdmin).mockResolvedValue({ refund_id: 'ref-approve' } as never);
+
+    const result = await approveRefund('admin-1', 'ref-1', {
+      processing_notes: 'Looks good',
+    });
+
+    expect(approveRefundForAdmin).toHaveBeenCalledWith('admin-1', 'ref-1', {
+      processing_notes: 'Looks good',
+    });
+    expect(result).toEqual({ refund_id: 'ref-approve' });
+  });
+
+  it('delegates rejectRefund to rejectRefundForAdmin with unchanged args', async () => {
+    vi.mocked(rejectRefundForAdmin).mockResolvedValue({ refund_id: 'ref-reject' } as never);
+
+    const result = await rejectRefund('admin-1', 'ref-1', {
+      processing_notes: 'Evidence mismatch',
+    });
+
+    expect(rejectRefundForAdmin).toHaveBeenCalledWith('admin-1', 'ref-1', {
+      processing_notes: 'Evidence mismatch',
+    });
+    expect(result).toEqual({ refund_id: 'ref-reject' });
+  });
+
+  it('delegates reviewRefund to reviewRefundForAdmin with unchanged args', async () => {
+    vi.mocked(reviewRefundForAdmin).mockResolvedValue({ refund_id: 'ref-review' } as never);
+
+    const result = await reviewRefund('admin-1', 'ref-1', {
+      processing_notes: 'Need manual check',
+    });
+
+    expect(reviewRefundForAdmin).toHaveBeenCalledWith('admin-1', 'ref-1', {
+      processing_notes: 'Need manual check',
+    });
+    expect(result).toEqual({ refund_id: 'ref-review' });
   });
 });

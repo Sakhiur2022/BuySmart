@@ -183,4 +183,84 @@ describe('RefundRepository', () => {
       },
     });
   });
+
+  it('applies decision with optimistic status guard', async () => {
+    const updatedRefund = {
+      refund_id: 'ref-1',
+      refund_number: 'RFD-TEST-1',
+      order_id: 'order-1',
+      order_item_id: null,
+      user_id: 'buyer-1',
+      status: 'approved',
+      refund_type: 'full_order',
+      reason_code: 'damaged',
+      reason_description: null,
+      requested_amount: 25,
+      refund_amount: 25,
+      return_required: false,
+      return_tracking: null,
+      return_received_at: null,
+      payment_reference: null,
+      processed_by: 'admin-1',
+      processed_at: '2026-04-26T00:00:00.000Z',
+      processing_notes: '{"decision":"approve"}',
+      refunded_at: null,
+      ai_recommendation: null,
+      ai_risk_score: null,
+      ai_processed_at: null,
+      ai_analysis: null,
+      evidence_images: null,
+      created_at: '2026-04-20T00:00:00.000Z',
+      updated_at: '2026-04-20T00:00:00.000Z',
+    };
+
+    const refunds = createAwaitableQueryBuilder({
+      data: updatedRefund,
+      error: null,
+    });
+
+    const orderItems = createAwaitableQueryBuilder({
+      data: [
+        {
+          order_item_id: 'oi-1',
+          product_id: 'prod-1',
+          quantity: 1,
+          unit_price: 25,
+          total_price: 25,
+        },
+      ],
+      error: null,
+    });
+
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'refunds') {
+          return refunds;
+        }
+
+        if (table === 'order_items') {
+          return orderItems;
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const repository = new RefundRepository();
+    const result = await repository.applyDecision({
+      refundId: 'ref-1',
+      fromStatus: 'pending',
+      toStatus: 'approved',
+      processedBy: 'admin-1',
+      processedAt: '2026-04-26T00:00:00.000Z',
+      processingNotes: '{"decision":"approve"}',
+    });
+
+    expect(refunds.eq).toHaveBeenCalledWith('refund_id', 'ref-1');
+    expect(refunds.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(result?.status).toBe('approved');
+    expect(result?.processed_by).toBe('admin-1');
+  });
 });
