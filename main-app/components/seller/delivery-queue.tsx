@@ -90,7 +90,7 @@ export function DeliveryQueue({ items }: DeliveryQueueProps) {
                 onClick={() => handleConfirm(item.orderItemId)}
                 disabled={busyId === item.orderItemId}
               >
-                {busyId === item.orderItemId ? 'Confirming...' : 'Confirm delivered'}
+                {busyId === item.orderItemId ? 'Confirming...' : 'Confirm Delivery'}
               </Button>
             </div>
           </div>

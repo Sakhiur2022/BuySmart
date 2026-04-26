@@ -17,6 +17,10 @@ import type {
   IRefundRepository,
 } from '@/lib/repositories/refund.repository';
 import { RefundRepository } from '@/lib/repositories/refundRepository';
+import {
+  createRefundReadAccessStrategyRegistry,
+  type RefundReadAccessStrategyRegistry,
+} from '@/lib/strategies/refund-read-access/refund-read-access-strategy-registry';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
@@ -265,9 +269,15 @@ async function applyDecisionCommand(input: {
 }
 
 export class RefundService implements IRefundService {
+  private readonly refundReadAccessStrategyRegistry: RefundReadAccessStrategyRegistry;
+
   public constructor(
     private readonly refundRepository: IRefundRepository = new RefundRepository(),
-  ) {}
+    refundReadAccessStrategyRegistry?: RefundReadAccessStrategyRegistry,
+  ) {
+    this.refundReadAccessStrategyRegistry =
+      refundReadAccessStrategyRegistry ?? createRefundReadAccessStrategyRegistry();
+  }
 
   public async getRefundById(userId: string, refundId: string): Promise<RefundResponseDTO> {
     const normalizedUserId = normalizeUserId(userId);
@@ -283,13 +293,16 @@ export class RefundService implements IRefundService {
 
   public async getRefundDetail(userId: string, refundId: string): Promise<RefundDetailDTO> {
     const normalizedUserId = normalizeUserId(userId);
+    const actor = await resolveActor(this.refundRepository, normalizedUserId);
     const refund = await this.refundRepository.findDetailById(refundId);
 
     if (!refund) {
       throw new Error('Refund not found');
     }
 
-    assertRefundOwnership(normalizedUserId, refund);
+    const strategy = this.refundReadAccessStrategyRegistry.getForRole(actor.role);
+    await strategy.assertCanRead(actor, { refund }, this.refundRepository);
+
     return refund;
   }
 

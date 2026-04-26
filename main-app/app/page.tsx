@@ -232,7 +232,7 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-2 pb-10 pt-6">
         {/* Hero Section */}
         <section className="flex flex-col gap-8 rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl shadow-primary/10 md:flex-row md:items-center md:gap-12">
-          <div className="flex flex-1 flex-col gap-6">
+          <div className="relative z-10 flex flex-1 flex-col gap-6">
             <div className="flex flex-wrap gap-3">
               {TOP_CATEGORIES.map((category) => (
                 <Link
@@ -259,7 +259,7 @@ export default function Home() {
               </Link>
             </div>
             {shouldShowSellerCTA ? (
-              <div className="rounded-2xl border border-white/20 bg-white/70 p-4 text-sm text-muted-foreground">
+              <div className="relative z-10 rounded-2xl border border-white/20 bg-white/70 p-4 text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">Want to sell on BuySmart?</span>{' '}
                 <SellerUpgradeCta
                   isAuthenticated={isAuthenticated}
@@ -273,7 +273,7 @@ export default function Home() {
               </div>
             ) : null}
           </div>
-          <div className="flex flex-1 flex-col gap-6">
+          <div className="relative z-0 flex flex-1 flex-col gap-6">
             <div className="hero-slideshow relative h-72 overflow-hidden rounded-3xl border border-white/10 bg-background/80 shadow-xl shadow-primary/10">
               {heroSlides.map((slide, index) => (
                 <div
