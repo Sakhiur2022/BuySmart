@@ -43,9 +43,9 @@ export async function Navbar() {
   }
 
   return (
-    <div className="sticky top-0 z-40">
+    <div className="sticky top-0 z-[100] isolate">
       <PromotionalBanner visiblePaths={['/', '/buyer']} />
-      <header className="w-full border-b border-rose-200/70 bg-linear-to-r from-rose-50 via-white to-rose-50 backdrop-blur supports-backdrop-filter:bg-background/60 dark:border-rose-500/30 dark:from-rose-950/40 dark:via-background/70 dark:to-rose-950/40">
+      <header className="relative z-[100] w-full border-b border-rose-200/70 bg-linear-to-r from-rose-50 via-white to-rose-50 backdrop-blur supports-backdrop-filter:bg-background/60 dark:border-rose-500/30 dark:from-rose-950/40 dark:via-background/70 dark:to-rose-950/40">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-2 sm:gap-4">
             {/* Left: Mobile menu + Logo */}
