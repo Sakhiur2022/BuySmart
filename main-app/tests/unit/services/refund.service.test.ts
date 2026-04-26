@@ -7,7 +7,7 @@ import {
   RefundInvalidAmountError,
   RefundService,
 } from '@/lib/services/refund.service';
-import type { CreateRefundDTO, RefundDetailDTO } from '@/lib/types/refund.types';
+import type { CreateRefundDTO } from '@/lib/types/refund.types';
 
 function buildCreateRefundInput(): CreateRefundDTO {
   return {
@@ -18,43 +18,6 @@ function buildCreateRefundInput(): CreateRefundDTO {
     requested_amount: 50,
     return_required: false,
     currency: 'USD',
-  };
-}
-
-function buildRefundDetail(overrides: Partial<RefundDetailDTO> = {}): RefundDetailDTO {
-  return {
-    refund_id: 'ref-1',
-    refund_number: 'RFD-TEST-000001',
-    order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
-    order_item_id: null,
-    user_id: 'buyer-1',
-    status: 'pending',
-    reason_code: 'damaged',
-    refund_type: 'full_order',
-    requested_amount: 50,
-    refund_amount: 50,
-    created_at: '2026-04-19T00:00:00.000Z',
-    updated_at: '2026-04-19T00:00:00.000Z',
-    buyer: { user_id: 'buyer-1', full_name: 'Buyer One', email: null },
-    seller: { user_id: 'seller-1', full_name: 'Seller One', email: null },
-    order: {
-      order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
-      order_number: 'ORD-001',
-      created_at: '2026-04-18T00:00:00.000Z',
-      currency: 'USD',
-      total_amount: 50,
-    },
-    items: [],
-    reason_description: null,
-    processing_notes: null,
-    ai_recommendation: null,
-    ai_risk_score: null,
-    ai_processed_at: null,
-    return_required: false,
-    return_tracking: null,
-    return_received_at: null,
-    refunded_at: null,
-    ...overrides,
   };
 }
 
