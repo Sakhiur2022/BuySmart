@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { MessageCircle, Send, X, Sparkles } from 'lucide-react';
 
 const SESSION_STORAGE_KEY = 'buysmart.buyer-chat-widget-open';
 
 export default function BuyerChatbotWidget() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const shouldLiftWidget =
+    pathname === '/buyer/cart' ||
+    pathname === '/buyer/checkout' ||
+    pathname === '/buyer/order-confirmation' ||
+    pathname.startsWith('/orders/');
+  const positionClassName = shouldLiftWidget
+    ? 'bottom-24 right-4 md:bottom-8 md:right-8'
+    : 'bottom-6 right-4 md:right-6';
 
   useEffect(() => {
     setHasLoaded(true);
@@ -36,7 +46,7 @@ export default function BuyerChatbotWidget() {
   }, [hasLoaded, isOpen]);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 font-sans">
+    <div className={`pointer-events-none fixed ${positionClassName} z-50 flex flex-col items-end gap-3 font-sans`}>
       <div
         className={`w-[min(24rem,calc(100vw-2rem))] origin-bottom-right overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-2xl ring-1 ring-black/5 transition-all duration-300 ease-out sm:w-80 md:w-96 ${
           isOpen
@@ -101,7 +111,7 @@ export default function BuyerChatbotWidget() {
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative pointer-events-auto">
         <button
           type="button"
           onClick={() => setIsOpen((current) => !current)}
