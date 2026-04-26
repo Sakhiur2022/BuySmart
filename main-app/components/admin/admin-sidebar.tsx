@@ -10,6 +10,7 @@ import { useState } from 'react';
 const primaryLinks = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/categories', label: 'Categories', icon: ListTree },
+  { href: '/admin/refund-queue', label: 'Refund Queue', icon: Receipt },
 ];
 
 const comingSoonLinks = [
