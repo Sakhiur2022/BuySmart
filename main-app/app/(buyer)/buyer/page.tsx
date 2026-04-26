@@ -13,6 +13,7 @@ import { getActiveCategories } from '@/lib/controllers/category.controller';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import ProductListingPage from '@/components/products/product-listing-page';
+import BuyerChatbotWidget from '@/components/shared/buyer-chatbot-widget';
 import { Suspense } from 'react';
 
 type BuyerPageProps = {
@@ -272,6 +273,8 @@ export default async function ProtectedPage({ searchParams }: BuyerPageProps) {
           </Suspense>
         </div>
       </div>
+
+      <BuyerChatbotWidget />
     </div>
   );
 }
