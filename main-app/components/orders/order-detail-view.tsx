@@ -4,8 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import BuyerRefundDetailSection from '@/components/orders/buyer-refund-detail-section';
 import { formatCurrency } from '@/lib/utils';
 import type { Order, OrderItem, OrderStatus } from '@/lib/models/order.model';
+import type { RefundDetailDTO } from '@/lib/types/refund.types';
 import { CheckCircle2, Circle, Clock3, MessageSquare, Package, Truck, XCircle } from 'lucide-react';
 
 type ParsedAddress = {
@@ -192,10 +194,12 @@ export function OrderDetailView({
   order,
   items,
   feedbackByOrderItemId,
+  refundDetail,
 }: {
   order: Order;
   items: OrderItem[];
   feedbackByOrderItemId: Record<string, { feedback_id: string; status: string }>;
+  refundDetail?: RefundDetailDTO | null;
 }) {
   const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
   const steps = getTimelineSteps(order);
@@ -336,6 +340,8 @@ export function OrderDetailView({
           </CardContent>
         </Card>
       </div>
+
+      {refundDetail ? <BuyerRefundDetailSection refund={refundDetail} /> : null}
 
       <Card>
         <CardHeader>
