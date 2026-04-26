@@ -137,7 +137,7 @@ export function MobileNavMenu({ buyerItems, adminItems, sellerItems, role }: Mob
         <div
           ref={menuRef}
           id="mobile-nav-menu"
-          className="absolute left-0 top-full z-50 mt-2 w-56 rounded-xl border border-input bg-background shadow-lg"
+          className="absolute left-0 top-full z-[110] mt-2 w-56 rounded-xl border border-input bg-background shadow-lg"
         >
           <div className="flex flex-col">
             {items.map((item, index) => {

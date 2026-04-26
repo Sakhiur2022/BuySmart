@@ -58,7 +58,7 @@ export function PromotionalBanner({ visiblePaths }: PromotionalBannerProps) {
         <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-rose-600 shadow-sm sm:text-[11px]">
           Hot
         </span>
-        <div className="relative flex-1 overflow-hidden">
+        <div className="pointer-events-none relative flex-1 overflow-hidden">
           <div className="flex w-max items-center gap-4 pr-6 banner-marquee">
             {PROMOS.map((promo) => (
               <span

@@ -108,9 +108,7 @@ export function SellerUpgradeCta({
         type="button"
         variant={buttonVariant}
         size={buttonSize}
-        className={
-          buttonClassName ?? 'h-auto p-0 font-semibold text-primary'
-        }
+        className={buttonClassName ?? 'h-auto p-0 font-semibold text-primary'}
         onClick={handleTriggerClick}
         disabled={isSubmitting}
       >

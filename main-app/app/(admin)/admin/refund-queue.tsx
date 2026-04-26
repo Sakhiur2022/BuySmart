@@ -150,10 +150,9 @@ interface QueueRowProps {
   item: RefundQueueItem;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
-  idx: number;
 }
 
-function QueueRow({ item, onApprove, onReject, idx }: QueueRowProps) {
+function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
   const approveRef = useRef<HTMLButtonElement>(null);
   const rejectRef = useRef<HTMLButtonElement>(null);
 
@@ -364,13 +363,12 @@ export default function AdminRefundQueue({
         </TableHeader>
 
         <TableBody>
-          {filtered.map((item, idx) => (
+          {filtered.map((item) => (
             <QueueRow
               key={item.id}
               item={item}
               onApprove={handleApprove}
               onReject={handleReject}
-              idx={idx}
             />
           ))}
         </TableBody>
