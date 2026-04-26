@@ -183,4 +183,81 @@ describe('RefundRepository', () => {
       },
     });
   });
+
+  it('returns true when seller owns the exact single-item refund item', async () => {
+    const refunds = createAwaitableQueryBuilder({
+      data: {
+        order_id: 'order-1',
+        order_item_id: 'item-1',
+      },
+      error: null,
+    });
+
+    const orderItems = createAwaitableQueryBuilder({
+      data: { order_item_id: 'item-1' },
+      error: null,
+    });
+
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'refunds') {
+          return refunds;
+        }
+
+        if (table === 'order_items') {
+          return orderItems;
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const repository = new RefundRepository();
+    const result = await repository.isSellerScopedToRefund('ref-1', 'seller-1');
+
+    expect(refunds.eq).toHaveBeenCalledWith('refund_id', 'ref-1');
+    expect(orderItems.eq).toHaveBeenCalledWith('seller_id', 'seller-1');
+    expect(orderItems.eq).toHaveBeenCalledWith('order_item_id', 'item-1');
+    expect(result).toBe(true);
+  });
+
+  it('returns false when seller does not own any item in the refund order scope', async () => {
+    const refunds = createAwaitableQueryBuilder({
+      data: {
+        order_id: 'order-2',
+        order_item_id: null,
+      },
+      error: null,
+    });
+
+    const orderItems = createAwaitableQueryBuilder({
+      data: null,
+      error: null,
+    });
+
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'refunds') {
+          return refunds;
+        }
+
+        if (table === 'order_items') {
+          return orderItems;
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const repository = new RefundRepository();
+    const result = await repository.isSellerScopedToRefund('ref-2', 'seller-2');
+
+    expect(orderItems.eq).toHaveBeenCalledWith('seller_id', 'seller-2');
+    expect(orderItems.eq).toHaveBeenCalledWith('order_id', 'order-2');
+    expect(result).toBe(false);
+  });
 });
