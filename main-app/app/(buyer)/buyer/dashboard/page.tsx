@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import BuyerRefundStatusList from '@/components/orders/buyer-refund-status-list';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getBuyerOrderDashboardStats } from '@/lib/services/order.service';
+import { listRefundsForUser } from '@/lib/services/refund.service';
 import { createClient } from '@/lib/supabase/server';
 import { getServiceRoleSupabase } from '@/lib/supabase/service-role';
+import type { RefundSummaryDTO } from '@/lib/types/refund.types';
 
 type RecentViewItem = {
   productId: string;
@@ -58,11 +61,23 @@ export default async function BuyerDashboardPage() {
 
   let stats = { inProgressCount: 0, deliveriesThisWeek: 0 };
   let recentViews: RecentViewItem[] = [];
+  let recentRefunds: RefundSummaryDTO[] = [];
 
   try {
     stats = await getBuyerOrderDashboardStats(user.id);
   } catch (error) {
     console.error('Failed to load buyer dashboard stats.', error);
+  }
+
+  try {
+    const refundResult = await listRefundsForUser(user.id, {
+      page: 1,
+      pageSize: 5,
+      sortBy: 'recent',
+    });
+    recentRefunds = refundResult.refunds;
+  } catch (error) {
+    console.error('Failed to load buyer refund status list.', error);
   }
 
   try {
@@ -218,6 +233,10 @@ export default async function BuyerDashboardPage() {
             </Button>
           </CardContent>
         </Card>
+      </section>
+
+      <section aria-label="Buyer refund status list">
+        <BuyerRefundStatusList refunds={recentRefunds} />
       </section>
     </div>
   );

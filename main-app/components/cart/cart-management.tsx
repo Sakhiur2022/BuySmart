@@ -158,7 +158,7 @@ export function CartManagement() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <section className="space-y-4 lg:col-span-2" aria-label="Cart items">
+      <section className="relative z-0 space-y-4 lg:col-span-2" aria-label="Cart items">
         {error ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error}
@@ -262,15 +262,15 @@ export function CartManagement() {
         })}
       </section>
 
-      <aside className="space-y-4 lg:col-span-1">
+      <aside className="relative z-20 isolate space-y-4 lg:col-span-1">
         <Card className="relative overflow-hidden border-rose-200/80 bg-linear-to-br from-rose-50 via-pink-50 to-amber-50 dark:border-rose-500/30 dark:from-rose-950/35 dark:via-pink-950/25 dark:to-amber-950/20">
           <span
             aria-hidden="true"
-            className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background"
+            className="pointer-events-none absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background"
           />
           <span
             aria-hidden="true"
-            className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background"
+            className="pointer-events-none absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background"
           />
           <CardHeader className="pb-3">
             <CardTitle className="text-base text-rose-700 dark:text-rose-300">Coupon</CardTitle>
@@ -307,14 +307,14 @@ export function CartManagement() {
           </CardContent>
         </Card>
 
-        <Card className="lg:sticky lg:top-24 bg-linear-to-br from-primary/10 via-card to-card">
+        <Card className="relative z-30 bg-linear-to-br from-primary/10 via-card to-card lg:sticky lg:top-24">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 leading-normal">
               <ShoppingCart className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
               <span>Cart summary</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="relative z-30 space-y-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Items</span>
               <span className="font-medium">{totals.totalItems}</span>
@@ -338,7 +338,7 @@ export function CartManagement() {
 
             <Button
               type="button"
-              className="w-full"
+              className="relative z-20 w-full"
               onClick={() => router.push('/buyer/checkout')}
               disabled={isCheckoutDisabled}
             >
@@ -346,7 +346,7 @@ export function CartManagement() {
             </Button>
             <Button
               variant="outline"
-              className="w-full"
+              className="relative z-20 w-full"
               onClick={handleClearCart}
               disabled={isClearing || isLoading}
             >
