@@ -114,6 +114,42 @@ export class RefundRepository implements IRefundRepository {
     return this.toResponseDTO(entity);
   }
 
+  public async applyDecision(input: {
+    refundId: string;
+    fromStatus: RefundStatus;
+    toStatus: RefundStatus;
+    processedBy: string;
+    processedAt: string;
+    processingNotes: string;
+  }): Promise<RefundResponseDTO | null> {
+    const supabase = await this.clientFactory();
+    const { data, error } = await supabase
+      .from('refunds')
+      .update({
+        status: input.toStatus,
+        processed_by: input.processedBy,
+        processed_at: input.processedAt,
+        processing_notes: input.processingNotes,
+      })
+      .eq('refund_id', input.refundId)
+      .eq('status', input.fromStatus)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      this.throwMappedError(error, 'Failed to apply refund decision');
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    const row = data as RefundRow;
+    const items = await this.fetchRefundItems(row, supabase);
+    const entity = this.toEntity(row, items);
+    return this.toResponseDTO(entity);
+  }
+
   public async list(filters: RefundRepositoryFilterDTO): Promise<RefundListResponseDTO> {
     const supabase = await this.clientFactory();
     const normalized = this.normalizeFilters(filters);

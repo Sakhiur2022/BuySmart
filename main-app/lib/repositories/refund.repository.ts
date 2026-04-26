@@ -68,6 +68,14 @@ export interface IRefundWriteRepository {
   create(
     input: CreateRefundDTO & { user_id: string; refund_number: string },
   ): Promise<RefundResponseDTO>;
+  applyDecision(input: {
+    refundId: string;
+    fromStatus: Database['public']['Enums']['refund_status_enum'];
+    toStatus: Database['public']['Enums']['refund_status_enum'];
+    processedBy: string;
+    processedAt: string;
+    processingNotes: string;
+  }): Promise<RefundResponseDTO | null>;
 }
 
 export interface IRefundRepository extends IRefundReadRepository, IRefundWriteRepository {}
