@@ -243,6 +243,43 @@ export class RefundRepository implements IRefundRepository {
     return this.toDetailDTO(entity, relations);
   }
 
+  public async isSellerScopedToRefund(refundId: string, sellerId: string): Promise<boolean> {
+    const supabase = await this.clientFactory();
+    const { data: refundRow, error: refundError } = await supabase
+      .from('refunds')
+      .select('order_id, order_item_id')
+      .eq('refund_id', refundId)
+      .maybeSingle();
+
+    if (refundError) {
+      this.throwMappedError(refundError, 'Failed to load refund scope context');
+    }
+
+    if (!refundRow) {
+      return false;
+    }
+
+    let query = supabase
+      .from('order_items')
+      .select('order_item_id')
+      .eq('seller_id', sellerId)
+      .limit(1);
+
+    if (refundRow.order_item_id) {
+      query = query.eq('order_item_id', refundRow.order_item_id);
+    } else {
+      query = query.eq('order_id', refundRow.order_id);
+    }
+
+    const { data: scopedRow, error: scopeError } = await query.maybeSingle();
+
+    if (scopeError) {
+      this.throwMappedError(scopeError, 'Failed to verify seller refund scope');
+    }
+
+    return Boolean(scopedRow);
+  }
+
   public async getEligibilitySnapshot(input: {
     orderId: string;
     buyerId: string;

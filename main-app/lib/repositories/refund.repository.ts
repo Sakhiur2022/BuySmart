@@ -57,6 +57,7 @@ export interface IRefundReadRepository {
   getUserRole(userId: string): Promise<UserRole | null>;
   findById(refundId: string): Promise<RefundResponseDTO | null>;
   findDetailById(refundId: string): Promise<RefundDetailDTO | null>;
+  isSellerScopedToRefund(refundId: string, sellerId: string): Promise<boolean>;
   list(filters: RefundRepositoryFilterDTO): Promise<RefundListResponseDTO>;
   getEligibilitySnapshot(input: {
     orderId: string;
