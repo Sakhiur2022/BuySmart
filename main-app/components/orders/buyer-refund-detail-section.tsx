@@ -48,6 +48,12 @@ type RefundTimelineStep = {
   happenedAt: string | null;
 };
 
+type ParsedProcessingNotes = {
+  message: string;
+  decision?: string | null;
+  previousStatus?: string | null;
+};
+
 function formatDateTime(value: string | null): string {
   if (!value) {
     return 'Not available';
@@ -69,6 +75,36 @@ function formatEnumLabel(value: string): string {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function parseProcessingNotes(value: string | null): ParsedProcessingNotes | null {
+  const notes = value?.trim();
+  if (!notes) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(notes) as {
+      note?: unknown;
+      decision?: unknown;
+      previous_status?: unknown;
+    };
+
+    const message =
+      typeof parsed.note === 'string' && parsed.note.trim().length > 0 ? parsed.note.trim() : notes;
+
+    return {
+      message,
+      decision: typeof parsed.decision === 'string' ? parsed.decision : null,
+      previousStatus: typeof parsed.previous_status === 'string' ? parsed.previous_status : null,
+    };
+  } catch {
+    return {
+      message: notes,
+      decision: null,
+      previousStatus: null,
+    };
+  }
 }
 
 function RefundStatusBadge({ status }: { status: RefundStatus }) {
@@ -169,6 +205,7 @@ function getRefundTimelineSteps(refund: RefundDetailDTO): RefundTimelineStep[] {
 export default function BuyerRefundDetailSection({ refund }: { refund: RefundDetailDTO }) {
   const steps = getRefundTimelineSteps(refund);
   const currentStepIndex = Math.max(steps.findIndex((step) => step.key === refund.status), 0);
+  const processingNotes = parseProcessingNotes(refund.processing_notes);
 
   return (
     <Card>
@@ -231,8 +268,24 @@ export default function BuyerRefundDetailSection({ refund }: { refund: RefundDet
           <div className="space-y-4">
             <p className="text-sm font-semibold">Processing notes</p>
             <div className="rounded-xl border bg-muted/20 p-4 text-sm">
-              {refund.processing_notes && refund.processing_notes.trim().length > 0 ? (
-                <p className="whitespace-pre-wrap text-foreground">{refund.processing_notes}</p>
+              {processingNotes ? (
+                <div className="space-y-3">
+                  <p className="whitespace-pre-wrap leading-6 text-foreground">
+                    {processingNotes.message}
+                  </p>
+                  {processingNotes.decision || processingNotes.previousStatus ? (
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      {processingNotes.decision ? (
+                        <Badge variant="outline">Decision: {formatEnumLabel(processingNotes.decision)}</Badge>
+                      ) : null}
+                      {processingNotes.previousStatus ? (
+                        <Badge variant="outline">
+                          Previous status: {formatEnumLabel(processingNotes.previousStatus)}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               ) : (
                 <p className="text-muted-foreground">No processing notes available yet.</p>
               )}

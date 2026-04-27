@@ -49,7 +49,7 @@ export default async function BuyerRefundDetailPage({ params }: BuyerRefundDetai
           <Button asChild variant="outline" size="sm">
             <Link href="/buyer">Back to dashboard</Link>
           </Button>
-          <Button asChild variant="secondary" size="sm">
+          <Button asChild size="sm">
             <Link href={`/buyer/orders/${refund.order_id}`}>View order</Link>
           </Button>
         </div>
