@@ -1,4 +1,5 @@
 import type { Database } from '@/lib/types/database.types';
+import { AdminRefundReadAccessStrategy } from '@/lib/strategies/refund-read-access/admin-refund-read-access.strategy';
 import { BuyerRefundReadAccessStrategy } from '@/lib/strategies/refund-read-access/buyer-refund-read-access.strategy';
 import { SellerRefundReadAccessStrategy } from '@/lib/strategies/refund-read-access/seller-refund-read-access.strategy';
 import type { RefundReadAccessStrategy } from '@/lib/strategies/refund-read-access/refund-read-access.strategy';
@@ -23,6 +24,7 @@ export class RefundReadAccessStrategyRegistry {
 
 export function createRefundReadAccessStrategyRegistry(): RefundReadAccessStrategyRegistry {
   return new RefundReadAccessStrategyRegistry({
+    admin: new AdminRefundReadAccessStrategy(),
     buyer: new BuyerRefundReadAccessStrategy(),
     seller: new SellerRefundReadAccessStrategy(),
   });

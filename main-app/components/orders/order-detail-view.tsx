@@ -4,8 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import BuyerRefundDetailSection from '@/components/orders/buyer-refund-detail-section';
 import { formatCurrency } from '@/lib/utils';
 import type { Order, OrderItem, OrderStatus } from '@/lib/models/order.model';
+import type { RefundDetailDTO } from '@/lib/types/refund.types';
 import { CheckCircle2, Circle, Clock3, MessageSquare, Package, Truck, XCircle } from 'lucide-react';
 
 type ParsedAddress = {
@@ -192,15 +194,18 @@ export function OrderDetailView({
   order,
   items,
   feedbackByOrderItemId,
+  refundDetail,
 }: {
   order: Order;
   items: OrderItem[];
   feedbackByOrderItemId: Record<string, { feedback_id: string; status: string }>;
+  refundDetail?: RefundDetailDTO | null;
 }) {
   const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
   const steps = getTimelineSteps(order);
   const currentStepIndex = ORDER_PROGRESS.indexOf(order.status as TimelineStep['key']);
   const shippingAddress = parseAddress(order.shipping_address);
+  const isPaymentPaid = order.payment_status === 'paid';
 
   return (
     <div className="space-y-6">
@@ -217,7 +222,10 @@ export function OrderDetailView({
           <Badge variant="outline" className={getStatusBadgeClasses(order.status)}>
             {statusLabel}
           </Badge>
-          <Badge variant="secondary">Payment: {order.payment_status}</Badge>
+          <Badge variant="secondary" className="inline-flex items-center gap-1.5">
+            {isPaymentPaid ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : null}
+            <span>Payment: {order.payment_status}</span>
+          </Badge>
         </div>
       </div>
 
@@ -247,12 +255,16 @@ export function OrderDetailView({
             <ol className="space-y-4">
               {steps.map((step, index) => {
                 const reached = order.status === 'cancelled' ? Boolean(step.happenedAt) : index <= currentStepIndex;
+                const reachedWithPayment =
+                  order.status === 'cancelled'
+                    ? reached
+                    : reached || (step.key === 'completed' && order.payment_status === 'paid');
                 const isCurrent = order.status !== 'cancelled' && index === currentStepIndex;
 
                 return (
                   <li key={step.key} className="relative flex gap-3">
                     <div className="pt-0.5">
-                      {reached ? (
+                      {reachedWithPayment ? (
                         <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                       ) : isCurrent ? (
                         <Clock3 className="h-5 w-5 text-amber-600" />
@@ -336,6 +348,8 @@ export function OrderDetailView({
           </CardContent>
         </Card>
       </div>
+
+      {refundDetail ? <BuyerRefundDetailSection refund={refundDetail} /> : null}
 
       <Card>
         <CardHeader>

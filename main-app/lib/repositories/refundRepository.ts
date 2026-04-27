@@ -836,6 +836,9 @@ export class RefundRepository implements IRefundRepository {
       return_required: entity.return_required,
       return_tracking: entity.return_tracking,
       return_received_at: entity.return_received_at,
+      payment_reference: entity.payment_reference,
+      processed_by: entity.processed_by,
+      processed_at: entity.processed_at,
       refunded_at: entity.refunded_at,
     };
   }

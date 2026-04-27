@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/lib/services/refund-decision-adapter.service', () => ({
+  getRefundRecommendation: vi.fn(),
+}));
+
 import type { IRefundRepository } from '@/lib/repositories/refund.repository';
+import { getRefundRecommendation } from '@/lib/services/refund-decision-adapter.service';
 import {
   RefundInvalidDecisionTransitionError,
   RefundIneligibleStatusError,
@@ -26,6 +31,21 @@ describe('refund.service eligibility', () => {
   let service: RefundService;
 
   beforeEach(() => {
+    vi.mocked(getRefundRecommendation).mockResolvedValue({
+      schemaVersion: 'ai24.v1',
+      recommendation: 'manual_review',
+      riskScore: 0.5,
+      confidenceScore: 0.8,
+      reasoning: 'AI recommends manual review.',
+      signals: [],
+      modelMetadata: {
+        provider: 'groq',
+        model: 'test-model',
+        fallbackUsed: false,
+        generatedAt: '2026-04-27T00:00:00.000Z',
+      },
+    } as never);
+
     repository = {
       getUserRole: vi.fn(),
       create: vi.fn(),
@@ -217,17 +237,31 @@ describe('refund.service eligibility', () => {
     });
   });
 
-  it('rejects list refunds for unsupported role', async () => {
+  it('allows admin to list refunds without buyer/seller scope filters', async () => {
     vi.mocked(repository.getUserRole).mockResolvedValue('admin');
-
-    await expect(
-      service.listRefunds('admin-1', {
+    vi.mocked(repository.list).mockResolvedValue({
+      refunds: [],
+      pagination: {
         page: 1,
         pageSize: 20,
-        sortBy: 'recent',
-      }),
-    ).rejects.toThrow('FORBIDDEN');
-    expect(repository.list).not.toHaveBeenCalled();
+        totalCount: 0,
+        totalPages: 0,
+      },
+    });
+
+    await service.listRefunds('admin-1', {
+      page: 1,
+      pageSize: 20,
+      sortBy: 'recent',
+    });
+
+    expect(repository.list).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'recent',
+      buyer_id: undefined,
+      seller_id: undefined,
+    });
   });
 
   it('rejects refund creation for non-buyer role before eligibility lookup', async () => {

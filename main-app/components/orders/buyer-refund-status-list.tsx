@@ -81,14 +81,9 @@ function RefundStatusBadge({ status }: { status: RefundStatus }) {
 export default function BuyerRefundStatusList({ refunds }: BuyerRefundStatusListProps) {
   return (
     <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <CardTitle className="text-lg">Refund status</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">Recent requests from your orders</p>
-        </div>
-        <Button asChild size="sm" variant="outline" className="w-full sm:w-auto">
-          <Link href="/buyer/orders">View orders</Link>
-        </Button>
+      <CardHeader>
+        <CardTitle className="text-lg">Refund status</CardTitle>
+        <p className="mt-1 text-xs text-muted-foreground">Recent requests from your orders</p>
       </CardHeader>
       <CardContent>
         {refunds.length === 0 ? (
