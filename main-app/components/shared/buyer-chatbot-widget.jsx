@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { MessageCircle, Send, X, Sparkles } from 'lucide-react';
 
 const SESSION_STORAGE_KEY = 'buysmart.buyer-chat-widget-open';
+const SESSION_STORAGE_SENT_KEY = 'buysmart.buyer-chat-widget-has-sent-message';
 
 export default function BuyerChatbotWidget() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [draftMessage, setDraftMessage] = useState('');
+  const [hasSentMessage, setHasSentMessage] = useState(false);
   const shouldRender =
     pathname === '/' ||
     pathname.startsWith('/buyer') ||
@@ -29,12 +33,18 @@ export default function BuyerChatbotWidget() {
 
     try {
       const storedValue = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      const storedHasSentMessage = sessionStorage.getItem(SESSION_STORAGE_SENT_KEY);
 
       if (storedValue === 'true') {
         setIsOpen(true);
       }
+
+      if (storedHasSentMessage === 'true') {
+        setHasSentMessage(true);
+      }
     } catch {
       setIsOpen(false);
+      setHasSentMessage(false);
     }
   }, []);
 
@@ -45,10 +55,20 @@ export default function BuyerChatbotWidget() {
 
     try {
       sessionStorage.setItem(SESSION_STORAGE_KEY, String(isOpen));
+      sessionStorage.setItem(SESSION_STORAGE_SENT_KEY, String(hasSentMessage));
     } catch {
       // Ignore storage failures and keep the widget functional.
     }
-  }, [hasLoaded, isOpen]);
+  }, [hasLoaded, hasSentMessage, isOpen]);
+
+  function handleSend() {
+    if (!draftMessage.trim()) {
+      return;
+    }
+
+    setHasSentMessage(true);
+    setDraftMessage('');
+  }
 
   if (!shouldRender) {
     return null;
@@ -87,11 +107,21 @@ export default function BuyerChatbotWidget() {
         <div className="flex h-[min(22rem,calc(100dvh-12rem))] flex-col bg-rose-50/40 sm:h-[min(24rem,calc(100dvh-12rem))]">
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-rose-600 shadow-sm ring-1 ring-rose-100">
-                <MessageCircle className="h-5 w-5" />
-              </div>
+              {!hasSentMessage ? (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-rose-600 shadow-sm ring-1 ring-rose-100">
+                  <div className="relative h-full w-full">
+                    <Image
+                      src="/icons/kitty_thinking.png"
+                      alt="Thinking kitty illustration"
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                    />
+                  </div>
+                </div>
+              ) : null}
 
-              <div className="max-w-[80%] space-y-1">
+              <div className="max-w-[82%] space-y-1">
                 <div className="rounded-2xl rounded-tl-md bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm ring-1 ring-slate-100">
                   Hi there! How can I help you today?
                 </div>
@@ -105,11 +135,20 @@ export default function BuyerChatbotWidget() {
               <input
                 type="text"
                 placeholder="Type a message..."
+                value={draftMessage}
+                onChange={(event) => setDraftMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleSend();
+                  }
+                }}
                 className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
                 aria-label="Type a message"
               />
               <button
                 type="button"
+                onClick={handleSend}
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                 aria-label="Send message"
               >
