@@ -4,7 +4,7 @@ import BuyerRefundStatusList from '@/components/orders/buyer-refund-status-list'
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getBuyerOrderDashboardStats } from '@/lib/services/order.service';
-import { listRefundsForUser } from '@/lib/services/refund.service';
+import { listBuyerRefundsForUser } from '@/lib/services/refund.service';
 import { createClient } from '@/lib/supabase/server';
 import { getServiceRoleSupabase } from '@/lib/supabase/service-role';
 import type { RefundSummaryDTO } from '@/lib/types/refund.types';
@@ -70,7 +70,7 @@ export default async function BuyerDashboardPage() {
   }
 
   try {
-    const refundResult = await listRefundsForUser(user.id, {
+    const refundResult = await listBuyerRefundsForUser(user.id, {
       page: 1,
       pageSize: 5,
       sortBy: 'recent',

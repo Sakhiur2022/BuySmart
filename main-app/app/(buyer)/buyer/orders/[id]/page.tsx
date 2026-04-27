@@ -1,7 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 import { OrderDetailView } from '@/components/orders/order-detail-view';
 import { getBuyerOrderById } from '@/lib/services/order.service';
-import { getRefundDetailForUser, listRefundsForUser } from '@/lib/services/refund.service';
+import {
+  getBuyerRefundDetailForUser,
+  listBuyerRefundsForUser,
+} from '@/lib/services/refund.service';
 import { createClient } from '@/lib/supabase/server';
 import type { RefundDetailDTO } from '@/lib/types/refund.types';
 
@@ -38,7 +41,7 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
   }
 
   try {
-    const refundResult = await listRefundsForUser(user.id, {
+    const refundResult = await listBuyerRefundsForUser(user.id, {
       page: 1,
       pageSize: 1,
       sortBy: 'recent',
@@ -47,7 +50,7 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
 
     const latestRefund = refundResult.refunds[0];
     if (latestRefund) {
-      refundDetail = await getRefundDetailForUser(user.id, latestRefund.refund_id);
+      refundDetail = await getBuyerRefundDetailForUser(user.id, latestRefund.refund_id);
     }
   } catch (error) {
     console.error('Failed to load refund detail for buyer order page.', error);
