@@ -25,6 +25,10 @@ describe('getFeedbackInsightsForUser', () => {
         created_at: '2026-04-14T00:00:00.000Z',
         product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
         product_name: 'Smart Blender',
+        buyer_user_id: 'f0b08911-3cdf-4740-b489-16f94ebdc4e1',
+        buyer_full_name: 'Sarah Ahmed',
+        buyer_display_name: null,
+        buyer_avatar_url: 'https://example.com/avatars/sarah.jpg',
         ai_sentiment: 'positive',
         ai_confidence_score: 0.9,
       },
@@ -35,6 +39,10 @@ describe('getFeedbackInsightsForUser', () => {
         created_at: '2026-04-14T01:00:00.000Z',
         product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
         product_name: 'Smart Blender',
+        buyer_user_id: '2accbe7b-f061-44fc-b6c1-12d08e55ece8',
+        buyer_full_name: 'Karim Rahman',
+        buyer_display_name: 'Karim',
+        buyer_avatar_url: null,
         ai_sentiment: 'neutral',
         ai_confidence_score: 0.4,
       },
@@ -45,6 +53,10 @@ describe('getFeedbackInsightsForUser', () => {
         created_at: '2026-04-14T02:00:00.000Z',
         product_id: '8f4a72f7-7c81-4047-87f0-c2744f2abfd5',
         product_name: 'Noise Cancelling Headphones',
+        buyer_user_id: '95396d02-528f-4134-8e7f-879e3e0538f6',
+        buyer_full_name: 'Nadia Karim',
+        buyer_display_name: null,
+        buyer_avatar_url: null,
         ai_sentiment: 'negative',
         ai_confidence_score: 0.8,
       },
@@ -65,6 +77,8 @@ describe('getFeedbackInsightsForUser', () => {
     expect(result.perProductSummaries.length).toBe(2);
     expect(result.highlights.positive.length).toBeGreaterThanOrEqual(1);
     expect(result.highlights.negative.length).toBeGreaterThanOrEqual(1);
+    expect(result.highlights.positive[0]?.buyerName).toBe('Sarah Ahmed');
+    expect(result.highlights.positive[0]?.productName).toBe('Smart Blender');
     expect(result.trend.length).toBe(30);
   });
 
@@ -119,6 +133,10 @@ describe('getFeedbackInsightsForUser', () => {
         created_at: '2026-01-12T00:00:00.000Z',
         product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
         product_name: 'Smart Blender',
+        buyer_user_id: 'f0b08911-3cdf-4740-b489-16f94ebdc4e1',
+        buyer_full_name: 'Sarah Ahmed',
+        buyer_display_name: null,
+        buyer_avatar_url: null,
         ai_sentiment: 'mixed',
         ai_confidence_score: 0.5,
       },
@@ -129,6 +147,10 @@ describe('getFeedbackInsightsForUser', () => {
         created_at: '2026-04-01T00:00:00.000Z',
         product_id: '3c7a7627-67f6-4b9f-9b1a-f6c6e28782ad',
         product_name: 'Smart Blender',
+        buyer_user_id: '2accbe7b-f061-44fc-b6c1-12d08e55ece8',
+        buyer_full_name: 'Karim Rahman',
+        buyer_display_name: 'Karim',
+        buyer_avatar_url: null,
         ai_sentiment: 'positive',
         ai_confidence_score: 0.7,
       },
