@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { createClient } from '@/lib/supabase/client';
+import { clearChatbotSessionStorage } from '@/lib/chatbot/session';
 import { OAuthProviderButtons } from '@/app/(auth)/components/oauth-provider-buttons';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,6 +113,8 @@ export function SignUpForm({
       if (signUpError) {
         throw signUpError;
       }
+
+      clearChatbotSessionStorage();
 
       if (data.session && data.user?.id) {
         const { error: profileError } = await supabase

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { clearChatbotSessionStorage } from '@/lib/chatbot/session';
 import type { OAuthProvider } from '../types/auth';
 import { getOAuthSignInOptions } from '../lib/supabase-auth';
 
@@ -37,6 +38,8 @@ export function useOAuthLogin(nextPath: string) {
         });
         return;
       }
+
+      clearChatbotSessionStorage();
 
       const { error } = await supabase.auth.signInWithOAuth(signInOptions);
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { clearChatbotSessionStorage } from '@/lib/chatbot/session';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -63,6 +64,8 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       if (signInError) {
         throw signInError;
       }
+
+      clearChatbotSessionStorage();
 
       const userId = data.user?.id;
       const roleFromMetadata = data.user?.user_metadata?.role;

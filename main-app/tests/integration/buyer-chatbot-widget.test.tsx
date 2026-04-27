@@ -10,8 +10,37 @@ const pathnameState = vi.hoisted(() => ({
   value: '/buyer',
 }));
 
+const supabaseState = vi.hoisted(() => ({
+  user: null as { id: string } | null,
+  authCallback: null as
+    | ((event: 'SIGNED_IN' | 'SIGNED_OUT', session: { user: { id: string } } | null) => void)
+    | null,
+  unsubscribe: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => pathnameState.value,
+}));
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: vi.fn().mockImplementation(async () => ({
+        data: { user: supabaseState.user },
+        error: null,
+      })),
+      onAuthStateChange: vi.fn().mockImplementation((callback) => {
+        supabaseState.authCallback = callback;
+        return {
+          data: {
+            subscription: {
+              unsubscribe: supabaseState.unsubscribe,
+            },
+          },
+        };
+      }),
+    },
+  }),
 }));
 
 vi.mock('next/image', () => ({
@@ -30,6 +59,9 @@ describe('BuyerChatbotWidget', () => {
     window.sessionStorage.clear();
     Element.prototype.scrollTo = vi.fn();
     pathnameState.value = '/buyer';
+    supabaseState.user = null;
+    supabaseState.authCallback = null;
+    supabaseState.unsubscribe.mockReset();
   });
 
   it('renders on public guest routes', () => {
@@ -130,5 +162,106 @@ describe('BuyerChatbotWidget', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('The chat service returned an unexpected response.')).toBeInTheDocument();
+  });
+
+  it('resets chat history after sign in', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        intent: 'FAQ',
+        reply: 'I can help with products, orders, refunds, or support.',
+        updatedContext: {
+          category: null,
+          price_max: null,
+          lastOrderId: null,
+          history: [
+            { role: 'user', content: 'hello' },
+            { role: 'assistant', content: 'I can help with products, orders, refunds, or support.' },
+          ],
+        },
+      }),
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+    await user.type(screen.getByLabelText('Type a message'), 'hello');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(await screen.findByText('I can help with products, orders, refunds, or support.')).toBeInTheDocument();
+
+    supabaseState.authCallback?.('SIGNED_IN', { user: { id: 'user-1' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('hello')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Hi there! How can I help you today?')).toBeInTheDocument();
+  });
+
+  it('resets chat history after sign out', async () => {
+    window.sessionStorage.setItem(
+      'buysmart.buyer-chat-widget-messages',
+      JSON.stringify([
+        { id: 'assistant-greeting', role: 'assistant', text: 'Hi there! How can I help you today?' },
+        { id: 'user-1', role: 'user', text: 'Need help' },
+      ]),
+    );
+    window.sessionStorage.setItem(
+      'buysmart.buyer-chat-widget-context',
+      JSON.stringify({
+        category: 'phone',
+        price_max: 20000,
+        lastOrderId: null,
+        history: [{ role: 'user', content: 'Need help' }],
+      }),
+    );
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    expect(screen.getByText('Need help')).toBeInTheDocument();
+
+    supabaseState.authCallback?.('SIGNED_OUT', null);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Need help')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Hi there! How can I help you today?')).toBeInTheDocument();
+  });
+
+  it('does not restore guest chat history after a signed-in reload', async () => {
+    supabaseState.user = { id: 'user-42' };
+
+    window.sessionStorage.setItem(
+      'buysmart.buyer-chat-widget-messages',
+      JSON.stringify([
+        { id: 'assistant-greeting', role: 'assistant', text: 'Hi there! How can I help you today?' },
+        { id: 'guest-1', role: 'user', text: 'guest message' },
+      ]),
+    );
+    window.sessionStorage.setItem(
+      'buysmart.buyer-chat-widget-context',
+      JSON.stringify({
+        category: null,
+        price_max: null,
+        lastOrderId: null,
+        history: [{ role: 'user', content: 'guest message' }],
+      }),
+    );
+    window.sessionStorage.setItem('buysmart.buyer-chat-widget-auth-marker', 'guest');
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('guest message')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Hi there! How can I help you today?')).toBeInTheDocument();
   });
 });

@@ -10,10 +10,14 @@ import type {
   ChatContext,
   UIMessage,
 } from '@/lib/chatbot/types';
-
-const SESSION_STORAGE_OPEN_KEY = 'buysmart.buyer-chat-widget-open';
-const SESSION_STORAGE_MESSAGES_KEY = 'buysmart.buyer-chat-widget-messages';
-const SESSION_STORAGE_CONTEXT_KEY = 'buysmart.buyer-chat-widget-context';
+import { createClient } from '@/lib/supabase/client';
+import {
+  CHATBOT_AUTH_MARKER_STORAGE_KEY,
+  CHATBOT_CONTEXT_STORAGE_KEY,
+  CHATBOT_MESSAGES_STORAGE_KEY,
+  CHATBOT_OPEN_STORAGE_KEY,
+  clearChatbotSessionStorage,
+} from '@/lib/chatbot/session';
 
 const DEFAULT_CONTEXT: ChatContext = {
   category: null,
@@ -106,9 +110,24 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
   };
 }
 
+async function getAuthMarker(supabase: ReturnType<typeof createClient>) {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user?.id) {
+      return 'guest';
+    }
+
+    return `user:${data.user.id}`;
+  } catch {
+    return 'guest';
+  }
+}
+
 export default function BuyerChatbotWidget() {
   const pathname = usePathname();
+  const supabase = useMemo(() => createClient(), []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const hasInteractedRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
@@ -140,45 +159,89 @@ export default function BuyerChatbotWidget() {
     [messages],
   );
 
-  useEffect(() => {
-    setHasLoaded(true);
-
-    try {
-      const storedOpenState = sessionStorage.getItem(SESSION_STORAGE_OPEN_KEY);
-      const storedMessages = sessionStorage.getItem(SESSION_STORAGE_MESSAGES_KEY);
-      const storedContext = sessionStorage.getItem(SESSION_STORAGE_CONTEXT_KEY);
-
-      if (storedOpenState === 'true') {
-        setIsOpen(true);
-      }
-
-      if (storedMessages) {
-        const parsedMessages = JSON.parse(storedMessages) as unknown;
-        if (Array.isArray(parsedMessages)) {
-          const safeMessages = parsedMessages.filter(isValidMessage);
-          if (safeMessages.length > 0) {
-            setMessages(safeMessages);
-          }
-        }
-      }
-
-      if (storedContext) {
-        const parsedContext = JSON.parse(storedContext) as unknown;
-        if (isValidContext(parsedContext)) {
-          setChatContext({
-            category: parsedContext.category ?? null,
-            price_max: parsedContext.price_max ?? null,
-            lastOrderId: parsedContext.lastOrderId ?? null,
-            history: parsedContext.history.slice(-20),
-          });
-        }
-      }
-    } catch {
+  function resetChatSession(nextAuthMarker?: string, preserveOpenState = false) {
+    setMessages([GREETING_MESSAGE]);
+    setChatContext(DEFAULT_CONTEXT);
+    setDraftMessage('');
+    setErrorMessage(null);
+    setIsSending(false);
+    if (!preserveOpenState) {
       setIsOpen(false);
-      setMessages([GREETING_MESSAGE]);
-      setChatContext(DEFAULT_CONTEXT);
     }
-  }, []);
+    clearChatbotSessionStorage();
+
+    if (nextAuthMarker) {
+      try {
+        sessionStorage.setItem(CHATBOT_AUTH_MARKER_STORAGE_KEY, nextAuthMarker);
+      } catch {
+        // Ignore storage failures and keep the widget functional.
+      }
+    }
+  }
+
+  useEffect(() => {
+    let isActive = true;
+
+    const hydrateChatState = async () => {
+      const authMarker = await getAuthMarker(supabase);
+      if (!isActive) {
+        return;
+      }
+
+      try {
+        const storedOpenState = sessionStorage.getItem(CHATBOT_OPEN_STORAGE_KEY);
+        const storedMessages = sessionStorage.getItem(CHATBOT_MESSAGES_STORAGE_KEY);
+        const storedContext = sessionStorage.getItem(CHATBOT_CONTEXT_STORAGE_KEY);
+        const storedAuthMarker = sessionStorage.getItem(CHATBOT_AUTH_MARKER_STORAGE_KEY);
+
+        if (storedAuthMarker && storedAuthMarker !== authMarker) {
+          resetChatSession(authMarker, hasInteractedRef.current);
+        } else {
+          if (!hasInteractedRef.current && storedOpenState === 'true') {
+            setIsOpen(true);
+          }
+
+          if (storedMessages) {
+            const parsedMessages = JSON.parse(storedMessages) as unknown;
+            if (Array.isArray(parsedMessages)) {
+              const safeMessages = parsedMessages.filter(isValidMessage);
+              if (safeMessages.length > 0) {
+                setMessages(safeMessages);
+              }
+            }
+          }
+
+          if (storedContext) {
+            const parsedContext = JSON.parse(storedContext) as unknown;
+            if (isValidContext(parsedContext)) {
+              setChatContext({
+                category: parsedContext.category ?? null,
+                price_max: parsedContext.price_max ?? null,
+                lastOrderId: parsedContext.lastOrderId ?? null,
+                history: parsedContext.history.slice(-20),
+              });
+            }
+          }
+
+          sessionStorage.setItem(CHATBOT_AUTH_MARKER_STORAGE_KEY, authMarker);
+        }
+      } catch {
+        setIsOpen(false);
+        setMessages([GREETING_MESSAGE]);
+        setChatContext(DEFAULT_CONTEXT);
+      } finally {
+        if (isActive) {
+          setHasLoaded(true);
+        }
+      }
+    };
+
+    void hydrateChatState();
+
+    return () => {
+      isActive = false;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     if (!hasLoaded) {
@@ -186,13 +249,28 @@ export default function BuyerChatbotWidget() {
     }
 
     try {
-      sessionStorage.setItem(SESSION_STORAGE_OPEN_KEY, String(isOpen));
-      sessionStorage.setItem(SESSION_STORAGE_MESSAGES_KEY, JSON.stringify(messages));
-      sessionStorage.setItem(SESSION_STORAGE_CONTEXT_KEY, JSON.stringify(chatContext));
+      sessionStorage.setItem(CHATBOT_OPEN_STORAGE_KEY, String(isOpen));
+      sessionStorage.setItem(CHATBOT_MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+      sessionStorage.setItem(CHATBOT_CONTEXT_STORAGE_KEY, JSON.stringify(chatContext));
     } catch {
       // Ignore storage failures and keep the widget functional.
     }
   }, [chatContext, hasLoaded, isOpen, messages]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        const authMarker = session?.user?.id ? `user:${session.user.id}` : 'guest';
+        resetChatSession(authMarker);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -304,6 +382,9 @@ export default function BuyerChatbotWidget() {
           <button
             type="button"
             onClick={() => setIsOpen(false)}
+            onMouseDown={() => {
+              hasInteractedRef.current = true;
+            }}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
             aria-label="Close chat"
           >
@@ -456,7 +537,10 @@ export default function BuyerChatbotWidget() {
       <div className="relative pointer-events-auto">
         <button
           type="button"
-          onClick={() => setIsOpen((current) => !current)}
+          onClick={() => {
+            hasInteractedRef.current = true;
+            setIsOpen((current) => !current);
+          }}
           className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-r from-rose-500 via-rose-500 to-pink-500 text-white shadow-2xl shadow-rose-500/30 transition-transform duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200 ${
             hasLoaded && !isOpen ? 'animate-[bounce_1.4s_ease-in-out_1]' : ''
           }`}
