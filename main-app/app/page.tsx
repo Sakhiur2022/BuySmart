@@ -339,7 +339,7 @@ export default function Home() {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {(rail.items.length > 0 ? rail.items : latestProducts).map((product) => {
                   const rating = productRatings[product.id] ?? 0;
-                  const productHref = '/buyer';
+                  const productHref = `/buyer/products/${product.id}`;
                   return (
                     <div
                       key={`${rail.id}-${product.id}`}
