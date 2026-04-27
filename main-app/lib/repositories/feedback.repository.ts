@@ -532,6 +532,7 @@ export async function fetchProcessedFeedbackForInsights(
         | 'buyer_avatar_url'
       > & {
         ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'] | null;
+        user_id: string | null;
         products?: { name?: string | null } | Array<{ name?: string | null }> | null;
         users_profile?:
           | {
@@ -563,6 +564,7 @@ export async function fetchProcessedFeedbackForInsights(
         | 'buyer_avatar_url'
       > & {
         ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'];
+        user_id: string | null;
         products?: { name?: string | null } | Array<{ name?: string | null }> | null;
         users_profile?:
           | {
