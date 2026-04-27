@@ -3,7 +3,6 @@ import { z } from 'zod';
 import type {
   AIParams,
   AIResponse,
-  ChatAPIRequest,
   ChatAPIResponse,
   ChatContext,
 } from '@/lib/chatbot/types';
