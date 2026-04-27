@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SellerFeedbackHighlightIdentity } from '@/components/seller/seller-feedback-highlight-identity';
 import type { FeedbackInsightsResponse } from '@/lib/types/insights.types';
 
 const SENTIMENT_META = {
@@ -228,7 +229,10 @@ export function SellerInsightsWidget({
                   <div className="space-y-3">
                     {feedbackInsights.highlights.positive.map((highlight) => (
                       <div key={highlight.feedbackId} className="rounded-lg border px-4 py-3">
-                        <p className="text-sm text-foreground line-clamp-3">{highlight.snippet}</p>
+                        <SellerFeedbackHighlightIdentity highlight={highlight} />
+                        <p className="mt-2 text-sm text-foreground line-clamp-3">
+                          {highlight.snippet}
+                        </p>
                         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                           <span>{new Date(highlight.createdAt).toLocaleDateString('en-US')}</span>
                           <span>Confidence {formatConfidence(highlight.confidenceScore)}</span>
@@ -250,7 +254,10 @@ export function SellerInsightsWidget({
                   <div className="space-y-3">
                     {feedbackInsights.highlights.negative.map((highlight) => (
                       <div key={highlight.feedbackId} className="rounded-lg border px-4 py-3">
-                        <p className="text-sm text-foreground line-clamp-3">{highlight.snippet}</p>
+                        <SellerFeedbackHighlightIdentity highlight={highlight} />
+                        <p className="mt-2 text-sm text-foreground line-clamp-3">
+                          {highlight.snippet}
+                        </p>
                         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                           <span>{new Date(highlight.createdAt).toLocaleDateString('en-US')}</span>
                           <span>Confidence {formatConfidence(highlight.confidenceScore)}</span>
