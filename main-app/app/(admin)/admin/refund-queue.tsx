@@ -118,6 +118,53 @@ function isActionableRefundStatus(
   return ACTIONABLE_REFUND_STATUSES.includes(status as ActionableRefundStatus);
 }
 
+function getAIConfidence(item: RefundQueueItem): number | null {
+  const analysis = item.ai_analysis;
+
+  if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) {
+    return null;
+  }
+
+  const confidence = analysis.confidence;
+  return typeof confidence === "number" ? Math.round(confidence * 100) : null;
+}
+
+function getAINotes(item: RefundQueueItem): string | null {
+  const analysis = item.ai_analysis;
+
+  if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) {
+    return null;
+  }
+
+  const notes = analysis.notes;
+  return typeof notes === "string" && notes.trim().length > 0 ? notes : null;
+}
+
+function getAIDecisionLabel(item: RefundQueueItem): string {
+  if (item.ai_recommendation) {
+    return AI_DECISION_CONFIG[item.ai_recommendation].label;
+  }
+
+  const confidence = getAIConfidence(item);
+  const riskScore = item.ai_risk_score;
+
+  if (
+    confidence !== null &&
+    confidence >= 80 &&
+    typeof riskScore === "number"
+  ) {
+    if (riskScore <= 0.2) {
+      return AI_DECISION_CONFIG.auto_approve.label;
+    }
+
+    if (riskScore >= 0.8) {
+      return AI_DECISION_CONFIG.auto_reject.label;
+    }
+  }
+
+  return "Leave to admin";
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function ToastList({
@@ -208,6 +255,9 @@ function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
   const formattedAmt = formatCurrency(item.requested_amount);
   const reasonLabel = item.reason_description ?? item.reason_code;
   const aiDecision = item.ai_recommendation;
+  const aiDecisionLabel = getAIDecisionLabel(item);
+  const aiConfidence = getAIConfidence(item);
+  const aiNotes = getAINotes(item);
 
   return (
     <TableRow>
@@ -221,16 +271,24 @@ function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
       <TableCell>{reasonLabel}</TableCell>
 
       <TableCell>
-        {aiDecision ? (
-          <div className="space-y-2">
+        <div className="space-y-2">
+          {aiDecision ? (
             <Badge variant={AI_DECISION_CONFIG[aiDecision].variant}>
-              {AI_DECISION_CONFIG[aiDecision].label}
+              {aiDecisionLabel}
             </Badge>
-            <RiskBar score={item.ai_risk_score} />
+          ) : (
+            <div className="text-sm font-medium">{aiDecisionLabel}</div>
+          )}
+          <RiskBar score={item.ai_risk_score} />
+          <div className="text-xs text-muted-foreground">
+            Confidence: {aiConfidence !== null ? `${aiConfidence}%` : "N/A"}
           </div>
-        ) : (
-          <div className="text-xs text-muted-foreground">Not processed</div>
-        )}
+          {aiNotes ? (
+            <div className="text-xs text-muted-foreground">
+              {aiNotes}
+            </div>
+          ) : null}
+        </div>
       </TableCell>
 
       <TableCell>

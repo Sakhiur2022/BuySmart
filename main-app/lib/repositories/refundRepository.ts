@@ -114,6 +114,47 @@ export class RefundRepository implements IRefundRepository {
     return this.toResponseDTO(entity);
   }
 
+  public async saveAIAnalysis(input: {
+    refundId: string;
+    status?: RefundStatus;
+    aiRecommendation: Database['public']['Enums']['ai_refund_decision_enum'];
+    aiRiskScore: number;
+    aiAnalysis: Record<string, unknown>;
+    aiProcessedAt: string;
+  }): Promise<RefundResponseDTO | null> {
+    const supabase = await this.clientFactory();
+    const updatePayload: Database['public']['Tables']['refunds']['Update'] = {
+      ai_recommendation: input.aiRecommendation,
+      ai_risk_score: input.aiRiskScore,
+      ai_analysis: input.aiAnalysis,
+      ai_processed_at: input.aiProcessedAt,
+    };
+
+    if (input.status) {
+      updatePayload.status = input.status;
+    }
+
+    const { data, error } = await supabase
+      .from('refunds')
+      .update(updatePayload)
+      .eq('refund_id', input.refundId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      this.throwMappedError(error, 'Failed to save refund AI analysis');
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    const row = data as RefundRow;
+    const items = await this.fetchRefundItems(row, supabase);
+    const entity = this.toEntity(row, items);
+    return this.toResponseDTO(entity);
+  }
+
   public async applyDecision(input: {
     refundId: string;
     fromStatus: RefundStatus;
@@ -826,6 +867,11 @@ export class RefundRepository implements IRefundRepository {
       reason_description: entity.reason_description,
       ai_recommendation: entity.ai_recommendation,
       ai_risk_score: entity.ai_risk_score,
+      ai_processed_at: entity.ai_processed_at,
+      ai_analysis:
+        entity.ai_analysis && typeof entity.ai_analysis === 'object' && !Array.isArray(entity.ai_analysis)
+          ? (entity.ai_analysis as Record<string, unknown>)
+          : null,
     };
   }
 

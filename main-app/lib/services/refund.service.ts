@@ -21,6 +21,10 @@ import {
   createRefundReadAccessStrategyRegistry,
   type RefundReadAccessStrategyRegistry,
 } from '@/lib/strategies/refund-read-access/refund-read-access-strategy-registry';
+import {
+  analyzeRefundForCreatedRefund,
+  enrichRefundSummaryWithAIAnalysis,
+} from '@/lib/services/refund-analysis.service';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
@@ -316,7 +320,12 @@ export class RefundService implements IRefundService {
   ): Promise<RefundListResponseDTO> {
     const normalizedUserId = normalizeUserId(userId);
     const actor = await resolveActor(this.refundRepository, normalizedUserId);
-    return this.refundRepository.list(toScopedListFilters(actor, filters));
+    const result = await this.refundRepository.list(toScopedListFilters(actor, filters));
+
+    return {
+      ...result,
+      refunds: result.refunds.map((refund) => enrichRefundSummaryWithAIAnalysis(refund)),
+    };
   }
 
   public async createRefund(userId: string, input: CreateRefundDTO): Promise<RefundResponseDTO> {
@@ -341,12 +350,18 @@ export class RefundService implements IRefundService {
     assertEligiblePaymentStatus(snapshot);
     assertAmountWithinRemainingBalance(requestedAmount, snapshot.remaining_refundable_amount);
 
-    return this.refundRepository.create({
+    const createdRefund = await this.refundRepository.create({
       ...input,
       requested_amount: requestedAmount,
       user_id: normalizedUserId,
       refund_number: buildRefundNumber(),
     });
+
+    try {
+      return await analyzeRefundForCreatedRefund(this.refundRepository, createdRefund);
+    } catch {
+      return createdRefund;
+    }
   }
 
   public async updateRefund(
