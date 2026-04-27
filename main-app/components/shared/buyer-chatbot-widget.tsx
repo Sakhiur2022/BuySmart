@@ -392,7 +392,7 @@ export default function BuyerChatbotWidget() {
           >
             {messages.map((message, index) => {
               const isAssistant = message.role === 'assistant';
-              const showAvatar = isAssistant && index === 0;
+              const showAvatar = isAssistant;
 
               return (
                 <div
