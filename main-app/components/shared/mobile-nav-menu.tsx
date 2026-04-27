@@ -94,12 +94,33 @@ export function MobileNavMenu({ buyerItems, adminItems, sellerItems, role }: Mob
 
   const items = (() => {
     if (resolvedRole === 'admin' || resolvedRole === 'moderator') {
-      return adminItems;
+      return pathname.startsWith('/admin')
+        ? adminItems.filter((item) => item.href !== '/admin')
+        : adminItems;
     }
     if (resolvedRole === 'seller') {
-      return isBuyerMode ? [...sellerItems, ...buyerItems] : sellerItems;
+      const inBuyerArea = pathname.startsWith('/buyer') || isBuyerMode;
+      const filteredSellerItems = sellerItems.filter((item) => {
+        if (pathname.startsWith('/seller') && item.href === '/seller') {
+          return false;
+        }
+        if (pathname.startsWith('/buyer') && item.href === '/buyer?mode=buyer') {
+          return false;
+        }
+        return true;
+      });
+      const filteredBuyerItems = buyerItems.filter((item) => {
+        if (pathname.startsWith('/buyer') && item.href === '/buyer/dashboard') {
+          return false;
+        }
+        return true;
+      });
+
+      return inBuyerArea ? [...filteredSellerItems, ...filteredBuyerItems] : filteredSellerItems;
     }
-    return buyerItems;
+    return pathname.startsWith('/buyer')
+      ? buyerItems.filter((item) => item.href !== '/buyer/dashboard')
+      : buyerItems;
   })();
 
   // Only show menu dropdown if there are items
