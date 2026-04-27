@@ -121,7 +121,7 @@ describe('BuyerChatbotWidget', () => {
 
     expect(await screen.findByText('Searching for category: phone, under 20000 taka.')).toBeInTheDocument();
     expect(screen.getByText('Redmi Note 13 Pro')).toBeInTheDocument();
-    expect(screen.getByText('Tk 18,999')).toBeInTheDocument();
+    expect(screen.getByText('BDT 18,999')).toBeInTheDocument();
   });
 
   it('shows a fallback reply and surfaces API errors when the request fails', async () => {
