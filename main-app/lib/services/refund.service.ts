@@ -183,10 +183,6 @@ function toScopedListFilters(
   actor: RefundActor,
   filters: RefundFilterDTO,
 ): RefundRepositoryFilterDTO {
-  if (actor.role === 'admin') {
-    return filters;
-  }
-
   if (actor.role === 'buyer') {
     return {
       ...filters,
