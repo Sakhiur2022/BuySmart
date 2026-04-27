@@ -208,6 +208,7 @@ export interface RefundSummaryDTO {
   refund_number: string;
   order_id: string;
   user_id: string;
+  buyer_name?: string | null;
   status: RefundStatus;
   reason_code: RefundReason;
   refund_type: RefundType;
@@ -215,6 +216,11 @@ export interface RefundSummaryDTO {
   refund_amount: number;
   created_at: string;
   updated_at: string;
+  reason_description?: string | null;
+  ai_recommendation?: RefundAIDecision | null;
+  ai_risk_score?: number | null;
+  ai_processed_at?: string | null;
+  ai_analysis?: Record<string, unknown> | null;
 }
 
 export interface RefundResponseDTO extends RefundSummaryDTO {
@@ -231,6 +237,7 @@ export interface RefundResponseDTO extends RefundSummaryDTO {
   ai_recommendation: RefundAIDecision | null;
   ai_risk_score: number | null;
   ai_processed_at: string | null;
+  ai_analysis: Record<string, unknown> | null;
   evidence_images: string[];
   items: RefundItemDTO[];
 }
@@ -260,6 +267,7 @@ export interface RefundDetailDTO extends RefundSummaryDTO {
   ai_recommendation: RefundAIDecision | null;
   ai_risk_score: number | null;
   ai_processed_at: string | null;
+  ai_analysis: Record<string, unknown> | null;
   return_required: boolean;
   return_tracking: string | null;
   return_received_at: string | null;

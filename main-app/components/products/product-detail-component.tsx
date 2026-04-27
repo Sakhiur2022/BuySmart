@@ -1052,7 +1052,7 @@ export default function ProductDetailComponent({ productData }: ProductDetailCom
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-start gap-2">
                 <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>Free shipping on orders over {formatCurrency(50)}</span>
+                <span>Free shipping on orders over {formatCurrency(2000)}</span>
               </div>
               <div className="flex items-start gap-2">
                 <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />

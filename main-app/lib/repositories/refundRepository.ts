@@ -114,6 +114,47 @@ export class RefundRepository implements IRefundRepository {
     return this.toResponseDTO(entity);
   }
 
+  public async saveAIAnalysis(input: {
+    refundId: string;
+    status?: RefundStatus;
+    aiRecommendation: Database['public']['Enums']['ai_refund_decision_enum'];
+    aiRiskScore: number;
+    aiAnalysis: Record<string, unknown>;
+    aiProcessedAt: string;
+  }): Promise<RefundResponseDTO | null> {
+    const supabase = await this.clientFactory();
+    const updatePayload: Database['public']['Tables']['refunds']['Update'] = {
+      ai_recommendation: input.aiRecommendation,
+      ai_risk_score: input.aiRiskScore,
+      ai_analysis: input.aiAnalysis as Json,
+      ai_processed_at: input.aiProcessedAt,
+    };
+
+    if (input.status) {
+      updatePayload.status = input.status;
+    }
+
+    const { data, error } = await supabase
+      .from('refunds')
+      .update(updatePayload)
+      .eq('refund_id', input.refundId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      this.throwMappedError(error, 'Failed to save refund AI analysis');
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    const row = data as RefundRow;
+    const items = await this.fetchRefundItems(row, supabase);
+    const entity = this.toEntity(row, items);
+    return this.toResponseDTO(entity);
+  }
+
   public async applyDecision(input: {
     refundId: string;
     fromStatus: RefundStatus;
@@ -157,7 +198,9 @@ export class RefundRepository implements IRefundRepository {
 
     let query = supabase
       .from('refunds')
-      .select('*', { count: 'exact' })
+      .select('*, buyer:users_profile!refunds_user_id_fkey(user_id, full_name, display_name)', {
+        count: 'exact',
+      })
       .order(normalized.sortColumn, { ascending: normalized.sortAscending })
       .range(offset, offset + normalized.pageSize - 1);
 
@@ -217,12 +260,23 @@ export class RefundRepository implements IRefundRepository {
       this.throwMappedError(error, 'Failed to list refunds');
     }
 
-    const rows = (data ?? []) as RefundRow[];
+    const rows = (data ?? []) as Array<
+      RefundRow & {
+        buyer?: { user_id: string; full_name: string | null; display_name: string | null } | null;
+      }
+    >;
     const totalCount = count ?? 0;
     const totalPages = Math.ceil(totalCount / normalized.pageSize);
 
     return {
-      refunds: rows.map((row) => this.toSummaryDTO(this.toEntity(row, []))),
+      refunds: rows.map((row) => {
+        const summary = this.toSummaryDTO(this.toEntity(row, []));
+        const buyerName = row.buyer?.display_name || row.buyer?.full_name || null;
+        return {
+          ...summary,
+          buyer_name: buyerName,
+        };
+      }),
       pagination: {
         page: normalized.page,
         pageSize: normalized.pageSize,
@@ -743,6 +797,10 @@ export class RefundRepository implements IRefundRepository {
       ai_recommendation: entity.ai_recommendation,
       ai_risk_score: entity.ai_risk_score,
       ai_processed_at: entity.ai_processed_at,
+      ai_analysis:
+        entity.ai_analysis && typeof entity.ai_analysis === 'object' && !Array.isArray(entity.ai_analysis)
+          ? (entity.ai_analysis as Record<string, unknown>)
+          : null,
       evidence_images: this.mapEvidenceImages(entity.evidence_images),
       items: this.mapItemsToDTO(entity.items),
     };
@@ -771,6 +829,10 @@ export class RefundRepository implements IRefundRepository {
       ai_recommendation: entity.ai_recommendation,
       ai_risk_score: entity.ai_risk_score,
       ai_processed_at: entity.ai_processed_at,
+      ai_analysis:
+        entity.ai_analysis && typeof entity.ai_analysis === 'object' && !Array.isArray(entity.ai_analysis)
+          ? (entity.ai_analysis as Record<string, unknown>)
+          : null,
       return_required: entity.return_required,
       return_tracking: entity.return_tracking,
       return_received_at: entity.return_received_at,
@@ -810,6 +872,14 @@ export class RefundRepository implements IRefundRepository {
       refund_amount: entity.refund_amount,
       created_at: entity.created_at,
       updated_at: entity.updated_at,
+      reason_description: entity.reason_description,
+      ai_recommendation: entity.ai_recommendation,
+      ai_risk_score: entity.ai_risk_score,
+      ai_processed_at: entity.ai_processed_at,
+      ai_analysis:
+        entity.ai_analysis && typeof entity.ai_analysis === 'object' && !Array.isArray(entity.ai_analysis)
+          ? (entity.ai_analysis as Record<string, unknown>)
+          : null,
     };
   }
 

@@ -35,6 +35,7 @@ describe('refund.service eligibility', () => {
       isSellerScopedToRefund: vi.fn(),
       getEligibilitySnapshot: vi.fn(),
       applyDecision: vi.fn(),
+      saveAIAnalysis: vi.fn(),
     };
 
     service = new RefundService(repository);
