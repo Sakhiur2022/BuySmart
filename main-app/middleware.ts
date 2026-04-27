@@ -44,8 +44,14 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith('/auth');
   const isPublicAuthApi = pathname === '/api/auth/me';
+  const isPublicChatApi = pathname === '/api/chat';
   const isPublicProductApi = pathname.startsWith('/api/products');
-  const isPublicRoute = pathname === '/' || isAuthRoute || isPublicAuthApi || isPublicProductApi;
+  const isPublicRoute =
+    pathname === '/' ||
+    isAuthRoute ||
+    isPublicAuthApi ||
+    isPublicChatApi ||
+    isPublicProductApi;
 
   const redirectTo = (targetPath: string, params?: Record<string, string>) => {
     const url = request.nextUrl.clone();

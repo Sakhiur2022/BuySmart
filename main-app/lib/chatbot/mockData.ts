@@ -10,7 +10,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['gaming', 'battery', 'camera'],
     badge: 'Best battery',
-    emoji: '📱',
+    emoji: 'phone',
   },
   {
     id: 'p2',
@@ -21,7 +21,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['gaming', 'fast-charge'],
     badge: 'Gaming pick',
-    emoji: '📱',
+    emoji: 'phone',
   },
   {
     id: 'p3',
@@ -32,7 +32,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['display', 'gaming'],
     badge: '120Hz display',
-    emoji: '📱',
+    emoji: 'phone',
   },
   {
     id: 'p4',
@@ -43,7 +43,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['battery', 'camera'],
     badge: '6000mAh',
-    emoji: '📱',
+    emoji: 'phone',
   },
   {
     id: 'p5',
@@ -54,7 +54,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['gaming', 'gpu'],
     badge: 'GTX 1650',
-    emoji: '💻',
+    emoji: 'laptop',
   },
   {
     id: 'p6',
@@ -65,7 +65,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['gaming', 'performance'],
     badge: 'Ryzen 5',
-    emoji: '💻',
+    emoji: 'laptop',
   },
   {
     id: 'p7',
@@ -76,7 +76,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['display', 'battery'],
     badge: '11-inch',
-    emoji: '📟',
+    emoji: 'tablet',
   },
   {
     id: 'p8',
@@ -87,7 +87,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['battery'],
     badge: '8800mAh',
-    emoji: '📟',
+    emoji: 'tablet',
   },
   {
     id: 'p9',
@@ -98,7 +98,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['noise-cancel', 'battery'],
     badge: 'ANC',
-    emoji: '🎧',
+    emoji: 'headphone',
   },
   {
     id: 'p10',
@@ -109,7 +109,7 @@ export const MOCK_PRODUCTS: Product[] = [
     stock_available: true,
     features: ['noise-cancel'],
     badge: '50hr battery',
-    emoji: '🎧',
+    emoji: 'headphone',
   },
 ];
 
@@ -118,15 +118,13 @@ export const MOCK_ORDER: Order = {
   status: 'shipped',
   created_at: '2026-04-24T10:30:00Z',
   buyer_id: 'user_demo',
-  items: [
-    { id: 'i1', name: 'Samsung Galaxy M34 5G', quantity: 1, price: 20000 },
-  ],
+  items: [{ id: 'i1', name: 'Samsung Galaxy M34 5G', quantity: 1, price: 20000 }],
 };
 
 export const MOCK_POLICY = `You can request a refund within 7 days of delivery for any defective or wrong item.
-Go to My Orders → select the item → tap "Request Refund".
-Refunds are processed within 3–5 business days to your original payment method.
-For cash-on-delivery orders, refunds are issued as store credit.`;
+Tap Orders, open View details for the order, and use Request Refund.
+After submission, check the latest refund progress in Refund status and tap Details.
+Approved refunds are typically processed within 3-5 business days to the original payment method.`;
 
 export function mockSearchProducts(params: AIParams): Product[] {
   let results = MOCK_PRODUCTS;
