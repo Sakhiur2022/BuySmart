@@ -43,6 +43,10 @@ const baseInsights: FeedbackInsightsResponse = {
         confidenceScore: 0.91,
         snippet: 'Great quality and fast delivery',
         createdAt: '2026-04-16T00:00:00.000Z',
+        productName: 'Smart Blender',
+        buyerUserId: '6ff6d567-b56a-4266-a719-c8addf4f8f08',
+        buyerName: 'Sarah Ahmed',
+        buyerAvatarUrl: 'https://example.com/avatars/sarah.jpg',
       },
     ],
     negative: [
@@ -51,6 +55,10 @@ const baseInsights: FeedbackInsightsResponse = {
         confidenceScore: 0.8,
         snippet: 'Packaging was damaged',
         createdAt: '2026-04-15T00:00:00.000Z',
+        productName: 'Noise Cancelling Headphones',
+        buyerUserId: 'cb31f7ef-e5ea-4f80-8fc1-b239ee80f6f4',
+        buyerName: 'Nadia Karim',
+        buyerAvatarUrl: null,
       },
     ],
   },
@@ -67,6 +75,9 @@ describe('SellerInsightsWidget', () => {
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('Great quality and fast delivery')).toBeInTheDocument();
     expect(screen.getByText('Packaging was damaged')).toBeInTheDocument();
+    expect(screen.getByText('Sarah Ahmed')).toBeInTheDocument();
+    expect(screen.getByText('Smart Blender')).toBeInTheDocument();
+    expect(screen.getByText('Noise Cancelling Headphones')).toBeInTheDocument();
   });
 
   it('renders empty-state content when insights are unavailable', () => {
