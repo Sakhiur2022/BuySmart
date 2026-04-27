@@ -12,6 +12,33 @@ import {
   MOCK_POLICY,
 } from '@/lib/chatbot/mockData';
 
+function createRequestId() {
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function logChatError(
+  stage: string,
+  requestId: string,
+  details: Record<string, unknown>,
+  error?: unknown,
+) {
+  console.error('[chat-api] request failed', {
+    requestId,
+    stage,
+    ...details,
+    errorMessage: error ? getErrorMessage(error) : undefined,
+    error,
+  });
+}
+
 const requestSchema = z.object({
   message: z.string().min(1),
   context: z
@@ -287,58 +314,109 @@ async function routeIntent(
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = createRequestId();
   let parsedBody;
+  let payload: unknown;
 
   try {
-    const payload = await request.json();
+    payload = await request.json();
     parsedBody = requestSchema.safeParse(payload);
   } catch (error) {
-    console.error('/api/chat invalid request:', error);
+    logChatError(
+      'parse-json',
+      requestId,
+      {
+        method: request.method,
+        path: request.nextUrl.pathname,
+      },
+      error,
+    );
+
     return NextResponse.json(
-      { error: 'Invalid JSON payload.' },
+      { error: 'Invalid JSON payload.', requestId },
       { status: 400 },
     );
   }
 
   if (!parsedBody.success) {
+    logChatError('validate-request', requestId, {
+      method: request.method,
+      path: request.nextUrl.pathname,
+      issues: parsedBody.error.flatten(),
+      payload,
+    });
+
     return NextResponse.json(
       {
         error: 'Validation failed.',
         issues: parsedBody.error.flatten(),
+        requestId,
       },
       { status: 400 },
     );
   }
 
-  const { message, context: requestContext } = parsedBody.data;
-  const context: ChatContext = {
-    category: requestContext?.category ?? null,
-    price_max: requestContext?.price_max ?? null,
-    lastOrderId: requestContext?.lastOrderId ?? null,
-    history: requestContext?.history ?? [],
-  };
+  try {
+    const { message, context: requestContext } = parsedBody.data;
+    const context: ChatContext = {
+      category: requestContext?.category ?? null,
+      price_max: requestContext?.price_max ?? null,
+      lastOrderId: requestContext?.lastOrderId ?? null,
+      history: requestContext?.history ?? [],
+    };
 
-  const aiResponse = detectIntent(message, context);
-  const result = await routeIntent(aiResponse, context);
+    const aiResponse = detectIntent(message, context);
+    const result = await routeIntent(aiResponse, context);
 
-  const updatedContext: ChatContext = {
-    ...context,
-    category: aiResponse.params.category ?? context.category,
-    price_max: aiResponse.params.price_max ?? context.price_max,
-    lastOrderId: aiResponse.params.orderId ?? context.lastOrderId,
-    history: [
-      ...context.history,
-      { role: 'user' as const, content: message },
-      { role: 'assistant' as const, content: aiResponse.reply },
-    ].slice(-20),
-  };
+    const updatedContext: ChatContext = {
+      ...context,
+      category: aiResponse.params.category ?? context.category,
+      price_max: aiResponse.params.price_max ?? context.price_max,
+      lastOrderId: aiResponse.params.orderId ?? context.lastOrderId,
+      history: [
+        ...context.history,
+        { role: 'user' as const, content: message },
+        { role: 'assistant' as const, content: aiResponse.reply },
+      ].slice(-20),
+    };
 
-  const responsePayload: ChatAPIResponse = {
-    intent: aiResponse.intent,
-    reply: aiResponse.reply,
-    updatedContext,
-    ...result,
-  };
+    const responsePayload: ChatAPIResponse = {
+      intent: aiResponse.intent,
+      reply: aiResponse.reply,
+      updatedContext,
+      ...result,
+    };
 
-  return NextResponse.json(responsePayload);
+    console.info('[chat-api] request succeeded', {
+      requestId,
+      method: request.method,
+      path: request.nextUrl.pathname,
+      intent: aiResponse.intent,
+      messagePreview: message.slice(0, 120),
+    });
+
+    return NextResponse.json(responsePayload);
+  } catch (error) {
+    const requestBody = parsedBody.data;
+
+    logChatError(
+      'handle-request',
+      requestId,
+      {
+        method: request.method,
+        path: request.nextUrl.pathname,
+        messagePreview: requestBody.message.slice(0, 120),
+        context: requestBody.context ?? null,
+      },
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        error: 'Failed to process chat request.',
+        requestId,
+      },
+      { status: 500 },
+    );
+  }
 }
