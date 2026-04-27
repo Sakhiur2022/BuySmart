@@ -272,6 +272,8 @@ export interface RefundDetailDTO extends RefundSummaryDTO {
   return_tracking: string | null;
   return_received_at: string | null;
   payment_reference: string | null;
+  processed_by: string | null;
+  processed_at: string | null;
   refunded_at: string | null;
 }
 
