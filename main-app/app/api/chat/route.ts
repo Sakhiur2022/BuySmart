@@ -6,11 +6,39 @@ import type {
   ChatAPIResponse,
   ChatContext,
 } from '@/lib/chatbot/types';
+import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 import {
   mockGetOrder,
   mockSearchProducts,
   MOCK_POLICY,
 } from '@/lib/chatbot/mockData';
+
+function createRequestId() {
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function logChatError(
+  stage: string,
+  requestId: string,
+  details: Record<string, unknown>,
+  error?: unknown,
+) {
+  console.error('[chat-api] request failed', {
+    requestId,
+    stage,
+    ...details,
+    errorMessage: error ? getErrorMessage(error) : undefined,
+    error,
+  });
+}
 
 const requestSchema = z.object({
   message: z.string().min(1),
@@ -145,6 +173,61 @@ function parseOrderId(message: string) {
   return match ? match[0].toUpperCase().replace('_', '-') : undefined;
 }
 
+function composeTrackOrderReply(params: AIParams) {
+  const query = params.query ?? '';
+  const isOrderStatusQuestion = /\b(status|progress|update|track|check|find|where)\b/.test(query);
+
+  if (params.orderId) {
+    if (isOrderStatusQuestion) {
+      return `Tap Orders, then View details for order ${params.orderId}.`;
+    }
+
+    return `Tap Orders, then open order ${params.orderId}.`;
+  }
+
+  return 'Tap Orders, then View details on the order.';
+}
+
+function composeRefundReply(params: AIParams) {
+  const query = params.query ?? '';
+  const isRefundStatusQuestion = /\b(status|progress|update|track|check)\b/.test(query);
+  const isRefundRequestQuestion = /\b(request|apply|start|submit|make|get)\b/.test(query);
+
+  if (params.orderId) {
+    if (isRefundStatusQuestion) {
+      return `Open Refund status and tap Details for the latest update.`;
+    }
+
+    return `Tap Orders, open View details for order ${params.orderId}, then use Request Refund.`;
+  }
+
+  if (isRefundStatusQuestion) {
+    return 'Check Refund status and tap Details.';
+  }
+
+  if (isRefundRequestQuestion) {
+    return 'Tap Orders, then View details, then Request Refund.';
+  }
+
+  return 'Tap Orders, then View details, then Request Refund. For refund status, check Refund status and tap Details.';
+}
+
+function shouldShowRefundPolicy(query?: string) {
+  if (!query) {
+    return false;
+  }
+
+  return /\b(policy|eligible|eligibility|window|days|return window)\b/.test(query);
+}
+
+function wantsHumanSupport(query?: string) {
+  if (!query) {
+    return false;
+  }
+
+  return /\b(human|live agent|customer service|real person|representative)\b/.test(query);
+}
+
 function composeReply(intent: string, params: AIParams): string {
   switch (intent) {
     case 'PRODUCT_SEARCH': {
@@ -172,18 +255,16 @@ function composeReply(intent: string, params: AIParams): string {
     }
 
     case 'TRACK_ORDER':
-      return params.orderId
-        ? `Looking up order ${params.orderId}. Here is the latest status.`
-        : 'Please share your order ID (like ORD-4821) so I can look it up.';
+      return composeTrackOrderReply(params);
 
     case 'REFUND_POLICY':
-      return 'I can help with refund policy details and the refund request process.';
+      return composeRefundReply(params);
 
     case 'FAQ':
-      return 'I can answer questions about products, orders, refunds, or support. What would you like to know?';
+      return 'Let me check that for you.';
 
     case 'SUPPORT':
-      return 'I am escalating this to support. A human team member will follow up shortly.';
+      return 'Support follow-up can be flagged if you want a person to step in.';
 
     default:
       return 'I am not sure what you need yet. Please tell me if you want to search products, track an order, ask about refunds, or contact support.';
@@ -203,6 +284,7 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
   const hasOrderPhrases = /\b(track|where.*order|order status|find my order|order update|shipment|delivered)\b/.test(normalized);
   const hasRefundPhrases = /\b(refund|return|refund policy|cancel order|wrong item|defective|exchange)\b/.test(normalized);
   const hasSupportPhrases = /\b(help|support|human|agent|customer service|complaint|issue|problem)\b/.test(normalized);
+  const hasHumanSupportPhrases = wantsHumanSupport(normalized);
   const hasProductPhrases = /\b(show|find|search|looking for|need|recommend|suggest|available|buy|price|budget)\b/.test(normalized);
 
   let intent: AIResponse['intent'] = 'FAQ';
@@ -213,7 +295,7 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
     intent = 'TRACK_ORDER';
   } else if (hasRefundPhrases) {
     intent = 'REFUND_POLICY';
-  } else if (hasSupportPhrases && !hasProductPhrases) {
+  } else if (hasHumanSupportPhrases) {
     intent = 'SUPPORT';
   } else if (
     params.category ||
@@ -245,12 +327,19 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
 async function routeIntent(
   aiResponse: AIResponse,
   context: ChatContext,
+  userMessage: string,
 ): Promise<Partial<ChatAPIResponse>> {
   switch (aiResponse.intent) {
     case 'PRODUCT_SEARCH': {
       const products = mockSearchProducts(aiResponse.params);
+      const searchReply = await answerProductSearchQuestion(userMessage, products, {
+        category: aiResponse.params.category,
+        price_min: aiResponse.params.price_min,
+        price_max: aiResponse.params.price_max,
+        features: aiResponse.params.features,
+      });
       return {
-        reply: aiResponse.reply,
+        reply: searchReply.reply,
         products,
       };
     }
@@ -267,78 +356,132 @@ async function routeIntent(
     case 'REFUND_POLICY': {
       return {
         reply: aiResponse.reply,
-        policyText: MOCK_POLICY,
+        policyText: shouldShowRefundPolicy(aiResponse.params.query) ? MOCK_POLICY : undefined,
       };
     }
 
     case 'SUPPORT': {
+      const supportResult = await answerSupportQuestion(userMessage, context);
       return {
-        reply: aiResponse.reply,
-        isEscalation: true,
+        reply: supportResult.reply,
+        isEscalation: supportResult.shouldEscalate || wantsHumanSupport(aiResponse.params.query),
       };
     }
 
     case 'FAQ':
     default:
+      const supportResult = await answerSupportQuestion(userMessage, context);
       return {
-        reply: aiResponse.reply,
+        reply: supportResult.reply,
       };
   }
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = createRequestId();
   let parsedBody;
+  let payload: unknown;
 
   try {
-    const payload = await request.json();
+    payload = await request.json();
     parsedBody = requestSchema.safeParse(payload);
   } catch (error) {
-    console.error('/api/chat invalid request:', error);
+    logChatError(
+      'parse-json',
+      requestId,
+      {
+        method: request.method,
+        path: request.nextUrl.pathname,
+      },
+      error,
+    );
+
     return NextResponse.json(
-      { error: 'Invalid JSON payload.' },
+      { error: 'Invalid JSON payload.', requestId },
       { status: 400 },
     );
   }
 
   if (!parsedBody.success) {
+    logChatError('validate-request', requestId, {
+      method: request.method,
+      path: request.nextUrl.pathname,
+      issues: parsedBody.error.flatten(),
+      payload,
+    });
+
     return NextResponse.json(
       {
         error: 'Validation failed.',
         issues: parsedBody.error.flatten(),
+        requestId,
       },
       { status: 400 },
     );
   }
 
-  const { message, context: requestContext } = parsedBody.data;
-  const context: ChatContext = {
-    category: requestContext?.category ?? null,
-    price_max: requestContext?.price_max ?? null,
-    lastOrderId: requestContext?.lastOrderId ?? null,
-    history: requestContext?.history ?? [],
-  };
+  try {
+    const { message, context: requestContext } = parsedBody.data;
+    const context: ChatContext = {
+      category: requestContext?.category ?? null,
+      price_max: requestContext?.price_max ?? null,
+      lastOrderId: requestContext?.lastOrderId ?? null,
+      history: requestContext?.history ?? [],
+    };
 
-  const aiResponse = detectIntent(message, context);
-  const result = await routeIntent(aiResponse, context);
+    const aiResponse = detectIntent(message, context);
+    const result = await routeIntent(aiResponse, context, message);
+    const finalReply = result.reply ?? aiResponse.reply;
 
-  const updatedContext: ChatContext = {
-    ...context,
-    category: aiResponse.params.category ?? context.category,
-    price_max: aiResponse.params.price_max ?? context.price_max,
-    lastOrderId: aiResponse.params.orderId ?? context.lastOrderId,
-    history: [
-      ...context.history,
-      { role: 'user' as const, content: message },
-      { role: 'assistant' as const, content: aiResponse.reply },
-    ].slice(-20),
-  };
+    const updatedContext: ChatContext = {
+      ...context,
+      category: aiResponse.params.category ?? context.category,
+      price_max: aiResponse.params.price_max ?? context.price_max,
+      lastOrderId: aiResponse.params.orderId ?? context.lastOrderId,
+      history: [
+        ...context.history,
+        { role: 'user' as const, content: message },
+        { role: 'assistant' as const, content: finalReply },
+      ].slice(-20),
+    };
 
-  const responsePayload: ChatAPIResponse = {
-    intent: aiResponse.intent,
-    reply: aiResponse.reply,
-    updatedContext,
-    ...result,
-  };
+    const responsePayload: ChatAPIResponse = {
+      intent: aiResponse.intent,
+      reply: finalReply,
+      updatedContext,
+      ...result,
+    };
 
-  return NextResponse.json(responsePayload);
+    console.info('[chat-api] request succeeded', {
+      requestId,
+      method: request.method,
+      path: request.nextUrl.pathname,
+      intent: aiResponse.intent,
+      messagePreview: message.slice(0, 120),
+    });
+
+    return NextResponse.json(responsePayload);
+  } catch (error) {
+    const requestBody = parsedBody.data;
+
+    logChatError(
+      'handle-request',
+      requestId,
+      {
+        method: request.method,
+        path: request.nextUrl.pathname,
+        messagePreview: requestBody.message.slice(0, 120),
+        context: requestBody.context ?? null,
+      },
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        error: 'Failed to process chat request.',
+        requestId,
+      },
+      { status: 500 },
+    );
+  }
 }
