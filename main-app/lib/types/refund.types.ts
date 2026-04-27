@@ -208,6 +208,7 @@ export interface RefundSummaryDTO {
   refund_number: string;
   order_id: string;
   user_id: string;
+  buyer_name?: string | null;
   status: RefundStatus;
   reason_code: RefundReason;
   refund_type: RefundType;
@@ -215,6 +216,9 @@ export interface RefundSummaryDTO {
   refund_amount: number;
   created_at: string;
   updated_at: string;
+  reason_description?: string | null;
+  ai_recommendation?: RefundAIDecision | null;
+  ai_risk_score?: number | null;
 }
 
 export interface RefundResponseDTO extends RefundSummaryDTO {
