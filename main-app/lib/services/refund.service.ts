@@ -147,6 +147,17 @@ function assertRefundOwnership(userId: string, refund: RefundResponseDTO | Refun
   }
 }
 
+function toBuyerScopedListFilters(
+  userId: string,
+  filters: RefundFilterDTO,
+): RefundRepositoryFilterDTO {
+  return {
+    ...filters,
+    buyer_id: userId,
+    seller_id: undefined,
+  };
+}
+
 function assertEligibleOrderStatus(snapshot: RefundEligibilitySnapshotDTO): void {
   if (!ELIGIBLE_ORDER_STATUSES.has(snapshot.order_status)) {
     throw new RefundIneligibleStatusError(snapshot.order_status);
@@ -324,6 +335,18 @@ export class RefundService implements IRefundService {
     return maskRefundDetailForRole(refund, actor.role);
   }
 
+  public async getBuyerRefundDetail(userId: string, refundId: string): Promise<RefundDetailDTO> {
+    const normalizedUserId = normalizeUserId(userId);
+    const refund = await this.refundRepository.findDetailById(refundId);
+
+    if (!refund) {
+      throw new Error('Refund not found');
+    }
+
+    assertRefundOwnership(normalizedUserId, refund);
+    return maskRefundDetailForRole(refund, 'buyer');
+  }
+
   public async listRefunds(
     userId: string,
     filters: RefundFilterDTO,
@@ -337,6 +360,24 @@ export class RefundService implements IRefundService {
       refunds: result.refunds.map((refund) => {
         const enriched = enrichRefundSummaryWithAIAnalysis(refund);
         return maskRefundSummaryForRole(enriched, actor.role);
+      }),
+    };
+  }
+
+  public async listBuyerRefunds(
+    userId: string,
+    filters: RefundFilterDTO,
+  ): Promise<RefundListResponseDTO> {
+    const normalizedUserId = normalizeUserId(userId);
+    const result = await this.refundRepository.list(
+      toBuyerScopedListFilters(normalizedUserId, filters),
+    );
+
+    return {
+      ...result,
+      refunds: result.refunds.map((refund) => {
+        const enriched = enrichRefundSummaryWithAIAnalysis(refund);
+        return maskRefundSummaryForRole(enriched, 'buyer');
       }),
     };
   }
@@ -491,11 +532,25 @@ export async function getRefundDetailForUser(
   return refundService.getRefundDetail(userId, refundId);
 }
 
+export async function getBuyerRefundDetailForUser(
+  userId: string,
+  refundId: string,
+): Promise<RefundDetailDTO> {
+  return refundService.getBuyerRefundDetail(userId, refundId);
+}
+
 export async function listRefundsForUser(
   userId: string,
   filters: RefundFilterDTO,
 ): Promise<RefundListResponseDTO> {
   return refundService.listRefunds(userId, filters);
+}
+
+export async function listBuyerRefundsForUser(
+  userId: string,
+  filters: RefundFilterDTO,
+): Promise<RefundListResponseDTO> {
+  return refundService.listBuyerRefunds(userId, filters);
 }
 
 export async function createRefundForUser(
@@ -532,7 +587,9 @@ export async function reviewRefundForAdmin(
 export interface IRefundReadService {
   getRefundById(userId: string, refundId: string): Promise<RefundResponseDTO>;
   getRefundDetail(userId: string, refundId: string): Promise<RefundDetailDTO>;
+  getBuyerRefundDetail(userId: string, refundId: string): Promise<RefundDetailDTO>;
   listRefunds(userId: string, filters: RefundFilterDTO): Promise<RefundListResponseDTO>;
+  listBuyerRefunds(userId: string, filters: RefundFilterDTO): Promise<RefundListResponseDTO>;
 }
 
 export interface IRefundWriteService {

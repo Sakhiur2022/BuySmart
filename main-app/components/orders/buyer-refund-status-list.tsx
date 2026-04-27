@@ -110,7 +110,7 @@ export default function BuyerRefundStatusList({ refunds }: BuyerRefundStatusList
                       {formatCurrency(refund.refund_amount)}
                     </span>
                     <Button asChild size="sm" variant="ghost" className="h-8 px-2">
-                      <Link href={`/buyer/orders/${refund.order_id}`}>Details</Link>
+                      <Link href={`/buyer/refunds/${refund.refund_id}`}>Details</Link>
                     </Button>
                   </div>
                 </div>

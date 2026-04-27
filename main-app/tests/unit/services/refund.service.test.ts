@@ -237,6 +237,32 @@ describe('refund.service eligibility', () => {
     });
   });
 
+  it('applies buyer ownership scope when listing buyer refunds for seller-profile accounts', async () => {
+    vi.mocked(repository.list).mockResolvedValue({
+      refunds: [],
+      pagination: {
+        page: 1,
+        pageSize: 5,
+        totalCount: 0,
+        totalPages: 0,
+      },
+    });
+
+    await service.listBuyerRefunds('seller-1', {
+      page: 1,
+      pageSize: 5,
+      sortBy: 'recent',
+    });
+
+    expect(repository.list).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 5,
+      sortBy: 'recent',
+      buyer_id: 'seller-1',
+      seller_id: undefined,
+    });
+  });
+
   it('allows admin to list refunds without buyer/seller scope filters', async () => {
     vi.mocked(repository.getUserRole).mockResolvedValue('admin');
     vi.mocked(repository.list).mockResolvedValue({
@@ -262,6 +288,55 @@ describe('refund.service eligibility', () => {
       buyer_id: undefined,
       seller_id: undefined,
     });
+  });
+
+  it('returns buyer refund detail for seller-profile accounts when they own the refund', async () => {
+    vi.mocked(repository.findDetailById).mockResolvedValue({
+      refund_id: 'ref-1',
+      refund_number: 'RFD-TEST-000001',
+      order_id: 'order-1',
+      order_item_id: null,
+      user_id: 'seller-1',
+      buyer: {
+        user_id: 'seller-1',
+        full_name: 'Seller Buyer',
+        email: 'seller@example.com',
+      },
+      seller: null,
+      order: {
+        order_id: 'order-1',
+        order_number: 'ORD-001',
+        created_at: '2026-04-19T00:00:00.000Z',
+        currency: 'USD',
+        total_amount: 50,
+      },
+      items: [],
+      status: 'pending',
+      reason_code: 'damaged',
+      refund_type: 'full_order',
+      requested_amount: 50,
+      refund_amount: 50,
+      created_at: '2026-04-19T00:00:00.000Z',
+      updated_at: '2026-04-19T00:00:00.000Z',
+      reason_description: null,
+      processing_notes: null,
+      ai_recommendation: null,
+      ai_risk_score: null,
+      ai_processed_at: null,
+      ai_analysis: null,
+      return_required: false,
+      return_tracking: null,
+      return_received_at: null,
+      payment_reference: null,
+      processed_by: null,
+      processed_at: null,
+      refunded_at: null,
+    } as never);
+
+    const result = await service.getBuyerRefundDetail('seller-1', 'ref-1');
+
+    expect(result.refund_id).toBe('ref-1');
+    expect(repository.findDetailById).toHaveBeenCalledWith('ref-1');
   });
 
   it('rejects refund creation for non-buyer role before eligibility lookup', async () => {

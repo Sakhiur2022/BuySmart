@@ -426,6 +426,21 @@ export default function AdminRefundQueue() {
     }, 4000);
   }, []);
 
+  const applyLocalDecision = useCallback(
+    (id: string, nextStatus: RefundStatus) => {
+      setItems((prev) => {
+        if (statusFilter !== "all" && statusFilter !== nextStatus) {
+          return prev.filter((item) => item.refund_id !== id);
+        }
+
+        return prev.map((item) =>
+          item.refund_id === id ? { ...item, status: nextStatus } : item
+        );
+      });
+    },
+    [statusFilter]
+  );
+
   const handleApprove = useCallback(
     async (id: string) => {
       try {
@@ -440,6 +455,7 @@ export default function AdminRefundQueue() {
           throw new Error(payload.error || "Failed to approve refund");
         }
 
+        applyLocalDecision(id, "approved");
         addToast("Approved", "success");
         await loadRefunds();
       } catch (err) {
@@ -448,7 +464,7 @@ export default function AdminRefundQueue() {
         addToast(message, "destructive");
       }
     },
-    [addToast, loadRefunds]
+    [addToast, applyLocalDecision, loadRefunds]
   );
 
   const handleReject = useCallback(
@@ -470,6 +486,7 @@ export default function AdminRefundQueue() {
           throw new Error(payload.error || "Failed to reject refund");
         }
 
+        applyLocalDecision(id, "rejected");
         addToast("Rejected", "destructive");
         await loadRefunds();
       } catch (err) {
@@ -478,7 +495,7 @@ export default function AdminRefundQueue() {
         addToast(message, "destructive");
       }
     },
-    [addToast, loadRefunds]
+    [addToast, applyLocalDecision, loadRefunds]
   );
 
   const pendingCount = useMemo(
