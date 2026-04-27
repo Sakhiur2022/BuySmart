@@ -117,6 +117,8 @@ export class RefundRepository implements IRefundRepository {
   public async saveAIAnalysis(input: {
     refundId: string;
     status?: RefundStatus;
+    processedAt?: string;
+    processingNotes?: string;
     aiRecommendation: Database['public']['Enums']['ai_refund_decision_enum'];
     aiRiskScore: number;
     aiAnalysis: Record<string, unknown>;
@@ -132,6 +134,14 @@ export class RefundRepository implements IRefundRepository {
 
     if (input.status) {
       updatePayload.status = input.status;
+    }
+
+    if (input.processedAt) {
+      updatePayload.processed_at = input.processedAt;
+    }
+
+    if (typeof input.processingNotes === 'string') {
+      updatePayload.processing_notes = input.processingNotes;
     }
 
     const { data, error } = await supabase

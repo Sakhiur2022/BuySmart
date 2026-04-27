@@ -52,6 +52,14 @@ export function analyzeRefundHeuristically(input: {
   const factors: string[] = [];
   const normalizedDescription = input.reasonDescription?.trim().toLowerCase() ?? '';
   let riskScore = buildBaseRisk(input.reasonCode);
+  const mentionsEvidence =
+    /photo|photos|image|images|evidence|damaged|scratch|dent/.test(normalizedDescription);
+  const buyerRemorseSignal =
+    /don't want|dont want|changed my mind|anymore|no longer want/.test(normalizedDescription);
+  const usedOrConsumedSignal =
+    /\b(finished|consumed|used|already used|already finished|drank|ate|opened|wore|worn|applied|empty)\b/.test(
+      normalizedDescription,
+    );
 
   if (input.requestedAmount >= 10000) {
     riskScore += 0.28;
@@ -74,19 +82,28 @@ export function analyzeRefundHeuristically(input: {
     pushFactor(factors, 'detailed_reason_provided');
   }
 
-  if (/photo|photos|image|images|evidence|damaged|scratch|dent/.test(normalizedDescription)) {
+  if (mentionsEvidence) {
     riskScore -= 0.08;
     pushFactor(factors, 'supporting_evidence_mentioned');
   }
 
-  if (/don't want|dont want|changed my mind|anymore/.test(normalizedDescription)) {
+  if (buyerRemorseSignal) {
+    riskScore += 0.18;
     pushFactor(factors, 'buyer_remorse_signal');
+  }
+
+  if (usedOrConsumedSignal) {
+    riskScore += 0.5;
+    pushFactor(factors, 'item_already_consumed_or_used');
   }
 
   riskScore = clamp(Number(riskScore.toFixed(2)), 0.05, 0.95);
 
   let recommendation: RefundAIDecision = 'manual_review';
-  if (riskScore <= 0.2) {
+  if (usedOrConsumedSignal) {
+    recommendation = 'auto_reject';
+    riskScore = Math.max(riskScore, 0.85);
+  } else if (riskScore <= 0.2) {
     recommendation = 'auto_approve';
   } else if (riskScore >= 0.8) {
     recommendation = 'auto_reject';
@@ -97,12 +114,17 @@ export function analyzeRefundHeuristically(input: {
   const confidence = clamp(Number((confidenceBase + confidenceBoost).toFixed(2)), 0.7, 0.96);
 
   let notes = 'Recommendation: Leave this refund to admin review.';
-  if (recommendation === 'auto_approve') {
+  if (usedOrConsumedSignal && recommendation === 'auto_reject') {
+    notes =
+      'Recommendation: Auto reject because the buyer states the item was already consumed or used.';
+  } else if (recommendation === 'auto_approve') {
     notes =
       'Recommendation: Auto approve based on low risk indicators and clear buyer-friendly context.';
   } else if (recommendation === 'auto_reject') {
     notes =
       'Recommendation: Auto reject based on elevated risk indicators and low refund confidence for buyer claim.';
+  } else if (buyerRemorseSignal) {
+    notes = 'Recommendation: Manual review due to buyer-remorse signals in the request.';
   } else if (input.requestedAmount >= 5000) {
     notes = 'Recommendation: Manual review due to high item value.';
   }

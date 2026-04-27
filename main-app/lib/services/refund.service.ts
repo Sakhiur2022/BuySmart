@@ -259,6 +259,37 @@ function buildProcessingNotes(input: {
   return notes;
 }
 
+function mapAIRecommendationToStatus(
+  recommendation: Database['public']['Enums']['ai_refund_decision_enum'],
+): RefundStatus {
+  switch (recommendation) {
+    case 'auto_approve':
+      return 'approved';
+    case 'auto_reject':
+      return 'rejected';
+    case 'manual_review':
+    default:
+      return 'pending';
+  }
+}
+
+function buildAutomatedDecisionNotes(input: {
+  recommendation: Database['public']['Enums']['ai_refund_decision_enum'];
+  note: string;
+}): string {
+  const notes = JSON.stringify({
+    decision: input.recommendation,
+    source: 'ai',
+    note: input.note,
+  });
+
+  if (notes.length > 2000) {
+    throw new RefundInvalidDecisionPayloadError('Automated decision notes exceed maximum length');
+  }
+
+  return notes;
+}
+
 async function applyDecisionCommand(input: {
   refundRepository: IRefundRepository;
   adminUserId: string;
@@ -437,6 +468,21 @@ export class RefundService implements IRefundService {
 
       const persisted = await this.refundRepository.saveAIAnalysis({
         refundId: createdRefund.refund_id,
+        status: mapAIRecommendationToStatus(recommendation.recommendation),
+        processedAt:
+          recommendation.recommendation === 'manual_review'
+            ? undefined
+            : recommendation.modelMetadata.generatedAt,
+        processingNotes:
+          recommendation.recommendation === 'manual_review'
+            ? undefined
+            : buildAutomatedDecisionNotes({
+                recommendation: recommendation.recommendation,
+                note:
+                  recommendation.recommendation === 'auto_approve'
+                    ? 'Automatically approved by refund AI.'
+                    : 'Automatically rejected by refund AI.',
+              }),
         ...mapRecommendationToPersistence(recommendation),
       });
 

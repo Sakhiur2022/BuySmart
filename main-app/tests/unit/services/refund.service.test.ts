@@ -181,6 +181,164 @@ describe('refund.service eligibility', () => {
       requested_amount: 50,
     });
     expect(vi.mocked(repository.create).mock.calls[0]?.[0].refund_number).toMatch(/^RFD-/);
+    expect(repository.saveAIAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refundId: 'ref-1',
+        status: 'pending',
+      }),
+    );
+  });
+
+  it('auto-approves a refund when the AI recommendation is auto_approve', async () => {
+    vi.mocked(getRefundRecommendation).mockResolvedValue({
+      schemaVersion: 'ai24.v1',
+      recommendation: 'auto_approve',
+      riskScore: 0.12,
+      confidenceScore: 0.93,
+      reasoning: 'Low risk and consistent evidence.',
+      signals: [],
+      modelMetadata: {
+        provider: 'groq',
+        model: 'test-model',
+        fallbackUsed: false,
+        generatedAt: '2026-04-27T10:30:00.000Z',
+      },
+    } as never);
+
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
+    vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
+      order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
+      buyer_id: 'buyer-1',
+      order_status: 'delivered',
+      payment_status: 'paid',
+      order_total_amount: 120,
+      processed_refund_total: 20,
+      remaining_refundable_amount: 100,
+      currency: 'USD',
+    });
+
+    vi.mocked(repository.create).mockResolvedValue({
+      refund_id: 'ref-2',
+      refund_number: 'RFD-TEST-000002',
+      order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
+      order_item_id: null,
+      user_id: 'buyer-1',
+      status: 'pending',
+      reason_code: 'damaged',
+      refund_type: 'full_order',
+      requested_amount: 50,
+      refund_amount: 50,
+      created_at: '2026-04-19T00:00:00.000Z',
+      updated_at: '2026-04-19T00:00:00.000Z',
+      reason_description: null,
+      return_required: false,
+      return_tracking: null,
+      return_received_at: null,
+      payment_reference: null,
+      processed_by: null,
+      processed_at: null,
+      processing_notes: null,
+      refunded_at: null,
+      ai_recommendation: null,
+      ai_risk_score: null,
+      ai_processed_at: null,
+      evidence_images: [],
+      items: [],
+    } as never);
+    vi.mocked(repository.saveAIAnalysis).mockResolvedValue({
+      refund_id: 'ref-2',
+      status: 'approved',
+      processed_at: '2026-04-27T10:30:00.000Z',
+      processing_notes:
+        '{"decision":"auto_approve","source":"ai","note":"Automatically approved by refund AI."}',
+    } as never);
+
+    const result = await service.createRefund('buyer-1', buildCreateRefundInput());
+
+    expect(result.status).toBe('approved');
+    expect(repository.saveAIAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refundId: 'ref-2',
+        status: 'approved',
+        processedAt: '2026-04-27T10:30:00.000Z',
+      }),
+    );
+  });
+
+  it('auto-rejects a refund when the AI recommendation is auto_reject', async () => {
+    vi.mocked(getRefundRecommendation).mockResolvedValue({
+      schemaVersion: 'ai24.v1',
+      recommendation: 'auto_reject',
+      riskScore: 0.91,
+      confidenceScore: 0.88,
+      reasoning: 'High risk and insufficient support.',
+      signals: [],
+      modelMetadata: {
+        provider: 'groq',
+        model: 'test-model',
+        fallbackUsed: false,
+        generatedAt: '2026-04-27T10:35:00.000Z',
+      },
+    } as never);
+
+    vi.mocked(repository.getUserRole).mockResolvedValue('buyer');
+    vi.mocked(repository.getEligibilitySnapshot).mockResolvedValue({
+      order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
+      buyer_id: 'buyer-1',
+      order_status: 'delivered',
+      payment_status: 'paid',
+      order_total_amount: 120,
+      processed_refund_total: 20,
+      remaining_refundable_amount: 100,
+      currency: 'USD',
+    });
+
+    vi.mocked(repository.create).mockResolvedValue({
+      refund_id: 'ref-3',
+      refund_number: 'RFD-TEST-000003',
+      order_id: '0f0ccfd0-f02d-4d3e-b0d0-3b15f2916ff1',
+      order_item_id: null,
+      user_id: 'buyer-1',
+      status: 'pending',
+      reason_code: 'damaged',
+      refund_type: 'full_order',
+      requested_amount: 50,
+      refund_amount: 50,
+      created_at: '2026-04-19T00:00:00.000Z',
+      updated_at: '2026-04-19T00:00:00.000Z',
+      reason_description: null,
+      return_required: false,
+      return_tracking: null,
+      return_received_at: null,
+      payment_reference: null,
+      processed_by: null,
+      processed_at: null,
+      processing_notes: null,
+      refunded_at: null,
+      ai_recommendation: null,
+      ai_risk_score: null,
+      ai_processed_at: null,
+      evidence_images: [],
+      items: [],
+    } as never);
+    vi.mocked(repository.saveAIAnalysis).mockResolvedValue({
+      refund_id: 'ref-3',
+      status: 'rejected',
+      processed_at: '2026-04-27T10:35:00.000Z',
+      processing_notes:
+        '{"decision":"auto_reject","source":"ai","note":"Automatically rejected by refund AI."}',
+    } as never);
+
+    const result = await service.createRefund('buyer-1', buildCreateRefundInput());
+
+    expect(result.status).toBe('rejected');
+    expect(repository.saveAIAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refundId: 'ref-3',
+        status: 'rejected',
+        processedAt: '2026-04-27T10:35:00.000Z',
+      }),
+    );
   });
 
   it('applies buyer scope when listing refunds for buyer role', async () => {

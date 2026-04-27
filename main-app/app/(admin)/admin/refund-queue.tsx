@@ -106,7 +106,6 @@ const AI_DECISION_CONFIG: Record<
 
 const ACTIONABLE_REFUND_STATUSES = [
   "pending",
-  "ai_review",
   "manual_review",
 ] as const;
 
@@ -118,12 +117,25 @@ function isActionableRefundStatus(
   return ACTIONABLE_REFUND_STATUSES.includes(status as ActionableRefundStatus);
 }
 
-function getDisplayStatus(status: RefundStatus): RefundStatus {
-  if (isActionableRefundStatus(status)) {
-    return "pending";
+function getStatusPresentation(item: RefundQueueItem): {
+  label: string;
+  variant: "default" | "secondary" | "destructive" | "outline";
+} {
+  if (item.status === "approved" && item.ai_recommendation === "auto_approve") {
+    return {
+      label: "Auto-approved",
+      variant: "default",
+    };
   }
 
-  return status;
+  if (item.status === "rejected" && item.ai_recommendation === "auto_reject") {
+    return {
+      label: "Auto-rejected",
+      variant: "destructive",
+    };
+  }
+
+  return STATUS_CONFIG[item.status];
 }
 
 function getAIConfidence(item: RefundQueueItem): number | null {
@@ -266,7 +278,7 @@ function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
   const aiDecisionLabel = getAIDecisionLabel(item);
   const aiConfidence = getAIConfidence(item);
   const aiNotes = getAINotes(item);
-  const displayStatus = getDisplayStatus(item.status);
+  const statusPresentation = getStatusPresentation(item);
 
   return (
     <TableRow>
@@ -301,8 +313,8 @@ function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
       </TableCell>
 
       <TableCell>
-        <Badge variant={STATUS_CONFIG[displayStatus].variant}>
-          {STATUS_CONFIG[displayStatus].label}
+        <Badge variant={statusPresentation.variant}>
+          {statusPresentation.label}
         </Badge>
       </TableCell>
 
@@ -539,29 +551,28 @@ export default function AdminRefundQueue() {
             <TableHead>Buyer</TableHead>
             <TableHead>Amount</TableHead>
             <TableHead>Reason</TableHead>
-            <TableHead>AI Decision</TableHead>
+            <TableHead>Advisory AI decision</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
-
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-sm text-muted-foreground">
-                Loading refunds...
+              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                Loading refund requests...
               </TableCell>
             </TableRow>
           ) : error ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-sm text-destructive">
+              <TableCell colSpan={6} className="py-10 text-center text-destructive">
                 {error}
               </TableCell>
             </TableRow>
           ) : items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-sm text-muted-foreground">
-                No refunds found for the selected filter.
+              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                No refund requests found for the selected filter.
               </TableCell>
             </TableRow>
           ) : (

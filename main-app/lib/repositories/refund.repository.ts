@@ -72,6 +72,8 @@ export interface IRefundWriteRepository {
   saveAIAnalysis(input: {
     refundId: string;
     status?: Database['public']['Enums']['refund_status_enum'];
+    processedAt?: string;
+    processingNotes?: string;
     aiRecommendation: Database['public']['Enums']['ai_refund_decision_enum'];
     aiRiskScore: number;
     aiAnalysis: Record<string, unknown>;

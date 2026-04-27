@@ -11,6 +11,7 @@
     "test:coverage": "vitest run --coverage",
     "test:coverage:sentiment": "vitest run -c vitest.sentiment.config.ts --coverage",
     "backfill:delivered-payment-status": "node scripts/backfill-delivered-payment-status.mjs",
+    "backfill:refund-ai-decisions": "node scripts/backfill-refund-ai-decisions.mjs",
     "test:e2e": "npm run test:e2e:install && playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:install": "playwright install chromium",
