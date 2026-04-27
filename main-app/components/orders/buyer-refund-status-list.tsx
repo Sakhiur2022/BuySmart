@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RefundEmptyState } from '@/components/orders/refund-state-cards';
 import { formatCurrency } from '@/lib/utils';
 import type { RefundStatus } from '@/lib/models/refund.model';
 import type { RefundSummaryDTO } from '@/lib/types/refund.types';
@@ -87,9 +88,13 @@ export default function BuyerRefundStatusList({ refunds }: BuyerRefundStatusList
       </CardHeader>
       <CardContent>
         {refunds.length === 0 ? (
-          <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-            No refund requests yet.
-          </div>
+          <RefundEmptyState
+            title="No refund requests yet"
+            description="You haven't submitted any refund requests. If you need to request a refund for an order, navigate to that order in your purchase history and start the refund process."
+            actionText="View your orders"
+            actionHref="/buyer/orders"
+            variant="compact"
+          />
         ) : (
           <ul className="divide-y rounded-lg border">
             {refunds.map((refund) => (
