@@ -390,7 +390,7 @@ export default function BuyerChatbotWidget() {
             className="flex-1 space-y-4 overflow-y-auto px-4 py-3"
             aria-live="polite"
           >
-            {messages.map((message, index) => {
+            {messages.map((message) => {
               const isAssistant = message.role === 'assistant';
               const showAvatar = isAssistant;
 
