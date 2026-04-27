@@ -116,6 +116,20 @@ export const updateRefundDTOSchema = z
     }
   });
 
+const decisionNotesSchema = z.string().trim().max(1800);
+
+export const approveRefundDecisionDTOSchema = z.object({
+  processing_notes: decisionNotesSchema.optional(),
+});
+
+export const rejectRefundDecisionDTOSchema = z.object({
+  processing_notes: decisionNotesSchema.min(1),
+});
+
+export const reviewRefundDecisionDTOSchema = z.object({
+  processing_notes: decisionNotesSchema.optional(),
+});
+
 export const REFUND_SORT_VALUES = ['recent', 'oldest', 'amount_high', 'amount_low'] as const;
 export const refundSortSchema = z.enum(REFUND_SORT_VALUES);
 
@@ -177,6 +191,9 @@ export type RefundRepositoryFilterDTO = RefundFilterDTO & {
   seller_id?: string;
 };
 export type RefundSortBy = z.infer<typeof refundSortSchema>;
+export type ApproveRefundDecisionDTO = z.infer<typeof approveRefundDecisionDTOSchema>;
+export type RejectRefundDecisionDTO = z.infer<typeof rejectRefundDecisionDTOSchema>;
+export type ReviewRefundDecisionDTO = z.infer<typeof reviewRefundDecisionDTOSchema>;
 
 export interface RefundItemDTO {
   product_id: string;
@@ -191,6 +208,7 @@ export interface RefundSummaryDTO {
   refund_number: string;
   order_id: string;
   user_id: string;
+  buyer_name?: string | null;
   status: RefundStatus;
   reason_code: RefundReason;
   refund_type: RefundType;
@@ -198,6 +216,11 @@ export interface RefundSummaryDTO {
   refund_amount: number;
   created_at: string;
   updated_at: string;
+  reason_description?: string | null;
+  ai_recommendation?: RefundAIDecision | null;
+  ai_risk_score?: number | null;
+  ai_processed_at?: string | null;
+  ai_analysis?: Record<string, unknown> | null;
 }
 
 export interface RefundResponseDTO extends RefundSummaryDTO {
@@ -214,6 +237,7 @@ export interface RefundResponseDTO extends RefundSummaryDTO {
   ai_recommendation: RefundAIDecision | null;
   ai_risk_score: number | null;
   ai_processed_at: string | null;
+  ai_analysis: Record<string, unknown> | null;
   evidence_images: string[];
   items: RefundItemDTO[];
 }
@@ -243,7 +267,7 @@ export interface RefundDetailDTO extends RefundSummaryDTO {
   ai_recommendation: RefundAIDecision | null;
   ai_risk_score: number | null;
   ai_processed_at: string | null;
-  processed_at: string | null;
+  ai_analysis: Record<string, unknown> | null;
   return_required: boolean;
   return_tracking: string | null;
   return_received_at: string | null;

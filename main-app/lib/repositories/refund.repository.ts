@@ -69,6 +69,22 @@ export interface IRefundWriteRepository {
   create(
     input: CreateRefundDTO & { user_id: string; refund_number: string },
   ): Promise<RefundResponseDTO>;
+  saveAIAnalysis(input: {
+    refundId: string;
+    status?: Database['public']['Enums']['refund_status_enum'];
+    aiRecommendation: Database['public']['Enums']['ai_refund_decision_enum'];
+    aiRiskScore: number;
+    aiAnalysis: Record<string, unknown>;
+    aiProcessedAt: string;
+  }): Promise<RefundResponseDTO | null>;
+  applyDecision(input: {
+    refundId: string;
+    fromStatus: Database['public']['Enums']['refund_status_enum'];
+    toStatus: Database['public']['Enums']['refund_status_enum'];
+    processedBy: string;
+    processedAt: string;
+    processingNotes: string;
+  }): Promise<RefundResponseDTO | null>;
 }
 
 export interface IRefundRepository extends IRefundReadRepository, IRefundWriteRepository {}

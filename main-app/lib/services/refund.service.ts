@@ -1,10 +1,13 @@
 import type {
+  ApproveRefundDecisionDTO,
   CreateRefundDTO,
+  RejectRefundDecisionDTO,
   RefundDetailDTO,
   RefundFilterDTO,
   RefundListResponseDTO,
   RefundRepositoryFilterDTO,
   RefundResponseDTO,
+  ReviewRefundDecisionDTO,
   RefundStatusTransitionDTO,
   UpdateRefundDTO,
 } from '@/lib/types/refund.types';
@@ -18,13 +21,34 @@ import {
   createRefundReadAccessStrategyRegistry,
   type RefundReadAccessStrategyRegistry,
 } from '@/lib/strategies/refund-read-access/refund-read-access-strategy-registry';
+import {
+  analyzeRefundForCreatedRefund,
+  enrichRefundSummaryWithAIAnalysis,
+} from '@/lib/services/refund-analysis.service';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
 type UserRole = Database['public']['Enums']['user_role_enum'];
+type RefundStatus = Database['public']['Enums']['refund_status_enum'];
 
 const ELIGIBLE_ORDER_STATUSES: ReadonlySet<OrderStatus> = new Set(['delivered', 'completed']);
 const ELIGIBLE_PAYMENT_STATUSES: ReadonlySet<PaymentStatus> = new Set(['paid']);
+const DECISION_TARGETS = {
+  approve: 'approved',
+  reject: 'rejected',
+  review: 'manual_review',
+} as const;
+
+const LEGAL_DECISION_TRANSITIONS: Readonly<Record<RefundStatus, ReadonlySet<RefundStatus>>> = {
+  pending: new Set(['approved', 'rejected', 'manual_review']),
+  ai_review: new Set(['approved', 'rejected', 'manual_review']),
+  manual_review: new Set(['approved', 'rejected']),
+  approved: new Set(),
+  processing: new Set(),
+  completed: new Set(),
+  rejected: new Set(),
+  cancelled: new Set(),
+};
 
 export class RefundIneligibleStatusError extends Error {
   public readonly code = 'REFUND_INELIGIBLE_STATUS';
@@ -54,6 +78,24 @@ export class RefundInvalidAmountError extends Error {
   public constructor(message: string) {
     super(message);
     this.name = 'RefundInvalidAmountError';
+  }
+}
+
+export class RefundInvalidDecisionTransitionError extends Error {
+  public readonly code = 'REFUND_INVALID_DECISION_TRANSITION';
+
+  public constructor(fromStatus: RefundStatus, toStatus: RefundStatus) {
+    super(`Refund cannot transition from ${fromStatus} to ${toStatus}`);
+    this.name = 'RefundInvalidDecisionTransitionError';
+  }
+}
+
+export class RefundInvalidDecisionPayloadError extends Error {
+  public readonly code = 'REFUND_INVALID_DECISION_PAYLOAD';
+
+  public constructor(message: string) {
+    super(message);
+    this.name = 'RefundInvalidDecisionPayloadError';
   }
 }
 
@@ -160,6 +202,76 @@ function toScopedListFilters(
   throw new Error('FORBIDDEN');
 }
 
+function assertAdminActor(actor: RefundActor): void {
+  if (actor.role !== 'admin') {
+    throw new Error('FORBIDDEN');
+  }
+}
+
+function assertLegalDecisionTransition(fromStatus: RefundStatus, toStatus: RefundStatus): void {
+  const allowed = LEGAL_DECISION_TRANSITIONS[fromStatus];
+  if (!allowed || !allowed.has(toStatus)) {
+    throw new RefundInvalidDecisionTransitionError(fromStatus, toStatus);
+  }
+}
+
+function buildProcessingNotes(input: {
+  decision: keyof typeof DECISION_TARGETS;
+  previousStatus: RefundStatus;
+  note?: string;
+}): string {
+  const normalizedNote = input.note?.trim() || null;
+  const notes = JSON.stringify({
+    decision: input.decision,
+    previous_status: input.previousStatus,
+    note: normalizedNote,
+  });
+
+  if (notes.length > 2000) {
+    throw new RefundInvalidDecisionPayloadError('Decision notes exceed maximum allowed length');
+  }
+
+  return notes;
+}
+
+async function applyDecisionCommand(input: {
+  refundRepository: IRefundRepository;
+  adminUserId: string;
+  refundId: string;
+  decision: keyof typeof DECISION_TARGETS;
+  note?: string;
+}): Promise<RefundResponseDTO> {
+  const adminActor = await resolveActor(input.refundRepository, input.adminUserId);
+  assertAdminActor(adminActor);
+
+  const existing = await input.refundRepository.findById(input.refundId);
+  if (!existing) {
+    throw new Error('Refund not found');
+  }
+
+  const nextStatus = DECISION_TARGETS[input.decision];
+  assertLegalDecisionTransition(existing.status, nextStatus);
+
+  const updated = await input.refundRepository.applyDecision({
+    refundId: input.refundId,
+    fromStatus: existing.status,
+    toStatus: nextStatus,
+    processedBy: adminActor.userId,
+    processedAt: new Date().toISOString(),
+    processingNotes: buildProcessingNotes({
+      decision: input.decision,
+      previousStatus: existing.status,
+      note: input.note,
+    }),
+  });
+
+  if (!updated) {
+    throw new Error('REFUND_CONFLICT');
+  }
+
+  return updated;
+}
+
 export class RefundService implements IRefundService {
   private readonly refundReadAccessStrategyRegistry: RefundReadAccessStrategyRegistry;
 
@@ -204,7 +316,12 @@ export class RefundService implements IRefundService {
   ): Promise<RefundListResponseDTO> {
     const normalizedUserId = normalizeUserId(userId);
     const actor = await resolveActor(this.refundRepository, normalizedUserId);
-    return this.refundRepository.list(toScopedListFilters(actor, filters));
+    const result = await this.refundRepository.list(toScopedListFilters(actor, filters));
+
+    return {
+      ...result,
+      refunds: result.refunds.map((refund) => enrichRefundSummaryWithAIAnalysis(refund)),
+    };
   }
 
   public async createRefund(userId: string, input: CreateRefundDTO): Promise<RefundResponseDTO> {
@@ -229,12 +346,18 @@ export class RefundService implements IRefundService {
     assertEligiblePaymentStatus(snapshot);
     assertAmountWithinRemainingBalance(requestedAmount, snapshot.remaining_refundable_amount);
 
-    return this.refundRepository.create({
+    const createdRefund = await this.refundRepository.create({
       ...input,
       requested_amount: requestedAmount,
       user_id: normalizedUserId,
       refund_number: buildRefundNumber(),
     });
+
+    try {
+      return await analyzeRefundForCreatedRefund(this.refundRepository, createdRefund);
+    } catch {
+      return createdRefund;
+    }
   }
 
   public async updateRefund(
@@ -251,6 +374,51 @@ export class RefundService implements IRefundService {
     _transition: RefundStatusTransitionDTO,
   ): Promise<RefundResponseDTO> {
     throw new Error('Refund status transition is not implemented yet');
+  }
+
+  public async approveRefund(
+    adminUserId: string,
+    refundId: string,
+    input: ApproveRefundDecisionDTO,
+  ): Promise<RefundResponseDTO> {
+    const normalizedUserId = normalizeUserId(adminUserId);
+    return applyDecisionCommand({
+      refundRepository: this.refundRepository,
+      adminUserId: normalizedUserId,
+      refundId,
+      decision: 'approve',
+      note: input.processing_notes,
+    });
+  }
+
+  public async rejectRefund(
+    adminUserId: string,
+    refundId: string,
+    input: RejectRefundDecisionDTO,
+  ): Promise<RefundResponseDTO> {
+    const normalizedUserId = normalizeUserId(adminUserId);
+    return applyDecisionCommand({
+      refundRepository: this.refundRepository,
+      adminUserId: normalizedUserId,
+      refundId,
+      decision: 'reject',
+      note: input.processing_notes,
+    });
+  }
+
+  public async reviewRefund(
+    adminUserId: string,
+    refundId: string,
+    input: ReviewRefundDecisionDTO,
+  ): Promise<RefundResponseDTO> {
+    const normalizedUserId = normalizeUserId(adminUserId);
+    return applyDecisionCommand({
+      refundRepository: this.refundRepository,
+      adminUserId: normalizedUserId,
+      refundId,
+      decision: 'review',
+      note: input.processing_notes,
+    });
   }
 }
 
@@ -284,6 +452,30 @@ export async function createRefundForUser(
   return refundService.createRefund(userId, input);
 }
 
+export async function approveRefundForAdmin(
+  adminUserId: string,
+  refundId: string,
+  input: ApproveRefundDecisionDTO,
+): Promise<RefundResponseDTO> {
+  return refundService.approveRefund(adminUserId, refundId, input);
+}
+
+export async function rejectRefundForAdmin(
+  adminUserId: string,
+  refundId: string,
+  input: RejectRefundDecisionDTO,
+): Promise<RefundResponseDTO> {
+  return refundService.rejectRefund(adminUserId, refundId, input);
+}
+
+export async function reviewRefundForAdmin(
+  adminUserId: string,
+  refundId: string,
+  input: ReviewRefundDecisionDTO,
+): Promise<RefundResponseDTO> {
+  return refundService.reviewRefund(adminUserId, refundId, input);
+}
+
 export interface IRefundReadService {
   getRefundById(userId: string, refundId: string): Promise<RefundResponseDTO>;
   getRefundDetail(userId: string, refundId: string): Promise<RefundDetailDTO>;
@@ -301,6 +493,21 @@ export interface IRefundWriteService {
     userId: string,
     refundId: string,
     transition: RefundStatusTransitionDTO,
+  ): Promise<RefundResponseDTO>;
+  approveRefund(
+    adminUserId: string,
+    refundId: string,
+    input: ApproveRefundDecisionDTO,
+  ): Promise<RefundResponseDTO>;
+  rejectRefund(
+    adminUserId: string,
+    refundId: string,
+    input: RejectRefundDecisionDTO,
+  ): Promise<RefundResponseDTO>;
+  reviewRefund(
+    adminUserId: string,
+    refundId: string,
+    input: ReviewRefundDecisionDTO,
   ): Promise<RefundResponseDTO>;
 }
 
