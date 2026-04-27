@@ -39,10 +39,12 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const { data: claimsData } = await supabase.auth.getClaims();
-  const claims = (claimsData?.claims ?? null) as Record<string, unknown> | null;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith('/auth');
+  const isApiRoute = pathname.startsWith('/api/');
   const isPublicAuthApi = pathname === '/api/auth/me';
   const isPublicChatApi = pathname === '/api/chat';
   const isPublicProductApi = pathname.startsWith('/api/products');
@@ -69,8 +71,11 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   };
 
-  if (!claims) {
+  if (!user) {
     if (!isPublicRoute) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Unauthorized: Not authenticated' }, { status: 401 });
+      }
       return redirectTo('/auth/login');
     }
     return response;
@@ -80,15 +85,10 @@ export async function middleware(request: NextRequest) {
   const isSellerRoute = pathname.startsWith('/seller');
 
   if (isAdminRoute || isSellerRoute) {
-    const userId = typeof claims.sub === 'string' ? claims.sub : '';
-    if (!userId) {
-      return redirectTo('/auth/login');
-    }
-
     const { data: profile } = await supabase
       .from('users_profile')
       .select('role')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (isAdminRoute && profile?.role !== 'admin') {

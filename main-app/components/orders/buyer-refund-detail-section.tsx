@@ -4,7 +4,7 @@ import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/utils';
 import type { RefundStatus } from '@/lib/models/refund.model';
 import type { RefundDetailDTO } from '@/lib/types/refund.types';
-import { CheckCircle2, Circle, Clock3, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Circle, Clock3, XCircle } from 'lucide-react';
 
 const REFUND_STATUS_META: Record<RefundStatus, { label: string; className: string }> = {
   pending: {
@@ -226,6 +226,52 @@ export default function BuyerRefundDetailSection({ refund }: { refund: RefundDet
       </CardHeader>
 
       <CardContent className="space-y-6">
+        {/* Contextual guidance for terminal states */}
+        {refund.status === 'rejected' && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-4 space-y-3">
+            <div className="flex gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-red-900">
+                <p className="font-semibold">Refund Request Rejected</p>
+                <p className="mt-1">
+                  Unfortunately, your refund request was rejected after review. Check the processing notes below for the reason.
+                </p>
+                <p className="mt-2 text-red-800">
+                  <strong>What now?</strong> You can contact support if you believe this was in error or if you have additional information to provide.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {refund.status === 'cancelled' && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 space-y-3">
+            <div className="flex gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-900">
+                <p className="font-semibold">Refund Request Cancelled</p>
+                <p className="mt-1">
+                  This refund request has been cancelled. Check the processing notes below for more details.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {refund.status === 'completed' && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4 space-y-3">
+            <div className="flex gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-emerald-900">
+                <p className="font-semibold">Refund Completed</p>
+                <p className="mt-1">
+                  Your refund of <span className="font-semibold">{formatCurrency(refund.refund_amount)}</span> has been issued successfully. The funds should appear in your account within 5-10 business days, depending on your bank.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
           <div className="space-y-4">
             <p className="text-sm font-semibold">Timeline</p>

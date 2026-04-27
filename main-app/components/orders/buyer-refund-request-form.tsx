@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { FormErrorAlert, FormSuccessAlert } from '@/components/orders/refund-state-cards';
 import { REFUND_REASON_VALUES } from '@/lib/types/refund.types';
 
 const refundReasonValues = [...REFUND_REASON_VALUES] as [string, ...string[]];
@@ -243,18 +244,17 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
 
       <form className="space-y-6" onSubmit={handleSubmit} noValidate>
       {successState ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          <p className="font-semibold">Refund request submitted.</p>
-          <p className="mt-1">
-            Refund ID: <span className="font-mono">{successState.refundId}</span>
-          </p>
-          {successState.refundNumber ? (
-            <p className="mt-1">
-              Refund number: <span className="font-mono">{successState.refundNumber}</span>
-            </p>
-          ) : null}
-          <p className="mt-1">Requested amount: BDT {successState.requestedAmount.toFixed(2)}</p>
-        </div>
+        <FormSuccessAlert
+          title="Refund request submitted successfully"
+          message="Your refund request has been received and is now under review. You'll receive updates via email as the refund process progresses."
+          details={[
+            { label: 'Refund ID', value: successState.refundId },
+            ...(successState.refundNumber ? [{ label: 'Refund Number', value: successState.refundNumber }] : []),
+            { label: 'Requested Amount', value: `BDT ${successState.requestedAmount.toFixed(2)}` },
+          ]}
+          actionText="View refund details"
+          actionHref={`/buyer/refunds/${successState.refundId}`}
+        />
       ) : null}
 
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -353,7 +353,19 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
         </div>
       </div>
 
-      {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
+      {formError && (
+        <FormErrorAlert
+          message={formError}
+          suggestion={
+            formError.includes('highlighted field')
+              ? 'Please review the form and correct any errors before trying again.'
+              : formError.includes('Network error')
+              ? 'Check your internet connection and try again.'
+              : 'If the problem persists, please contact support.'
+          }
+          onDismiss={() => setFormError(null)}
+        />
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button type="submit" disabled={!canSubmit} className="sm:min-w-44">
