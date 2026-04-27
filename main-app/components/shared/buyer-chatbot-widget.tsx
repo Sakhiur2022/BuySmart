@@ -95,10 +95,6 @@ function formatCurrency(amount: number) {
   return `Tk ${amount.toLocaleString()}`;
 }
 
-function formatOrderStatus(status: string) {
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
 function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
   return {
     id: createMessageId('assistant'),
@@ -457,15 +453,8 @@ export default function BuyerChatbotWidget() {
                         </div>
                       ) : null}
 
-                      {message.order ? (
-                        <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2 text-slate-700">
-                          <p className="font-medium text-slate-900">Order {message.order.id}</p>
-                          <p className="text-sm">Status: {formatOrderStatus(message.order.status)}</p>
-                        </div>
-                      ) : null}
-
                       {message.policyText ? (
-                        <div className="mt-3 whitespace-pre-line rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2 text-slate-700">
+                        <div className="mt-3 whitespace-pre-line rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-slate-700">
                           {message.policyText}
                         </div>
                       ) : null}

@@ -172,6 +172,53 @@ function parseOrderId(message: string) {
   return match ? match[0].toUpperCase().replace('_', '-') : undefined;
 }
 
+function composeTrackOrderReply(params: AIParams) {
+  const query = params.query ?? '';
+  const isOrderStatusQuestion = /\b(status|progress|update|track|check|find|where)\b/.test(query);
+
+  if (params.orderId) {
+    if (isOrderStatusQuestion) {
+      return `Tap Orders, then View details for order ${params.orderId}.`;
+    }
+
+    return `Tap Orders, then open order ${params.orderId}.`;
+  }
+
+  return 'Tap Orders, then View details on the order.';
+}
+
+function composeRefundReply(params: AIParams) {
+  const query = params.query ?? '';
+  const isRefundStatusQuestion = /\b(status|progress|update|track|check)\b/.test(query);
+  const isRefundRequestQuestion = /\b(request|apply|start|submit|make|get)\b/.test(query);
+
+  if (params.orderId) {
+    if (isRefundStatusQuestion) {
+      return `Open Refund status and tap Details for the latest update.`;
+    }
+
+    return `Tap Orders, open View details for order ${params.orderId}, then use Request Refund.`;
+  }
+
+  if (isRefundStatusQuestion) {
+    return 'Check Refund status and tap Details.';
+  }
+
+  if (isRefundRequestQuestion) {
+    return 'Tap Orders, then View details, then Request Refund.';
+  }
+
+  return 'Tap Orders, then View details, then Request Refund. For refund status, check Refund status and tap Details.';
+}
+
+function shouldShowRefundPolicy(query?: string) {
+  if (!query) {
+    return false;
+  }
+
+  return /\b(policy|eligible|eligibility|window|days|return window)\b/.test(query);
+}
+
 function composeReply(intent: string, params: AIParams): string {
   switch (intent) {
     case 'PRODUCT_SEARCH': {
@@ -199,12 +246,10 @@ function composeReply(intent: string, params: AIParams): string {
     }
 
     case 'TRACK_ORDER':
-      return params.orderId
-        ? `Looking up order ${params.orderId}. Here is the latest status.`
-        : 'Please share your order ID (like ORD-4821) so I can look it up.';
+      return composeTrackOrderReply(params);
 
     case 'REFUND_POLICY':
-      return 'I can help with refund policy details and the refund request process.';
+      return composeRefundReply(params);
 
     case 'FAQ':
       return 'I can answer questions about products, orders, refunds, or support. What would you like to know?';
@@ -294,7 +339,7 @@ async function routeIntent(
     case 'REFUND_POLICY': {
       return {
         reply: aiResponse.reply,
-        policyText: MOCK_POLICY,
+        policyText: shouldShowRefundPolicy(aiResponse.params.query) ? MOCK_POLICY : undefined,
       };
     }
 
