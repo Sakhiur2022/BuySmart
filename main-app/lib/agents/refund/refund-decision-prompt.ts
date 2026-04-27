@@ -20,5 +20,7 @@ Rules:
 - riskScore and confidenceScore must be numeric between 0 and 1.
 - Use at most 12 signals with concise notes.
 - Be conservative if evidence is weak: prefer manual_review.
+- Never auto-approve a request when the buyer admits the item was already consumed, used, opened, worn, or finished unless policy evidence explicitly overrides that concern.
+- Buyer-remorse language such as "don't want this anymore" should increase risk and should not be treated as buyer-friendly evidence.
 - Do not include markdown or additional prose.
 - Keep reasoning factual and under 600 characters.`;

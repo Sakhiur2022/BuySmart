@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,11 @@ type RefundSuccessState = {
   requestedAmount: number;
 };
 
+type RefundSubmissionNotice = {
+  id: string;
+  message: string;
+};
+
 const initialFormState: RefundRequestFormState = {
   reasonCode: '',
   reasonDescription: '',
@@ -80,6 +85,7 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
   const [fieldErrors, setFieldErrors] = useState<RefundFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [successState, setSuccessState] = useState<RefundSuccessState | null>(null);
+  const [submissionNotice, setSubmissionNotice] = useState<RefundSubmissionNotice | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const requestedAmount = formState.requestedAmount.trim();
@@ -91,6 +97,18 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
     formState.reasonCode.length > 0 &&
     amountIsReadable &&
     formState.reasonDescription.length <= 1000;
+
+  useEffect(() => {
+    if (!submissionNotice) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSubmissionNotice(null);
+    }, 4500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [submissionNotice]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -176,6 +194,13 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
         refundNumber: responseBody.refund.refund_number ?? null,
         requestedAmount: responseBody.refund.requested_amount ?? parsedAmount,
       });
+      setSubmissionNotice({
+        id:
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : Math.random().toString(36),
+        message: 'Refund request submitted successfully.',
+      });
       setFormState({
         reasonCode: '',
         reasonDescription: '',
@@ -190,7 +215,33 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
   };
 
   return (
-    <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+    <>
+      {submissionNotice ? (
+        <div className="pointer-events-none fixed inset-x-0 top-20 z-[200] flex justify-center px-4 sm:top-24">
+          <div
+            role="status"
+            aria-live="polite"
+            className="pointer-events-auto w-full max-w-md rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-lg animate-in slide-in-from-top-6 fade-in"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">Refund request submitted</p>
+                <p className="mt-1 text-emerald-800">{submissionNotice.message}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubmissionNotice(null)}
+                className="text-emerald-700 transition hover:text-emerald-900"
+                aria-label="Dismiss notification"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <form className="space-y-6" onSubmit={handleSubmit} noValidate>
       {successState ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <p className="font-semibold">Refund request submitted.</p>
@@ -313,6 +364,7 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
           <Link href={`/buyer/orders/${orderId}`}>Back to order</Link>
         </Button>
       </div>
-    </form>
+      </form>
+    </>
   );
 }
