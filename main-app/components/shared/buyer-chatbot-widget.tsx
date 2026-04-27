@@ -151,11 +151,6 @@ export default function BuyerChatbotWidget() {
     ? 'bottom-28 right-4 md:bottom-10 md:right-8'
     : 'bottom-20 right-4 md:bottom-8 md:right-6';
 
-  const hasSentMessage = useMemo(
-    () => messages.some((message) => message.role === 'user'),
-    [messages],
-  );
-
   function resetChatSession(nextAuthMarker?: string, preserveOpenState = false) {
     setMessages([GREETING_MESSAGE]);
     setChatContext(DEFAULT_CONTEXT);
@@ -397,7 +392,7 @@ export default function BuyerChatbotWidget() {
           >
             {messages.map((message, index) => {
               const isAssistant = message.role === 'assistant';
-              const showAvatar = isAssistant && index === 0 && !hasSentMessage;
+              const showAvatar = isAssistant && index === 0;
 
               return (
                 <div
