@@ -104,6 +104,20 @@ const AI_DECISION_CONFIG: Record<
   },
 };
 
+const ACTIONABLE_REFUND_STATUSES = [
+  "pending",
+  "ai_review",
+  "manual_review",
+] as const;
+
+type ActionableRefundStatus = (typeof ACTIONABLE_REFUND_STATUSES)[number];
+
+function isActionableRefundStatus(
+  status: RefundStatus,
+): status is ActionableRefundStatus {
+  return ACTIONABLE_REFUND_STATUSES.includes(status as ActionableRefundStatus);
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function ToastList({
@@ -226,9 +240,7 @@ function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
       </TableCell>
 
       <TableCell>
-        {(["pending", "ai_review", "manual_review"] as const).includes(
-          item.status,
-        ) && (
+        {isActionableRefundStatus(item.status) && (
           <div className="flex gap-2">
             <Button
               ref={approveRef}
