@@ -26,6 +26,10 @@ export interface FeedbackInsightsRecord {
   created_at: string;
   product_id: string | null;
   product_name: string | null;
+  buyer_user_id: string | null;
+  buyer_full_name: string | null;
+  buyer_display_name: string | null;
+  buyer_avatar_url: string | null;
   ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'];
   ai_confidence_score: number | null;
 }
@@ -495,7 +499,7 @@ export async function fetchProcessedFeedbackForInsights(
   let query = supabase
     .from('feedback')
     .select(
-      'feedback_id, title, comment, created_at, ai_sentiment, ai_confidence_score, product_id, products(name)',
+      'feedback_id, title, comment, created_at, ai_sentiment, ai_confidence_score, product_id, user_id, products(name), users_profile!feedback_user_id_fkey(user_id, full_name, display_name, avatar_url)',
     )
     .eq('status', 'published')
     .not('ai_sentiment', 'is', null)
@@ -518,26 +522,76 @@ export async function fetchProcessedFeedbackForInsights(
 
   return (
     (data ?? []) as Array<
-      Omit<FeedbackInsightsRecord, 'ai_sentiment' | 'product_name'> & {
+      Omit<
+        FeedbackInsightsRecord,
+        | 'ai_sentiment'
+        | 'product_name'
+        | 'buyer_user_id'
+        | 'buyer_full_name'
+        | 'buyer_display_name'
+        | 'buyer_avatar_url'
+      > & {
         ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'] | null;
         products?: { name?: string | null } | Array<{ name?: string | null }> | null;
+        users_profile?:
+          | {
+              user_id?: string | null;
+              full_name?: string | null;
+              display_name?: string | null;
+              avatar_url?: string | null;
+            }
+          | Array<{
+              user_id?: string | null;
+              full_name?: string | null;
+              display_name?: string | null;
+              avatar_url?: string | null;
+            }>
+          | null;
       }
     >
   )
     .filter(
       (
         row,
-      ): row is Omit<FeedbackInsightsRecord, 'ai_sentiment' | 'product_name'> & {
+      ): row is Omit<
+        FeedbackInsightsRecord,
+        | 'ai_sentiment'
+        | 'product_name'
+        | 'buyer_user_id'
+        | 'buyer_full_name'
+        | 'buyer_display_name'
+        | 'buyer_avatar_url'
+      > & {
         ai_sentiment: Database['public']['Enums']['ai_sentiment_enum'];
         products?: { name?: string | null } | Array<{ name?: string | null }> | null;
+        users_profile?:
+          | {
+              user_id?: string | null;
+              full_name?: string | null;
+              display_name?: string | null;
+              avatar_url?: string | null;
+            }
+          | Array<{
+              user_id?: string | null;
+              full_name?: string | null;
+              display_name?: string | null;
+              avatar_url?: string | null;
+            }>
+          | null;
       } => row.ai_sentiment !== null,
     )
     .map((row) => {
       const productData = Array.isArray(row.products) ? row.products[0] : row.products;
+      const buyerData = Array.isArray(row.users_profile) ? row.users_profile[0] : row.users_profile;
+
       return {
         ...row,
         ai_sentiment: row.ai_sentiment,
         product_name: productData?.name ?? null,
+        buyer_user_id: buyerData?.user_id ?? row.user_id ?? null,
+        buyer_full_name: buyerData?.full_name ?? null,
+        buyer_display_name: buyerData?.display_name ?? null,
+        buyer_avatar_url: buyerData?.avatar_url ?? null,
       };
     });
 }

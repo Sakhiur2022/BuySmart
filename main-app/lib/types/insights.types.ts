@@ -30,6 +30,10 @@ export interface FeedbackHighlight {
   confidenceScore: number;
   snippet: string;
   createdAt: string;
+  productName: string | null;
+  buyerUserId: string | null;
+  buyerName: string | null;
+  buyerAvatarUrl: string | null;
 }
 
 export interface FeedbackTrendPoint {
@@ -89,6 +93,10 @@ const feedbackHighlightSchema = z.object({
   confidenceScore: z.number().min(0).max(1),
   snippet: z.string().max(240),
   createdAt: z.string().datetime({ offset: true }),
+  productName: z.string().min(1).nullable(),
+  buyerUserId: z.string().uuid().nullable(),
+  buyerName: z.string().min(1).nullable(),
+  buyerAvatarUrl: z.string().min(1).nullable(),
 });
 
 const feedbackTrendPointSchema = z.object({

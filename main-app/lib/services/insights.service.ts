@@ -121,11 +121,17 @@ function toSnippet(record: FeedbackInsightsRecord): string {
 }
 
 function toHighlight(record: FeedbackInsightsRecord): FeedbackHighlight {
+  const buyerName = record.buyer_display_name ?? record.buyer_full_name;
+
   return {
     feedbackId: record.feedback_id,
     confidenceScore: clampConfidence(record.ai_confidence_score),
     snippet: toSnippet(record),
     createdAt: record.created_at,
+    productName: record.product_name,
+    buyerUserId: record.buyer_user_id,
+    buyerName,
+    buyerAvatarUrl: record.buyer_avatar_url,
   };
 }
 
@@ -385,7 +391,8 @@ export async function getFeedbackInsightsForUser(
   const sortedPositive = processedFeedback
     .filter((record) => record.ai_sentiment === 'positive')
     .sort((first, second) => {
-      const confidenceDiff = clampConfidence(second.ai_confidence_score) - clampConfidence(first.ai_confidence_score);
+      const confidenceDiff =
+        clampConfidence(second.ai_confidence_score) - clampConfidence(first.ai_confidence_score);
       if (confidenceDiff !== 0) {
         return confidenceDiff;
       }
@@ -398,7 +405,8 @@ export async function getFeedbackInsightsForUser(
   const sortedNegative = processedFeedback
     .filter((record) => record.ai_sentiment === 'negative')
     .sort((first, second) => {
-      const confidenceDiff = clampConfidence(second.ai_confidence_score) - clampConfidence(first.ai_confidence_score);
+      const confidenceDiff =
+        clampConfidence(second.ai_confidence_score) - clampConfidence(first.ai_confidence_score);
       if (confidenceDiff !== 0) {
         return confidenceDiff;
       }
