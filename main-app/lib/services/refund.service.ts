@@ -25,6 +25,12 @@ import {
   analyzeRefundForCreatedRefund,
   enrichRefundSummaryWithAIAnalysis,
 } from '@/lib/services/refund-analysis.service';
+import { getRefundRecommendation } from '@/lib/services/refund-decision-adapter.service';
+import {
+  mapRecommendationToPersistence,
+  maskRefundDetailForRole,
+  maskRefundSummaryForRole,
+} from '@/lib/repositories/refund-ai-recommendation.mapper';
 
 type OrderStatus = Database['public']['Enums']['order_status_enum'];
 type PaymentStatus = Database['public']['Enums']['payment_status_enum'];
@@ -199,6 +205,14 @@ function toScopedListFilters(
     };
   }
 
+  if (actor.role === 'admin') {
+    return {
+      ...filters,
+      buyer_id: undefined,
+      seller_id: undefined,
+    };
+  }
+
   throw new Error('FORBIDDEN');
 }
 
@@ -307,7 +321,7 @@ export class RefundService implements IRefundService {
     const strategy = this.refundReadAccessStrategyRegistry.getForRole(actor.role);
     await strategy.assertCanRead(actor, { refund }, this.refundRepository);
 
-    return refund;
+    return maskRefundDetailForRole(refund, actor.role);
   }
 
   public async listRefunds(
@@ -320,7 +334,10 @@ export class RefundService implements IRefundService {
 
     return {
       ...result,
-      refunds: result.refunds.map((refund) => enrichRefundSummaryWithAIAnalysis(refund)),
+      refunds: result.refunds.map((refund) => {
+        const enriched = enrichRefundSummaryWithAIAnalysis(refund);
+        return maskRefundSummaryForRole(enriched, actor.role);
+      }),
     };
   }
 
@@ -352,6 +369,42 @@ export class RefundService implements IRefundService {
       user_id: normalizedUserId,
       refund_number: buildRefundNumber(),
     });
+
+    try {
+      const recommendation = await getRefundRecommendation(
+        {
+          refund: {
+            refundId: createdRefund.refund_id,
+            orderId: createdRefund.order_id,
+            reasonCode: createdRefund.reason_code,
+            reasonDescription: createdRefund.reason_description,
+            requestedAmount: createdRefund.requested_amount,
+            createdAt: new Date(createdRefund.created_at).toISOString(),
+            currency: snapshot.currency,
+          },
+          order: {
+            status: snapshot.order_status,
+            paymentStatus: snapshot.payment_status,
+            totalAmount: snapshot.order_total_amount,
+            remainingRefundableAmount: snapshot.remaining_refundable_amount,
+          },
+        },
+        {
+          userId: normalizedUserId,
+        },
+      );
+
+      const persisted = await this.refundRepository.saveAIAnalysis({
+        refundId: createdRefund.refund_id,
+        ...mapRecommendationToPersistence(recommendation),
+      });
+
+      if (persisted) {
+        return persisted;
+      }
+    } catch {
+      // Preserve refund creation success semantics; fallback uses deterministic heuristic analysis.
+    }
 
     try {
       return await analyzeRefundForCreatedRefund(this.refundRepository, createdRefund);

@@ -10,6 +10,8 @@ type RefundAIAnalysis = {
   notes: string;
 };
 
+const HEURISTIC_SCHEMA_VERSION = 'ai24.heuristic.v1' as const;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -42,7 +44,7 @@ function buildBaseRisk(reasonCode: RefundReason): number {
   }
 }
 
-function analyzeRefund(input: {
+export function analyzeRefundHeuristically(input: {
   reasonCode: RefundReason;
   reasonDescription: string | null | undefined;
   requestedAmount: number;
@@ -96,9 +98,11 @@ function analyzeRefund(input: {
 
   let notes = 'Recommendation: Leave this refund to admin review.';
   if (recommendation === 'auto_approve') {
-    notes = 'Recommendation: Auto approve based on low risk indicators and clear buyer-friendly context.';
+    notes =
+      'Recommendation: Auto approve based on low risk indicators and clear buyer-friendly context.';
   } else if (recommendation === 'auto_reject') {
-    notes = 'Recommendation: Auto reject based on elevated risk indicators and low refund confidence for buyer claim.';
+    notes =
+      'Recommendation: Auto reject based on elevated risk indicators and low refund confidence for buyer claim.';
   } else if (input.requestedAmount >= 5000) {
     notes = 'Recommendation: Manual review due to high item value.';
   }
@@ -125,6 +129,13 @@ function toPersistedAnalysis(result: RefundAIAnalysis): Record<string, unknown> 
     confidence: result.confidence,
     factors: result.factors,
     notes: result.notes,
+    schema_version: HEURISTIC_SCHEMA_VERSION,
+    model_metadata: {
+      provider: 'heuristic',
+      model: 'refund-risk-rules-v1',
+      fallbackUsed: true,
+      generatedAt: new Date().toISOString(),
+    },
   };
 }
 
@@ -133,7 +144,7 @@ export function enrichRefundSummaryWithAIAnalysis<T extends RefundSummaryDTO>(re
     return refund;
   }
 
-  const analysis = analyzeRefund({
+  const analysis = analyzeRefundHeuristically({
     reasonCode: refund.reason_code,
     reasonDescription: refund.reason_description,
     requestedAmount: refund.requested_amount,
@@ -152,7 +163,7 @@ export async function analyzeRefundForCreatedRefund(
   refundRepository: IRefundRepository,
   refund: RefundResponseDTO,
 ): Promise<RefundResponseDTO> {
-  const analysis = analyzeRefund({
+  const analysis = analyzeRefundHeuristically({
     reasonCode: refund.reason_code,
     reasonDescription: refund.reason_description,
     requestedAmount: refund.requested_amount,
@@ -166,11 +177,13 @@ export async function analyzeRefundForCreatedRefund(
     aiProcessedAt: new Date().toISOString(),
   });
 
-  return persisted ?? {
-    ...refund,
-    ai_recommendation: analysis.recommendation,
-    ai_risk_score: analysis.riskScore,
-    ai_processed_at: new Date().toISOString(),
-    ai_analysis: toPersistedAnalysis(analysis),
-  };
+  return (
+    persisted ?? {
+      ...refund,
+      ai_recommendation: analysis.recommendation,
+      ai_risk_score: analysis.riskScore,
+      ai_processed_at: new Date().toISOString(),
+      ai_analysis: toPersistedAnalysis(analysis),
+    }
+  );
 }
