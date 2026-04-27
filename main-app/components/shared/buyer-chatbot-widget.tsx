@@ -92,7 +92,7 @@ function isChatApiResponse(value: unknown): value is ChatAPIResponse {
 }
 
 function formatCurrency(amount: number) {
-  return `Tk ${amount.toLocaleString()}`;
+  return `BDT ${amount.toLocaleString()}`;
 }
 
 function buildAssistantMessage(response: ChatAPIResponse): UIMessage {

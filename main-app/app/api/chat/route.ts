@@ -6,6 +6,7 @@ import type {
   ChatAPIResponse,
   ChatContext,
 } from '@/lib/chatbot/types';
+import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 import {
   mockGetOrder,
   mockSearchProducts,
@@ -219,6 +220,14 @@ function shouldShowRefundPolicy(query?: string) {
   return /\b(policy|eligible|eligibility|window|days|return window)\b/.test(query);
 }
 
+function wantsHumanSupport(query?: string) {
+  if (!query) {
+    return false;
+  }
+
+  return /\b(human|live agent|customer service|real person|representative)\b/.test(query);
+}
+
 function composeReply(intent: string, params: AIParams): string {
   switch (intent) {
     case 'PRODUCT_SEARCH': {
@@ -252,10 +261,10 @@ function composeReply(intent: string, params: AIParams): string {
       return composeRefundReply(params);
 
     case 'FAQ':
-      return 'I can answer questions about products, orders, refunds, or support. What would you like to know?';
+      return 'Let me check that for you.';
 
     case 'SUPPORT':
-      return 'I am escalating this to support. A human team member will follow up shortly.';
+      return 'Support follow-up can be flagged if you want a person to step in.';
 
     default:
       return 'I am not sure what you need yet. Please tell me if you want to search products, track an order, ask about refunds, or contact support.';
@@ -275,6 +284,7 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
   const hasOrderPhrases = /\b(track|where.*order|order status|find my order|order update|shipment|delivered)\b/.test(normalized);
   const hasRefundPhrases = /\b(refund|return|refund policy|cancel order|wrong item|defective|exchange)\b/.test(normalized);
   const hasSupportPhrases = /\b(help|support|human|agent|customer service|complaint|issue|problem)\b/.test(normalized);
+  const hasHumanSupportPhrases = wantsHumanSupport(normalized);
   const hasProductPhrases = /\b(show|find|search|looking for|need|recommend|suggest|available|buy|price|budget)\b/.test(normalized);
 
   let intent: AIResponse['intent'] = 'FAQ';
@@ -285,7 +295,7 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
     intent = 'TRACK_ORDER';
   } else if (hasRefundPhrases) {
     intent = 'REFUND_POLICY';
-  } else if (hasSupportPhrases && !hasProductPhrases) {
+  } else if (hasHumanSupportPhrases) {
     intent = 'SUPPORT';
   } else if (
     params.category ||
@@ -317,12 +327,19 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
 async function routeIntent(
   aiResponse: AIResponse,
   context: ChatContext,
+  userMessage: string,
 ): Promise<Partial<ChatAPIResponse>> {
   switch (aiResponse.intent) {
     case 'PRODUCT_SEARCH': {
       const products = mockSearchProducts(aiResponse.params);
+      const searchReply = await answerProductSearchQuestion(userMessage, products, {
+        category: aiResponse.params.category,
+        price_min: aiResponse.params.price_min,
+        price_max: aiResponse.params.price_max,
+        features: aiResponse.params.features,
+      });
       return {
-        reply: aiResponse.reply,
+        reply: searchReply.reply,
         products,
       };
     }
@@ -344,16 +361,18 @@ async function routeIntent(
     }
 
     case 'SUPPORT': {
+      const supportResult = await answerSupportQuestion(userMessage, context);
       return {
-        reply: aiResponse.reply,
-        isEscalation: true,
+        reply: supportResult.reply,
+        isEscalation: supportResult.shouldEscalate || wantsHumanSupport(aiResponse.params.query),
       };
     }
 
     case 'FAQ':
     default:
+      const supportResult = await answerSupportQuestion(userMessage, context);
       return {
-        reply: aiResponse.reply,
+        reply: supportResult.reply,
       };
   }
 }
@@ -411,7 +430,8 @@ export async function POST(request: NextRequest) {
     };
 
     const aiResponse = detectIntent(message, context);
-    const result = await routeIntent(aiResponse, context);
+    const result = await routeIntent(aiResponse, context, message);
+    const finalReply = result.reply ?? aiResponse.reply;
 
     const updatedContext: ChatContext = {
       ...context,
@@ -421,13 +441,13 @@ export async function POST(request: NextRequest) {
       history: [
         ...context.history,
         { role: 'user' as const, content: message },
-        { role: 'assistant' as const, content: aiResponse.reply },
+        { role: 'assistant' as const, content: finalReply },
       ].slice(-20),
     };
 
     const responsePayload: ChatAPIResponse = {
       intent: aiResponse.intent,
-      reply: aiResponse.reply,
+      reply: finalReply,
       updatedContext,
       ...result,
     };
