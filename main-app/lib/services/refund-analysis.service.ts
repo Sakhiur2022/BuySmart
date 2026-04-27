@@ -160,7 +160,6 @@ export async function analyzeRefundForCreatedRefund(
 
   const persisted = await refundRepository.saveAIAnalysis({
     refundId: refund.refund_id,
-    status: refund.status === 'pending' ? 'ai_review' : refund.status,
     aiRecommendation: analysis.recommendation,
     aiRiskScore: analysis.riskScore,
     aiAnalysis: toPersistedAnalysis(analysis),
@@ -169,7 +168,6 @@ export async function analyzeRefundForCreatedRefund(
 
   return persisted ?? {
     ...refund,
-    status: refund.status === 'pending' ? 'ai_review' : refund.status,
     ai_recommendation: analysis.recommendation,
     ai_risk_score: analysis.riskScore,
     ai_processed_at: new Date().toISOString(),

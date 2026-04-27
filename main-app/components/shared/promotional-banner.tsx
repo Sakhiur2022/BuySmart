@@ -27,7 +27,7 @@ const PROMOS = [
   {
     id: 'shipping',
     title: 'Free Shipping',
-    detail: 'Orders over BDT 500 qualify for free delivery.',
+    detail: 'Orders over BDT 2000 qualify for free delivery.',
   },
   {
     id: 'seller-week',

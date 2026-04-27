@@ -126,7 +126,7 @@ export class RefundRepository implements IRefundRepository {
     const updatePayload: Database['public']['Tables']['refunds']['Update'] = {
       ai_recommendation: input.aiRecommendation,
       ai_risk_score: input.aiRiskScore,
-      ai_analysis: input.aiAnalysis,
+      ai_analysis: input.aiAnalysis as Json,
       ai_processed_at: input.aiProcessedAt,
     };
 
@@ -797,6 +797,10 @@ export class RefundRepository implements IRefundRepository {
       ai_recommendation: entity.ai_recommendation,
       ai_risk_score: entity.ai_risk_score,
       ai_processed_at: entity.ai_processed_at,
+      ai_analysis:
+        entity.ai_analysis && typeof entity.ai_analysis === 'object' && !Array.isArray(entity.ai_analysis)
+          ? (entity.ai_analysis as Record<string, unknown>)
+          : null,
       evidence_images: this.mapEvidenceImages(entity.evidence_images),
       items: this.mapItemsToDTO(entity.items),
     };
@@ -825,6 +829,10 @@ export class RefundRepository implements IRefundRepository {
       ai_recommendation: entity.ai_recommendation,
       ai_risk_score: entity.ai_risk_score,
       ai_processed_at: entity.ai_processed_at,
+      ai_analysis:
+        entity.ai_analysis && typeof entity.ai_analysis === 'object' && !Array.isArray(entity.ai_analysis)
+          ? (entity.ai_analysis as Record<string, unknown>)
+          : null,
       return_required: entity.return_required,
       return_tracking: entity.return_tracking,
       return_received_at: entity.return_received_at,

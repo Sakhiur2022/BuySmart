@@ -118,6 +118,14 @@ function isActionableRefundStatus(
   return ACTIONABLE_REFUND_STATUSES.includes(status as ActionableRefundStatus);
 }
 
+function getDisplayStatus(status: RefundStatus): RefundStatus {
+  if (isActionableRefundStatus(status)) {
+    return "pending";
+  }
+
+  return status;
+}
+
 function getAIConfidence(item: RefundQueueItem): number | null {
   const analysis = item.ai_analysis;
 
@@ -258,6 +266,7 @@ function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
   const aiDecisionLabel = getAIDecisionLabel(item);
   const aiConfidence = getAIConfidence(item);
   const aiNotes = getAINotes(item);
+  const displayStatus = getDisplayStatus(item.status);
 
   return (
     <TableRow>
@@ -292,8 +301,8 @@ function QueueRow({ item, onApprove, onReject }: QueueRowProps) {
       </TableCell>
 
       <TableCell>
-        <Badge variant={STATUS_CONFIG[item.status].variant}>
-          {STATUS_CONFIG[item.status].label}
+        <Badge variant={STATUS_CONFIG[displayStatus].variant}>
+          {STATUS_CONFIG[displayStatus].label}
         </Badge>
       </TableCell>
 
