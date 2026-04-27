@@ -12,11 +12,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/auth/login');
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('users_profile')
     .select('role')
     .eq('user_id', user.id)
     .maybeSingle();
+
+  if (profileError) {
+    throw new Error(`Failed to load admin profile: ${profileError.message}`);
+  }
 
   if (profile?.role !== 'admin') {
     redirect('/');

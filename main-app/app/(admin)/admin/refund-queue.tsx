@@ -115,6 +115,10 @@ const ACTIONABLE_REFUND_STATUSES = [
   "manual_review",
 ] as const;
 
+const FILTERABLE_REFUND_STATUSES = REFUND_STATUS_VALUES.filter(
+  (status) => status !== "manual_review"
+);
+
 type ActionableRefundStatus = (typeof ACTIONABLE_REFUND_STATUSES)[number];
 
 function isActionableRefundStatus(
@@ -542,7 +546,7 @@ export default function AdminRefundQueue() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            {REFUND_STATUS_VALUES.map((status) => (
+            {FILTERABLE_REFUND_STATUSES.map((status) => (
               <SelectItem key={status} value={status}>
                 {STATUS_CONFIG[status].label}
               </SelectItem>
