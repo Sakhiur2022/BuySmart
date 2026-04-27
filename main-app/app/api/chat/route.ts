@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import type {
   AIParams,
   AIResponse,
@@ -12,80 +13,186 @@ import {
   MOCK_POLICY,
 } from '@/lib/chatbot/mockData';
 
-const KNOWN_CATEGORIES = ['phone', 'laptop', 'tablet', 'headphone'];
-const KNOWN_FEATURES = [
-  'gaming',
-  'battery',
-  'camera',
-  'display',
-  'noise-cancel',
-  'fast-charge',
-  'performance',
-];
+const requestSchema = z.object({
+  message: z.string().min(1),
+  context: z
+    .object({
+      category: z.string().nullable(),
+      price_max: z.number().nullable(),
+      lastOrderId: z.string().nullable(),
+      history: z
+        .array(
+          z.object({
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
+});
+
+const CATEGORY_ALIAS: Record<string, string> = {
+  phone: 'phone',
+  phones: 'phone',
+  smartphone: 'phone',
+  smartphones: 'phone',
+  mobile: 'phone',
+  mobilephone: 'phone',
+  "mobile phone": 'phone',
+  laptop: 'laptop',
+  laptops: 'laptop',
+  notebook: 'laptop',
+  notebooks: 'laptop',
+  tablet: 'tablet',
+  tablets: 'tablet',
+  tab: 'tablet',
+  headphone: 'headphone',
+  headphones: 'headphone',
+  headset: 'headphone',
+  headsets: 'headphone',
+};
+
+const FEATURE_ALIAS: Record<string, string[]> = {
+  gaming: ['gaming', 'game', 'games'],
+  battery: ['battery', 'battery life', 'long battery', 'fast charge', 'fast-charge'],
+  camera: ['camera', 'photography', 'selfie', 'photo'],
+  display: ['display', 'screen', 'resolution'],
+  'noise-cancel': ['noise cancel', 'noise-cancel', 'noise cancelling', 'noise cancellation', 'anc'],
+  performance: ['performance', 'fast', 'powerful', 'speed'],
+};
+
+function normalizeText(message: string) {
+  return message
+    .toLowerCase()
+    .replace(/[,\r\n\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+function parseCategory(message: string) {
+  const normalized = normalizeText(message);
+
+  for (const [alias, category] of Object.entries(CATEGORY_ALIAS)) {
+    if (new RegExp(`\\b${escapeRegExp(alias)}\\b`).test(normalized)) {
+      return category;
+    }
+  }
+
+  return undefined;
+}
+
+function parseFeatures(message: string) {
+  const normalized = normalizeText(message);
+  const features = new Set<string>();
+
+  for (const [feature, aliases] of Object.entries(FEATURE_ALIAS)) {
+    for (const alias of aliases) {
+      if (new RegExp(`\\b${escapeRegExp(alias)}\\b`).test(normalized)) {
+        features.add(feature);
+        break;
+      }
+    }
+  }
+
+  return [...features];
+}
 
 function parsePriceValues(message: string) {
-  const priceRegex = /(?:under|below|less than|maximum|max|up to)\s*(\d{1,6})|(?:above|over|more than|minimum|min)\s*(\d{1,6})|(?:(\d{1,6})\s*(?:taka|tk|bdt))/gi;
+  const normalized = normalizeText(message).replace(/,/g, '');
   const params: { price_min?: number; price_max?: number } = {};
 
-  let match;
-  while ((match = priceRegex.exec(message)) !== null) {
-    const [, upper, lower, explicit] = match;
-
-    if (upper) {
-      params.price_max = Number(upper);
+  const betweenMatch = normalized.match(
+    /(?:between|from)\s*(\d{1,7})\s*(?:taka|tk|bdt)?\s*(?:and|to)\s*(\d{1,7})/,
+  );
+  if (betweenMatch) {
+    params.price_min = Number(betweenMatch[1]);
+    params.price_max = Number(betweenMatch[2]);
+    if (params.price_min && params.price_max && params.price_min > params.price_max) {
+      [params.price_min, params.price_max] = [params.price_max, params.price_min];
     }
+  }
 
-    if (lower) {
-      params.price_min = Number(lower);
-    }
+  const lessThanMatch = normalized.match(
+    /(?:under|below|less than|up to|maximum|max)\s*(\d{1,7})\s*(?:taka|tk|bdt)?/,
+  );
+  if (lessThanMatch) {
+    params.price_max = Number(lessThanMatch[1]);
+  }
 
-    if (explicit) {
-      const value = Number(explicit);
-      if (!params.price_max) {
-        params.price_max = value;
-      }
+  const greaterThanMatch = normalized.match(
+    /(?:above|over|more than|minimum|min)\s*(\d{1,7})\s*(?:taka|tk|bdt)?/,
+  );
+  if (greaterThanMatch) {
+    params.price_min = Number(greaterThanMatch[1]);
+  }
+
+  if (!params.price_min && !params.price_max) {
+    const explicitMatch = normalized.match(/(\d{3,7})\s*(?:taka|tk|bdt)/);
+    if (explicitMatch) {
+      params.price_max = Number(explicitMatch[1]);
     }
   }
 
   return params;
 }
 
-function parseCategory(message: string) {
-  const normalized = message.toLowerCase();
-  return KNOWN_CATEGORIES.find((category) => normalized.includes(category)) ?? null;
-}
-
-function parseFeatures(message: string) {
-  const normalized = message.toLowerCase();
-  return KNOWN_FEATURES.filter((feature) => normalized.includes(feature));
-}
-
 function parseOrderId(message: string) {
-  const match = message.match(/ORD[-_]?[0-9]+/i);
-  return match ? match[0].toUpperCase().replace('_', '-') : null;
+  const match = message.match(/\bORD[-_]?\d+\b/i);
+  return match ? match[0].toUpperCase().replace('_', '-') : undefined;
 }
 
 function composeReply(intent: string, params: AIParams): string {
   switch (intent) {
-    case 'PRODUCT_SEARCH':
-      return `Here are some options based on your request${params.category ? ` for ${params.category}` : ''}${params.price_max ? ` under ${params.price_max} taka` : ''}.`;
+    case 'PRODUCT_SEARCH': {
+      const parts: string[] = [];
+      if (params.category) {
+        parts.push(`category: ${params.category}`);
+      }
+      if (params.features && params.features.length > 0) {
+        parts.push(`features: ${params.features.join(', ')}`);
+      }
+      if (params.price_min || params.price_max) {
+        const priceRange = params.price_min && params.price_max
+          ? `${params.price_min}–${params.price_max} taka`
+          : params.price_max
+          ? `under ${params.price_max} taka`
+          : `above ${params.price_min} taka`;
+        parts.push(priceRange);
+      }
+
+      if (parts.length === 0) {
+        return 'Tell me what kind of product you are looking for, for example a gaming phone under 20k or a laptop with long battery life.';
+      }
+
+      return `Searching for ${parts.join(', ')}.`;
+    }
+
     case 'TRACK_ORDER':
       return params.orderId
-        ? `I found your order ${params.orderId}. Let me show the latest status.`
-        : 'Please provide your order ID so I can track it for you.';
+        ? `Looking up order ${params.orderId}. Here is the latest status.`
+        : 'Please share your order ID (like ORD-4821) so I can look it up.';
+
     case 'REFUND_POLICY':
-      return 'Here is our refund policy and how you can request a refund.';
+      return 'I can help with refund policy details and the refund request process.';
+
     case 'FAQ':
-      return 'I can answer common questions about products, orders, refunds, and support.';
+      return 'I can answer questions about products, orders, refunds, or support. What would you like to know?';
+
     case 'SUPPORT':
-      return 'I am escalating this to our human support team. Someone will reach out soon.';
+      return 'I am escalating this to support. A human team member will follow up shortly.';
+
     default:
-      return 'I am not sure how to help with that yet, but I can search products, track orders, explain refunds, or escalate support.';
+      return 'I am not sure what you need yet. Please tell me if you want to search products, track an order, ask about refunds, or contact support.';
   }
 }
 
 function detectIntent(userMessage: string, context: ChatContext): AIResponse {
-  const normalized = userMessage.toLowerCase();
+  const normalized = normalizeText(userMessage);
   const params: AIParams = {
     category: parseCategory(normalized),
     features: parseFeatures(normalized),
@@ -94,26 +201,45 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
     query: normalized,
   };
 
+  const hasOrderPhrases = /\b(track|where.*order|order status|find my order|order update|shipment|delivered)\b/.test(normalized);
+  const hasRefundPhrases = /\b(refund|return|refund policy|cancel order|wrong item|defective|exchange)\b/.test(normalized);
+  const hasSupportPhrases = /\b(help|support|human|agent|customer service|complaint|issue|problem)\b/.test(normalized);
+  const hasProductPhrases = /\b(show|find|search|looking for|need|recommend|suggest|available|buy|price|budget)\b/.test(normalized);
+
   let intent: AIResponse['intent'] = 'FAQ';
 
-  if (/\b(track|where.*order|order status|find my order)\b/.test(normalized)) {
+  if (params.orderId && !hasRefundPhrases && !hasSupportPhrases) {
     intent = 'TRACK_ORDER';
-  } else if (/\b(refund|return|refund policy|cancel order)\b/.test(normalized)) {
+  } else if (hasOrderPhrases) {
+    intent = 'TRACK_ORDER';
+  } else if (hasRefundPhrases) {
     intent = 'REFUND_POLICY';
-  } else if (/\b(help|support|human|agent|customer service)\b/.test(normalized)) {
+  } else if (hasSupportPhrases && !hasProductPhrases) {
     intent = 'SUPPORT';
-  } else if (params.category || params.price_max || params.price_min || params.features?.length) {
+  } else if (
+    params.category ||
+    params.price_max ||
+    params.price_min ||
+    (params.features?.length ?? 0) ||
+    hasProductPhrases
+  ) {
     intent = 'PRODUCT_SEARCH';
   }
 
-  if (intent === 'PRODUCT_SEARCH' && !params.features?.length) {
-    params.features = [];
+  const mergedParams: AIParams = {
+    ...params,
+    category: params.category ?? (context.category ?? undefined),
+    price_max: params.price_max ?? (context.price_max ?? undefined),
+  };
+
+  if (!mergedParams.features) {
+    mergedParams.features = [];
   }
 
   return {
     intent,
-    params,
-    reply: composeReply(intent, params),
+    params: mergedParams,
+    reply: composeReply(intent, mergedParams),
   };
 }
 
@@ -124,65 +250,96 @@ async function routeIntent(
   switch (aiResponse.intent) {
     case 'PRODUCT_SEARCH': {
       const products = mockSearchProducts(aiResponse.params);
-      return { reply: aiResponse.reply, products };
+      return {
+        reply: aiResponse.reply,
+        products,
+      };
     }
+
     case 'TRACK_ORDER': {
       const orderId = aiResponse.params.orderId ?? context.lastOrderId ?? 'ORD-4821';
       const order = mockGetOrder(orderId);
-      return { reply: aiResponse.reply, order };
+      return {
+        reply: aiResponse.reply,
+        order,
+      };
     }
+
     case 'REFUND_POLICY': {
-      return { reply: aiResponse.reply, policyText: MOCK_POLICY };
+      return {
+        reply: aiResponse.reply,
+        policyText: MOCK_POLICY,
+      };
     }
-    case 'FAQ': {
-      return { reply: aiResponse.reply };
-    }
+
     case 'SUPPORT': {
-      return { reply: aiResponse.reply, isEscalation: true };
+      return {
+        reply: aiResponse.reply,
+        isEscalation: true,
+      };
     }
+
+    case 'FAQ':
     default:
-      return { reply: aiResponse.reply };
+      return {
+        reply: aiResponse.reply,
+      };
   }
 }
 
 export async function POST(request: NextRequest) {
+  let parsedBody;
+
   try {
-    const body = (await request.json()) as ChatAPIRequest;
-    const context: ChatContext = {
-      category: body.context?.category ?? null,
-      price_max: body.context?.price_max ?? null,
-      lastOrderId: body.context?.lastOrderId ?? null,
-      history: Array.isArray(body.context?.history) ? body.context.history : [],
-    };
-
-    const aiResponse = detectIntent(body.message, context);
-    const result = await routeIntent(aiResponse, context);
-
-    const updatedContext: ChatContext = {
-      ...context,
-      category: aiResponse.params.category ?? context.category,
-      price_max: aiResponse.params.price_max ?? context.price_max,
-      lastOrderId: aiResponse.params.orderId ?? context.lastOrderId,
-      history: [
-        ...context.history,
-        { role: 'user', content: body.message },
-        { role: 'assistant', content: aiResponse.reply },
-      ].slice(-20),
-    };
-
-    const responsePayload: ChatAPIResponse = {
-      intent: aiResponse.intent,
-      reply: aiResponse.reply,
-      updatedContext,
-      ...result,
-    };
-
-    return NextResponse.json(responsePayload);
+    const payload = await request.json();
+    parsedBody = requestSchema.safeParse(payload);
   } catch (error) {
-    console.error('/api/chat error:', error);
+    console.error('/api/chat invalid request:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 },
+      { error: 'Invalid JSON payload.' },
+      { status: 400 },
     );
   }
+
+  if (!parsedBody.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed.',
+        issues: parsedBody.error.flatten(),
+      },
+      { status: 400 },
+    );
+  }
+
+  const { message, context: requestContext } = parsedBody.data;
+  const context: ChatContext = {
+    category: requestContext?.category ?? null,
+    price_max: requestContext?.price_max ?? null,
+    lastOrderId: requestContext?.lastOrderId ?? null,
+    history: requestContext?.history ?? [],
+  };
+
+  const aiResponse = detectIntent(message, context);
+  const result = await routeIntent(aiResponse, context);
+
+  const updatedContext: ChatContext = {
+    ...context,
+    category: aiResponse.params.category ?? context.category,
+    price_max: aiResponse.params.price_max ?? context.price_max,
+    lastOrderId: aiResponse.params.orderId ?? context.lastOrderId,
+    history: [
+      ...context.history,
+      { role: 'user' as const, content: message },
+      { role: 'assistant' as const, content: aiResponse.reply },
+    ].slice(-20),
+  };
+
+  const responsePayload: ChatAPIResponse = {
+    intent: aiResponse.intent,
+    reply: aiResponse.reply,
+    updatedContext,
+    ...result,
+  };
+
+  return NextResponse.json(responsePayload);
 }
