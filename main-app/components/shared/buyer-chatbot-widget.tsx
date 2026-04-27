@@ -8,6 +8,7 @@ import type {
   ChatAPIRequest,
   ChatAPIResponse,
   ChatContext,
+  ChatMessage,
   UIMessage,
 } from '@/lib/chatbot/types';
 import { createClient } from '@/lib/supabase/client';
@@ -44,9 +45,9 @@ function createFallbackContext(previousContext: ChatContext, message: string): C
     ...previousContext,
     history: [
       ...previousContext.history,
-      { role: 'user', content: message },
-      { role: 'assistant', content: FALLBACK_REPLY },
-    ].slice(-20),
+      { role: 'user' as const, content: message },
+      { role: 'assistant' as const, content: FALLBACK_REPLY },
+    ] as ChatMessage[],
   };
 }
 
