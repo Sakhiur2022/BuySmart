@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  RefundDecisionAdapterError,
-  RefundDecisionAdapterService,
-} from '@/lib/services/refund-decision-adapter.service';
+import { RefundDecisionAdapterService } from '@/lib/services/refund-decision-adapter.service';
 import type { RefundDecisionInput } from '@/lib/agents/refund/types';
 
 function buildInput(): RefundDecisionInput {
@@ -74,7 +71,7 @@ describe('RefundDecisionAdapterService', () => {
           createdAt: 'invalid-date',
         },
       } as never),
-    ).rejects.toMatchObject<Partial<RefundDecisionAdapterError>>({
+    ).rejects.toMatchObject({
       code: 'REFUND_AI_INPUT_INVALID',
     });
   });
@@ -95,9 +92,7 @@ describe('RefundDecisionAdapterService', () => {
 
     const service = new RefundDecisionAdapterService(orchestrator as never);
 
-    await expect(service.getRefundRecommendation(buildInput())).rejects.toMatchObject<
-      Partial<RefundDecisionAdapterError>
-    >({
+    await expect(service.getRefundRecommendation(buildInput())).rejects.toMatchObject({
       code: 'REFUND_AI_OUTPUT_INVALID',
     });
   });
