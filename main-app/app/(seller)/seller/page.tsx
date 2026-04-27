@@ -18,12 +18,23 @@ import { formatCurrency } from '@/lib/utils';
 type RecentOrderItem = {
   order_item_id: string;
   order_id: string;
+  product_id?: string | null;
+  product_snapshot?: unknown;
   total_price: number;
   status: string;
   created_at: string;
-  products?: Array<{ name: string; images?: unknown }> | null;
-  users_profile?: Array<{ full_name: string | null; display_name: string | null }> | null;
-  order_number?: string;
+  orders?:
+    | {
+        order_number?: string | null;
+        buyer_id?: string | null;
+        shipping_address?: unknown;
+      }
+    | Array<{
+        order_number?: string | null;
+        buyer_id?: string | null;
+        shipping_address?: unknown;
+      }>
+    | null;
 };
 
 const STAT_DELTAS = {
@@ -71,8 +82,58 @@ function getSearchValue(value: string | string[] | undefined): string | null {
 
 function resolveCustomerName(
   profile: { full_name: string | null; display_name: string | null } | null,
+  shippingAddress?: unknown,
 ) {
-  return profile?.display_name || profile?.full_name || 'Customer';
+  if (profile?.display_name) {
+    return profile.display_name;
+  }
+
+  if (profile?.full_name) {
+    return profile.full_name;
+  }
+
+  if (shippingAddress && typeof shippingAddress === 'object') {
+    const address = shippingAddress as { full_name?: unknown };
+    if (typeof address.full_name === 'string' && address.full_name.trim().length > 0) {
+      return address.full_name;
+    }
+  }
+
+  return 'Customer';
+}
+
+function resolveOrderMeta<
+  T extends {
+    order_number?: string | null;
+    buyer_id?: string | null;
+    shipping_address?: unknown;
+  },
+>(
+  orderMeta: T | T[] | null | undefined,
+) {
+  return Array.isArray(orderMeta) ? (orderMeta[0] ?? null) : (orderMeta ?? null);
+}
+
+function resolveProductName(
+  productId: string | null | undefined,
+  productSnapshot: unknown,
+  productNames: Map<string, string>,
+) {
+  if (productId) {
+    const productName = productNames.get(productId);
+    if (productName) {
+      return productName;
+    }
+  }
+
+  if (productSnapshot && typeof productSnapshot === 'object') {
+    const snapshot = productSnapshot as { name?: unknown };
+    if (typeof snapshot.name === 'string' && snapshot.name.length > 0) {
+      return snapshot.name;
+    }
+  }
+
+  return 'Product unavailable';
 }
 
 export default async function SellerPage({ searchParams }: SellerPageProps) {
@@ -136,7 +197,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
   const { data: recentOrderItemsData } = await supabase
     .from('order_items')
     .select(
-      'order_item_id, order_id, total_price, status, created_at, products(name, images), orders(order_number, created_at, users_profile(full_name, display_name))',
+      'order_item_id, order_id, product_id, product_snapshot, total_price, status, created_at, orders:orders!order_items_order_id_fkey(order_number, buyer_id, shipping_address)',
     )
     .eq('seller_id', user.id)
     .order('created_at', { ascending: false })
@@ -145,7 +206,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
   const { data: deliveryQueueData } = await supabase
     .from('order_items')
     .select(
-      'order_item_id, order_id, status, created_at, products(name), orders(order_number, users_profile(full_name, display_name))',
+      'order_item_id, order_id, product_id, product_snapshot, status, created_at, orders:orders!order_items_order_id_fkey(order_number, buyer_id, shipping_address)',
     )
     .eq('seller_id', user.id)
     .in('status', ['pending', 'confirmed', 'shipped'])
@@ -171,19 +232,31 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
   const products = productsData ?? [];
   const orderItems = orderItemsData ?? [];
   const recentOrders = recentOrderItemsData ?? [];
+  const productNames = new Map(products.map((product) => [product.product_id, product.name]));
+  const buyerIds = Array.from(
+    new Set(
+      [...recentOrders, ...(deliveryQueueData ?? [])]
+        .map((item) => resolveOrderMeta(item.orders)?.buyer_id ?? null)
+        .filter((buyerId): buyerId is string => Boolean(buyerId)),
+    ),
+  );
+  const { data: buyerProfilesData } =
+    buyerIds.length > 0
+      ? await supabase
+          .from('users_profile')
+          .select('user_id, full_name, display_name')
+          .in('user_id', buyerIds)
+      : { data: [] as Array<{ user_id: string; full_name: string | null; display_name: string | null }> };
+  const buyerProfiles = new Map(
+    (buyerProfilesData ?? []).map((profile) => [
+      profile.user_id,
+      { full_name: profile.full_name, display_name: profile.display_name },
+    ]),
+  );
   const deliveryQueueItems: DeliveryQueueItem[] = (deliveryQueueData ?? []).map((item) => {
-    const productName = item.products?.[0]?.name ?? 'Product';
-    const orderMeta = (item as { orders?: { order_number?: string; users_profile?: unknown } })
-      .orders;
-    const profile =
-      (
-        orderMeta?.users_profile as
-          | Array<{ full_name: string | null; display_name: string | null }>
-          | undefined
-      )?.[0] ??
-      (item as { users_profile?: Array<{ full_name: string | null; display_name: string | null }> })
-        .users_profile?.[0] ??
-      null;
+    const productName = resolveProductName(item.product_id, item.product_snapshot, productNames);
+    const orderMeta = resolveOrderMeta(item.orders);
+    const profile = (orderMeta?.buyer_id ? buyerProfiles.get(orderMeta.buyer_id) : null) ?? null;
     const orderNumber = orderMeta?.order_number ?? item.order_id;
 
     return {
@@ -191,7 +264,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
       orderId: item.order_id,
       orderNumber,
       productName,
-      customerName: resolveCustomerName(profile),
+      customerName: resolveCustomerName(profile, orderMeta?.shipping_address),
       status: String(item.status ?? 'processing'),
       createdAt: item.created_at,
     };
@@ -446,15 +519,23 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
                   </thead>
                   <tbody>
                     {recentOrders.map((order: RecentOrderItem) => {
-                      const profile = order.users_profile?.[0] ?? null;
-                      const orderNumber = order.order_number ?? order.order_id;
+                      const orderMeta = resolveOrderMeta(order.orders);
+                      const profile = (orderMeta?.buyer_id ? buyerProfiles.get(orderMeta.buyer_id) : null) ?? null;
+                      const orderNumber = orderMeta?.order_number ?? order.order_id;
                       const createdAt = order.created_at;
+                      const productName = resolveProductName(
+                        order.product_id,
+                        order.product_snapshot,
+                        productNames,
+                      );
 
                       return (
                         <tr key={order.order_item_id} className="border-b last:border-b-0">
                           <td className="px-3 py-4 font-medium text-foreground">{orderNumber}</td>
-                          <td className="px-3 py-4">{resolveCustomerName(profile)}</td>
-                          <td className="px-3 py-4">{order.products?.[0]?.name ?? 'Product'}</td>
+                          <td className="px-3 py-4">
+                            {resolveCustomerName(profile, orderMeta?.shipping_address)}
+                          </td>
+                          <td className="px-3 py-4">{productName}</td>
                           <td className="px-3 py-4">{formatCurrency(order.total_price)}</td>
                           <td className="px-3 py-4">
                             <Badge className="border-amber-200 bg-amber-100 text-amber-700">
