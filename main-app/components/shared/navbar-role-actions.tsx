@@ -17,6 +17,9 @@ export function NavbarRoleActions({ role }: NavbarRoleActionsProps) {
   const buyerModeParam = searchParams?.get('mode');
   const isBuyerMode = buyerModeParam === 'buyer' || buyerModeParam === '1' || buyerModeParam === 'true';
   const isBuyerRoute = pathname.startsWith('/buyer');
+  const isBuyerDashboardRoute = pathname.startsWith('/buyer/dashboard');
+  const isBuyerOrdersRoute = pathname.startsWith('/buyer/orders');
+  const isBuyerCartRoute = pathname.startsWith('/buyer/cart');
   const isSellerRoute = pathname.startsWith('/seller');
   const isBuyerContext = isBuyerRoute || isBuyerMode;
 
@@ -58,23 +61,27 @@ export function NavbarRoleActions({ role }: NavbarRoleActionsProps) {
 
       {showBuyerActions ? (
         <>
-          <CartNavButton />
-          <Link
-            href="/buyer/dashboard"
-            className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-50"
-            title="Open buyer dashboard"
-            aria-label="Open buyer dashboard"
-          >
-            <BarChart3 className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/buyer/orders"
-            className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-50"
-            title="View orders"
-            aria-label="View orders"
-          >
-            <ClipboardList className="h-4 w-4" />
-          </Link>
+          {!isBuyerCartRoute ? <CartNavButton /> : null}
+          {!isBuyerDashboardRoute ? (
+            <Link
+              href="/buyer/dashboard"
+              className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-50"
+              title="Open buyer dashboard"
+              aria-label="Open buyer dashboard"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Link>
+          ) : null}
+          {!isBuyerOrdersRoute ? (
+            <Link
+              href="/buyer/orders"
+              className="inline-flex items-center text-rose-700 transition-colors hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-300 dark:text-pink-100 dark:hover:text-pink-50"
+              title="View orders"
+              aria-label="View orders"
+            >
+              <ClipboardList className="h-4 w-4" />
+            </Link>
+          ) : null}
         </>
       ) : null}
     </div>
