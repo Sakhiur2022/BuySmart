@@ -26,6 +26,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  RefundEmptyState,
+  RefundErrorState,
+  RefundLoadingState,
+  NoResultsForFilter,
+} from "@/components/orders/refund-state-cards";
 import { formatCurrency } from "@/lib/utils";
 import type { RefundAIDecision, RefundStatus } from "@/lib/models/refund.model";
 import type {
@@ -559,20 +565,43 @@ export default function AdminRefundQueue() {
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                Loading refund requests...
+              <TableCell colSpan={6} className="py-16 text-center">
+                <RefundLoadingState
+                  message="Loading refund requests..."
+                  variant="inline"
+                />
               </TableCell>
             </TableRow>
           ) : error ? (
             <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-destructive">
-                {error}
+              <TableCell colSpan={6} className="py-8 text-center">
+                <RefundErrorState
+                  title="Failed to load refund queue"
+                  message={error}
+                  actionText="Try again"
+                  onAction={() => loadRefunds()}
+                  details="If this issue persists, please contact support."
+                />
               </TableCell>
             </TableRow>
           ) : items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                No refund requests found for the selected filter.
+              <TableCell colSpan={6} className="py-16 text-center">
+                {statusFilter !== "all" ? (
+                  <NoResultsForFilter
+                    message={`No refunds with "${statusFilter}" status`}
+                    suggestion="Try selecting a different status or clear the filter to see all refunds."
+                    onClearFilters={() =>
+                      updateParams({ status: null, page: "1" })
+                    }
+                  />
+                ) : (
+                  <RefundEmptyState
+                    title="Refund queue is empty"
+                    description="No refund requests to review at this time. Check back soon!"
+                    variant="admin"
+                  />
+                )}
               </TableCell>
             </TableRow>
           ) : (
