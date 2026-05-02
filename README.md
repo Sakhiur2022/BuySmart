@@ -13,6 +13,7 @@ Built using agile development methodology over 6 weeks (3 sprints), the platform
 ## Key Features
 
 ### Core E-Commerce Functionality
+
 - User authentication with email/password and federated login (Google, Facebook)
 - Product catalog with search, filtering, and category management
 - Shopping cart and checkout system
@@ -21,12 +22,14 @@ Built using agile development methodology over 6 weeks (3 sprints), the platform
 - Buyer dashboard with order history
 
 ### AI-Powered Enhancements
+
 - **Smart Product Recommendations:** Personalized suggestions based on user preferences and browsing history
 - **Feedback Sentiment Analysis:** Automated analysis of customer reviews for quality insights
 - **Refund Decision Support:** AI-assisted refund eligibility evaluation with human-in-the-loop approval
 - **Customer Support Chatbot:** Multi-agent orchestration for FAQ handling and issue escalation
 
 ### Administration & Transparency
+
 - Admin dashboard with user and refund management
 - Comprehensive activity logging and audit trails
 - AI action approval workflow for sensitive operations
@@ -35,61 +38,73 @@ Built using agile development methodology over 6 weeks (3 sprints), the platform
 ## Tech Stack
 
 ### Frontend
+
 - Next.js 14
 - React 18
 - Tailwind CSS
 - shadcn/ui
 
 ### Backend & Database
+
 - Supabase (Edge Functions, RLS policies)
 - PostgreSQL (Supabase)
 - Supabase Auth
 - Supabase Storage & Realtime
 
 ### AI & Integration
+
 - LangChain (Python/TypeScript)
 - TanStack Query
 - React Context (state management)
 
 ### Development & Testing
+
 - ESLint, Prettier, Husky
 - Jest/Vitest (frontend tests)
 - Playwright (E2E tests)
 
 ### Deployment
+
 - Vercel (frontend)
 - Supabase (backend + database)
 
 ## Architecture Overview
 
 ### System Flow
+
 - Frontend communicates with Supabase via client APIs for authentication, data queries, and real-time updates
 - Edge Functions handle complex business logic for orders, refunds, and AI integrations
 - Row Level Security (RLS) policies enforce role-based access control for buyers, sellers, and admins
 - Database triggers maintain comprehensive activity logs for audit and transparency
 
 ### Data Layer
+
 Core entities: `users`, `products`, `orders`, `order_items`, `feedback`, `refund_requests`, `activity_logs`, `ai_agent_logs`, `chat_messages`
 
 ### AI Integration
+
 - LangChain agents generate recommendations, sentiment analysis, refund assistance, and chatbot responses
 - Human-in-the-loop workflow stores AI actions as pending until admin approval
 - All AI decisions logged in `ai_agent_logs` for transparency and audit
 
 ### Search & Notifications
-- Full-text search using Supabase PostgreSQL capabilities  
+
+- Full-text search using Supabase PostgreSQL capabilities
 - In-app and email notifications via Supabase triggers
 - Real-time dashboard updates using Supabase Realtime
 
 ## Setup & Installation
 
 ### Prerequisites
+
 - Node.js (LTS version)
 - Supabase account and project
 - Vercel account (for deployment)
 
 ### Environment Variables
+
 Create a `.env.local` file with the following variables:
+
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -104,12 +119,14 @@ AI_AGENT_MODEL=your_preferred_model
 ```
 
 ### Local Development
+
 1. Clone the repository
 2. Install dependencies: `npm install` or `pnpm install`
 3. Configure environment variables in `.env.local`
 4. Start development server: `npm run dev`
 
 ### Database Setup
+
 1. Create a new Supabase project
 2. Apply database schema for all core tables
 3. Configure RLS policies for role-based access
@@ -119,18 +136,22 @@ AI_AGENT_MODEL=your_preferred_model
 ## Available Commands
 
 ### Development
+
 - `npm run dev` - Start development server
 - `pnpm dev` - Alternative with pnpm
 
 ### Build & Deploy
+
 - `npm run build` - Production build
 - `pnpm build` - Alternative with pnpm
 
 ### Testing
+
 - `npm run test` - Run unit tests (Jest/Vitest)
 - `npx playwright test` - Run E2E tests
 
 ### Code Quality
+
 - `npm run lint` - Run ESLint
 - `npm run format` - Run Prettier
 
@@ -146,9 +167,15 @@ Each sprint delivers working software increments with continuous integration, te
 
 ## Demo / Screenshots
 
-*Screenshots and demo videos will be added here showcasing key user journeys:*
+_Screenshots and demo videos showcasing key user journeys:_
+
+### Video Demo
+
+[![BuySmart Platform Demo](https://img.youtube.com/vi/1Y7PBGhYrHY/0.jpg)](https://youtu.be/1Y7PBGhYrHY)
+
+**Watch the full platform demo:** [BuySmart in Action](https://youtu.be/1Y7PBGhYrHY)
 - User registration and authentication flow
-- Product browsing and AI-powered recommendations  
+- Product browsing and AI-powered recommendations
 - Complete purchase workflow from cart to confirmation
 - Seller dashboard and product management
 - Admin interface with AI action approvals
