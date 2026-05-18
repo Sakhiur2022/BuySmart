@@ -246,6 +246,30 @@
   animation-delay: 8s;
 }
 
+.chatbot-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(350, 84%, 60%) hsl(350, 60%, 92%);
+}
+
+.chatbot-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chatbot-scrollbar::-webkit-scrollbar-track {
+  background: hsl(350, 60%, 92%);
+  border-radius: 999px;
+}
+
+.chatbot-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, hsl(350, 84%, 70%), hsl(350, 84%, 55%));
+  border-radius: 999px;
+  border: 2px solid hsl(350, 60%, 92%);
+}
+
+.chatbot-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, hsl(350, 84%, 65%), hsl(350, 84%, 50%));
+}
+
 @keyframes hero-slideshow {
   0% {
     opacity: 0;
