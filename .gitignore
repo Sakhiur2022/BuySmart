@@ -50,4 +50,5 @@ planning
 /main-app/lib/supabase/.temp
 
 /main-app/.github 
+.venv
 
