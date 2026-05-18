@@ -1,12 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { SellerUpgradeCta } from '@/components/shared/seller-upgrade-cta';
 import { ThemeSwitcher } from '@/components/shared/theme-switcher';
 import type { ProductCandidate } from '@/lib/agents/recommendation/types';
 import { hasEnvVars } from '@/lib/utils';
+import {
+  fadeUpReducedVariants,
+  fadeUpVariants,
+  springScaleReducedVariants,
+  springScaleVariants,
+  staggerContainerReducedVariants,
+  staggerContainerVariants,
+} from '@/lib/animations';
 
 const TOP_CATEGORIES = ['Electronics', 'Fashion', 'Home & Living', 'Kitchen', 'Footwear'];
 
@@ -55,6 +64,7 @@ type PublicProductsApiResponse = {
 };
 
 export default function Home() {
+  const shouldReduceMotion = useReducedMotion();
   const [userId, setUserId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   // Removed candidates state as it is unused
@@ -64,16 +74,20 @@ export default function Home() {
   const [productRatings, setProductRatings] = useState<Record<string, number>>({});
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [shouldShowSellerCTA, setShouldShowSellerCTA] = useState(false);
+  const fadeUp = shouldReduceMotion ? fadeUpReducedVariants : fadeUpVariants;
+  const stagger = shouldReduceMotion ? staggerContainerReducedVariants : staggerContainerVariants;
+  const scaleUp = shouldReduceMotion ? springScaleReducedVariants : springScaleVariants;
 
   // Use up to 3 latest products with images for the hero slideshow
   const heroSlides = latestProducts
-    .filter((p) => p.image)
+    .filter((p): p is HomeProduct & { image: string } => typeof p.image === 'string')
     .slice(0, 3)
     .map((p) => ({
       id: p.id,
       title: p.title,
       image: p.image,
     }));
+  const hasHeroSlides = heroSlides.length > 0;
 
   // Dummy price formatter
   const priceFormatter = new Intl.NumberFormat('en-US', {
@@ -92,7 +106,10 @@ export default function Home() {
         if (profileResponse.ok) {
           const contentType = profileResponse.headers.get('content-type') ?? '';
           if (contentType.includes('application/json')) {
-            const profile = (await profileResponse.json()) as { userId: string; role: string | null };
+            const profile = (await profileResponse.json()) as {
+              userId: string;
+              role: string | null;
+            };
             setUserId(profile.userId);
             setUserRole(profile.role ?? null);
             setIsAuthenticated(true);
@@ -124,8 +141,7 @@ export default function Home() {
           throw new Error(`Home products API failed with status ${homeProductsResponse.status}`);
         }
 
-        const homeProductsPayload =
-          (await homeProductsResponse.json()) as HomeProductsApiResponse;
+        const homeProductsPayload = (await homeProductsResponse.json()) as HomeProductsApiResponse;
         mapped = Array.isArray(homeProductsPayload.products) ? homeProductsPayload.products : [];
       } catch (error) {
         console.error('Failed to load active products for home page rails:', error);
@@ -228,12 +244,29 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen w-full bg-background">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-2 pb-10 pt-6">
+    <main className="relative min-h-screen w-full bg-background">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-32 top-0 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(230,57,70,0.25),transparent_70%)]" />
+        <div className="absolute -right-24 top-40 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(30,144,255,0.22),transparent_70%)]" />
+        <div className="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(255,205,86,0.2),transparent_70%)]" />
+      </div>
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-10 px-2 pb-10 pt-6">
         {/* Hero Section */}
-        <section className="flex flex-col gap-8 rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl shadow-primary/10 md:flex-row md:items-center md:gap-12">
-          <div className="relative z-10 flex flex-1 flex-col gap-6">
-            <div className="flex flex-wrap gap-3">
+        <motion.section
+          className="flex flex-col gap-8 rounded-3xl border border-white/10 bg-white/80 p-6 shadow-xl shadow-primary/10 md:flex-row md:items-center md:gap-12"
+          variants={scaleUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+        >
+          <motion.div
+            className="relative z-10 flex flex-1 flex-col gap-6"
+            variants={stagger}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+          >
+            <motion.div className="flex flex-wrap gap-3" variants={fadeUp}>
               {TOP_CATEGORIES.map((category) => (
                 <Link
                   key={category}
@@ -243,8 +276,17 @@ export default function Home() {
                   {category}
                 </Link>
               ))}
-            </div>
-            <div className="flex flex-wrap gap-4">
+            </motion.div>
+            <motion.div className="space-y-3" variants={fadeUp}>
+              <h1 className="text-3xl font-semibold text-foreground sm:text-4xl">
+                Discover fresh finds built for real life.
+              </h1>
+              <p className="text-sm text-muted-foreground sm:text-base">
+                Curated drops, trusted sellers, and deals that feel personal. Shop the categories
+                people keep coming back for.
+              </p>
+            </motion.div>
+            <motion.div className="flex flex-wrap gap-4" variants={fadeUp}>
               <Link
                 href="#new-arrivals"
                 className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition hover:translate-y-0.5"
@@ -257,9 +299,26 @@ export default function Home() {
               >
                 Browse all products
               </Link>
-            </div>
+            </motion.div>
+            <motion.div
+              className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground"
+              variants={fadeUp}
+            >
+              <span className="rounded-full border border-white/20 bg-white/70 px-3 py-2">
+                Free delivery over ৳799
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/70 px-3 py-2">
+                Verified sellers
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/70 px-3 py-2">
+                3-day easy returns
+              </span>
+            </motion.div>
             {shouldShowSellerCTA ? (
-              <div className="relative z-10 rounded-2xl border border-white/20 bg-white/70 p-4 text-sm text-muted-foreground">
+              <motion.div
+                className="relative z-10 rounded-2xl border border-white/20 bg-white/70 p-4 text-sm text-muted-foreground"
+                variants={fadeUp}
+              >
                 <span className="font-semibold text-foreground">Want to sell on BuySmart?</span>{' '}
                 <SellerUpgradeCta
                   isAuthenticated={isAuthenticated}
@@ -270,17 +329,23 @@ export default function Home() {
                 >
                   Sign up as a seller
                 </SellerUpgradeCta>
-              </div>
+              </motion.div>
             ) : null}
-          </div>
-          <div className="relative z-0 flex flex-1 flex-col gap-6">
+          </motion.div>
+          <motion.div
+            className="relative z-0 flex flex-1 flex-col gap-6"
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+          >
             <div className="hero-slideshow relative h-72 overflow-hidden rounded-3xl border border-white/10 bg-background/80 shadow-xl shadow-primary/10">
-              {heroSlides.map((slide, index) => (
-                <div
-                  key={slide.id}
-                  className={`hero-slide hero-slide--${index + 1} absolute inset-0`}
-                >
-                  {slide.image ? (
+              {hasHeroSlides ? (
+                heroSlides.map((slide, index) => (
+                  <div
+                    key={slide.id}
+                    className={`hero-slide hero-slide--${index + 1} absolute inset-0`}
+                  >
                     <Image
                       src={slide.image}
                       alt={slide.title}
@@ -289,41 +354,62 @@ export default function Home() {
                       sizes="(max-width: 768px) 100vw, 50vw"
                       priority={index === 0}
                     />
-                  ) : (
-                    <div className="h-full w-full bg-[linear-gradient(135deg,rgba(230,57,70,0.3),rgba(255,255,255,0.7))]" />
-                  )}
-                  <div className="absolute inset-0 bg-linear-to-t from-black/50 via-black/5 to-transparent" />
-                  <div className="absolute bottom-4 left-4 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
-                    {slide.title}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/50 via-black/5 to-transparent" />
+                    <div className="absolute bottom-4 left-4 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
+                      {slide.title}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="absolute inset-0 flex items-end justify-start bg-[linear-gradient(135deg,rgba(230,57,70,0.3),rgba(255,255,255,0.8))]">
+                  <div className="m-4 rounded-2xl bg-white/90 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
+                    Fresh drops incoming
                   </div>
                 </div>
-              ))}
+              )}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/70 p-4">
+              <motion.div
+                className="rounded-2xl border border-white/10 bg-white/70 p-4"
+                variants={fadeUp}
+              >
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
                   Best sellers
                 </p>
                 <p className="mt-2 text-lg font-semibold text-foreground">Top-rated essentials</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/70 p-4">
+              </motion.div>
+              <motion.div
+                className="rounded-2xl border border-white/10 bg-white/70 p-4"
+                variants={fadeUp}
+              >
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
                   Trending now
                 </p>
                 <p className="mt-2 text-lg font-semibold text-foreground">Most wishlisted</p>
-              </div>
+              </motion.div>
             </div>
-          </div>
-        </section>
+          </motion.div>
+        </motion.section>
         {/* Product Rails */}
         {[
-          { id: 'best-sellers', title: 'Best seller', items: bestSellerProducts },
+          { id: 'best-sellers', title: 'Best sellers', items: bestSellerProducts },
           { id: 'trending', title: 'Trending', items: trendingProducts },
-          { id: 'new-arrivals', title: 'New arrival', items: latestProducts },
+          { id: 'new-arrivals', title: 'New arrivals', items: latestProducts },
         ].map((rail) => (
-          <section key={rail.id} id={rail.id} className="w-full px-6 py-20">
+          <motion.section
+            key={rail.id}
+            id={rail.id}
+            className="w-full px-6 py-20"
+            variants={stagger}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+          >
             <div className="mx-auto flex max-w-6xl flex-col gap-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
+              <motion.div
+                className="flex flex-wrap items-center justify-between gap-4"
+                variants={fadeUp}
+              >
                 <div>
                   <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-foreground">
                     {rail.title}
@@ -335,15 +421,16 @@ export default function Home() {
                 >
                   Shop all
                 </Link>
-              </div>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              </motion.div>
+              <motion.div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3" variants={stagger}>
                 {(rail.items.length > 0 ? rail.items : latestProducts).map((product) => {
                   const rating = productRatings[product.id] ?? 0;
                   const productHref = `/buyer/products/${product.id}`;
                   return (
-                    <div
+                    <motion.div
                       key={`${rail.id}-${product.id}`}
                       className="group overflow-hidden rounded-3xl border border-white/10 bg-card/80 shadow-lg shadow-primary/5"
+                      variants={fadeUp}
                     >
                       <Link
                         href={productHref}
@@ -391,12 +478,12 @@ export default function Home() {
                           <span>Top rated</span>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
-              </div>
+              </motion.div>
             </div>
-          </section>
+          </motion.section>
         ))}
         {/* Footer */}
         <footer className="border-t border-white/10 bg-background/80 px-6 py-10">
