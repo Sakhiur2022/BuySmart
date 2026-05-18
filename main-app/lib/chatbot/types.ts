@@ -1,9 +1,4 @@
-export type IntentType =
-  | "PRODUCT_SEARCH"
-  | "TRACK_ORDER"
-  | "REFUND_POLICY"
-  | "FAQ"
-  | "SUPPORT";
+export type IntentType = 'PRODUCT_SEARCH' | 'TRACK_ORDER' | 'REFUND_POLICY' | 'FAQ' | 'SUPPORT';
 
 export interface AIParams {
   category?: string;
@@ -41,13 +36,13 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
   created_at: string;
   items: OrderItem[];
   buyer_id: string;
 }
 
-export type MessageRole = "user" | "assistant";
+export type MessageRole = 'user' | 'assistant';
 
 export interface ChatMessage {
   role: MessageRole;
@@ -58,6 +53,7 @@ export interface UIMessage {
   id: string;
   role: MessageRole;
   text: string;
+  createdAt?: number;
   products?: Product[];
   order?: Order;
   policyText?: string;
