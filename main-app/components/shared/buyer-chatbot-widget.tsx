@@ -13,6 +13,7 @@ import type {
   ChatMessage,
   UIMessage,
 } from '@/lib/chatbot/types';
+import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
 import { createClient } from '@/lib/supabase/client';
 import {
   CHATBOT_AUTH_MARKER_STORAGE_KEY,
@@ -39,8 +40,63 @@ const GREETING_MESSAGE: UIMessage = {
 const FALLBACK_REPLY =
   "I couldn't reach the BuySmart assistant just now. Please try again in a moment, and if this keeps happening we can connect you with support.";
 
+const RECOMMENDATION_TOAST_DELAY_MS = 1800;
+
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+type ToastVariant = 'success' | 'error' | 'info';
+
+type Toast = {
+  id: string;
+  message: string;
+  variant: ToastVariant;
+  actionLabel?: string;
+  onAction?: () => void;
+};
+
+function ToastList({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
+  if (!toasts.length) {
+    return null;
+  }
+
+  return (
+    <div className="pointer-events-auto fixed bottom-4 left-4 z-50 flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3 sm:w-80">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`rounded-xl border bg-white px-4 py-3 text-sm shadow-xl ring-1 ring-black/5 ${
+            toast.variant === 'success'
+              ? 'border-emerald-100 text-emerald-900'
+              : toast.variant === 'error'
+                ? 'border-rose-100 text-rose-900'
+                : 'border-slate-100 text-slate-900'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span>{toast.message}</span>
+            <button
+              type="button"
+              onClick={() => onDismiss(toast.id)}
+              className="text-xs font-semibold text-slate-500 transition hover:text-slate-700"
+            >
+              Dismiss
+            </button>
+          </div>
+          {toast.actionLabel && toast.onAction ? (
+            <button
+              type="button"
+              onClick={() => toast.onAction?.()}
+              className="mt-2 inline-flex items-center justify-center rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+            >
+              {toast.actionLabel}
+            </button>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function createFallbackContext(previousContext: ChatContext, message: string): ChatContext {
@@ -157,6 +213,8 @@ export default function BuyerChatbotWidget() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toolStatus = useChatToolStatus();
 
   const isHiddenRoute =
     pathname.startsWith('/auth') ||
@@ -175,6 +233,33 @@ export default function BuyerChatbotWidget() {
   const positionClassName = shouldLiftWidget
     ? 'bottom-28 right-4 md:bottom-10 md:right-8'
     : 'bottom-20 right-4 md:bottom-8 md:right-6';
+
+  function addToast(toast: Omit<Toast, 'id'> & { durationMs?: number }) {
+    const id = createMessageId('toast');
+    const durationMs = toast.durationMs ?? 5000;
+    setToasts((prev) => [
+      ...prev,
+      {
+        id,
+        message: toast.message,
+        variant: toast.variant,
+        actionLabel: toast.actionLabel,
+        onAction: toast.onAction,
+      },
+    ]);
+
+    if (durationMs > 0) {
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((item) => item.id !== id));
+      }, durationMs);
+    }
+
+    return id;
+  }
+
+  function dismissToast(id: string) {
+    setToasts((prev) => prev.filter((item) => item.id !== id));
+  }
 
   const panelVariants: Variants = shouldReduceMotion
     ? {
@@ -401,8 +486,27 @@ export default function BuyerChatbotWidget() {
     setErrorMessage(null);
     setLastFailedMessage(null);
     setIsSending(true);
+    toolStatus.updateStatus('resolving_intent');
+
+    const normalizedMessage = message.toLowerCase();
+    const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
+      normalizedMessage,
+    );
+    let recommendationToastId: string | null = null;
+    let recommendationToastTimer: number | null = null;
+
+    if (shouldShowRecommendationToast) {
+      recommendationToastTimer = window.setTimeout(() => {
+        recommendationToastId = addToast({
+          message: 'Still fetching recommendations...',
+          variant: 'info',
+          durationMs: 4000,
+        });
+      }, RECOMMENDATION_TOAST_DELAY_MS);
+    }
 
     try {
+      toolStatus.updateStatus('invoking_tool');
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -411,6 +515,7 @@ export default function BuyerChatbotWidget() {
         body: JSON.stringify(requestPayload),
       });
 
+      toolStatus.updateStatus('awaiting_result');
       const body = (await response.json().catch(() => null)) as
         | ChatAPIResponse
         | { error?: string }
@@ -430,6 +535,23 @@ export default function BuyerChatbotWidget() {
 
       setMessages((currentMessages) => [...currentMessages, buildAssistantMessage(body)]);
       setChatContext(body.updatedContext);
+      toolStatus.updateStatus('completed');
+
+      if (recommendationToastTimer) {
+        window.clearTimeout(recommendationToastTimer);
+      }
+      if (recommendationToastId) {
+        dismissToast(recommendationToastId);
+      }
+
+      const possibleRefund = body as { refundReferenceId?: string };
+      if (possibleRefund.refundReferenceId) {
+        addToast({
+          message: `Refund submitted. Reference ID: ${possibleRefund.refundReferenceId}`,
+          variant: 'success',
+          durationMs: 7000,
+        });
+      }
     } catch (error) {
       const nextContext = createFallbackContext(chatContext, message);
       setMessages((currentMessages) => [
@@ -443,9 +565,23 @@ export default function BuyerChatbotWidget() {
         },
       ]);
       setChatContext(nextContext);
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to send message.');
+      const errorText = error instanceof Error ? error.message : 'Unable to send message.';
+      setErrorMessage(errorText);
       setLastFailedMessage(message);
+      toolStatus.fail(errorText);
+      addToast({
+        message: 'The assistant could not complete that request. Try again?',
+        variant: 'error',
+        actionLabel: 'Retry',
+        onAction: () => {
+          void handleSend(message);
+        },
+        durationMs: 8000,
+      });
     } finally {
+      if (recommendationToastTimer) {
+        window.clearTimeout(recommendationToastTimer);
+      }
       setIsSending(false);
     }
   }
@@ -458,8 +594,9 @@ export default function BuyerChatbotWidget() {
     <div
       className={`pointer-events-none fixed ${positionClassName} z-30 flex flex-col items-end gap-3 font-sans`}
     >
+      <ToastList toasts={toasts} onDismiss={dismissToast} />
       <motion.div
-        className={`w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-2xl ring-1 ring-black/5 sm:w-80 md:w-[19rem] ${
+        className={`w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-2xl ring-1 ring-black/5 sm:w-80 md:w-76 ${
           isOpen ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
         aria-hidden={!isOpen}
