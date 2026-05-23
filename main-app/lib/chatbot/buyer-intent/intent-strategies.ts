@@ -46,7 +46,8 @@ export class RefundIntentStrategy implements IntentResolutionStrategy<RefundRequ
       };
     }
 
-    const payload = { ...parsed.value.payload };
+    const intent = parsed.value as RefundRequestIntent;
+    const payload = { ...intent.payload };
     const normalizedDescription = payload.reasonDescription
       ? normalizeWhitespace(payload.reasonDescription)
       : undefined;
@@ -54,7 +55,7 @@ export class RefundIntentStrategy implements IntentResolutionStrategy<RefundRequ
     const normalizedImages = payload.evidenceImages?.filter((url) => Boolean(url && url.trim()));
 
     const normalized: RefundRequestIntent = {
-      ...parsed.value,
+      ...intent,
       payload: {
         ...payload,
         reasonDescription: normalizedDescription,
@@ -62,9 +63,9 @@ export class RefundIntentStrategy implements IntentResolutionStrategy<RefundRequ
         currency: payload.currency?.toUpperCase() ?? payload.currency,
       },
       metadata: {
-        ...parsed.value.metadata,
+        ...intent.metadata,
         isPartial:
-          parsed.value.metadata?.isPartial ??
+          intent.metadata?.isPartial ??
           (!payload.orderSignal?.orderId || !payload.reason || !payload.requestedAmount),
       },
     };
@@ -73,9 +74,7 @@ export class RefundIntentStrategy implements IntentResolutionStrategy<RefundRequ
   }
 }
 
-export class RecommendationIntentStrategy
-  implements IntentResolutionStrategy<ProductRecommendationIntent>
-{
+export class RecommendationIntentStrategy implements IntentResolutionStrategy<ProductRecommendationIntent> {
   readonly intentType: BuyerIntentType = 'PRODUCT_RECOMMENDATION';
 
   resolve(input: RawBuyerIntentOutput): BuyerIntentResult<ProductRecommendationIntent> {
@@ -94,13 +93,14 @@ export class RecommendationIntentStrategy
       };
     }
 
-    const payload = { ...parsed.value.payload };
+    const intent = parsed.value as ProductRecommendationIntent;
+    const payload = { ...intent.payload };
     const normalizedAttributes = payload.attributes
       ?.map((attr) => normalizeWhitespace(attr))
       .filter((attr) => attr.length > 0);
 
     const normalized: ProductRecommendationIntent = {
-      ...parsed.value,
+      ...intent,
       payload: {
         ...payload,
         attributes: normalizedAttributes,
@@ -136,7 +136,8 @@ export class PolicyQaIntentStrategy implements IntentResolutionStrategy<PolicyQa
       };
     }
 
-    const payload = { ...parsed.value.payload };
+    const intent = parsed.value as PolicyQaIntent;
+    const payload = { ...intent.payload };
     const normalizedQuestion = normalizeWhitespace(payload.question || '');
     if (!normalizedQuestion) {
       return {
@@ -152,7 +153,7 @@ export class PolicyQaIntentStrategy implements IntentResolutionStrategy<PolicyQa
     return {
       success: true,
       value: {
-        ...parsed.value,
+        ...intent,
         payload: {
           ...payload,
           question: normalizedQuestion,
@@ -165,7 +166,10 @@ export class PolicyQaIntentStrategy implements IntentResolutionStrategy<PolicyQa
 export function createBuyerIntentStrategyRegistry() {
   return new Map<BuyerIntentType, IntentResolutionStrategy<BuyerIntent>>([
     ['REFUND_REQUEST', new RefundIntentStrategy() as IntentResolutionStrategy<BuyerIntent>],
-    ['PRODUCT_RECOMMENDATION', new RecommendationIntentStrategy() as IntentResolutionStrategy<BuyerIntent>],
+    [
+      'PRODUCT_RECOMMENDATION',
+      new RecommendationIntentStrategy() as IntentResolutionStrategy<BuyerIntent>,
+    ],
     ['POLICY_QA', new PolicyQaIntentStrategy() as IntentResolutionStrategy<BuyerIntent>],
   ]);
 }
