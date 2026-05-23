@@ -6,6 +6,13 @@ import type {
   ChatAPIResponse,
   ChatContext,
 } from '@/lib/chatbot/types';
+import type { RecommendationAdapterContext } from '@/lib/chatbot/buyer-intent/adapter';
+import { BuyerChatToolsFacade } from '@/lib/chatbot/buyer-intent/facade';
+import { getIntentValidationEventEmitter } from '@/lib/chatbot/buyer-intent/events';
+import { invokeBuyerToolCall } from '@/lib/chatbot/buyer-intent/tool-invocation';
+import {
+  recommendationCandidateSchema,
+} from '@/lib/chatbot/buyer-intent/tool-contracts';
 import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 import {
   mockGetOrder,
@@ -57,6 +64,18 @@ const requestSchema = z.object({
         .optional(),
     })
     .optional(),
+  intentOutput: z.unknown().optional(),
+  recommendationContext: z
+    .object({
+      candidates: z.array(recommendationCandidateSchema).min(1),
+      contextSummary: z.string().max(500).optional(),
+      maxResults: z.number().int().min(1).max(10).optional(),
+    })
+    .optional(),
+});
+
+const buyerIntentFacade = new BuyerChatToolsFacade({
+  eventEmitter: getIntentValidationEventEmitter(),
 });
 
 const CATEGORY_ALIAS: Record<string, string> = {
@@ -421,13 +440,60 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { message, context: requestContext } = parsedBody.data;
+    const { message, context: requestContext, intentOutput, recommendationContext } = parsedBody.data;
     const context: ChatContext = {
       category: requestContext?.category ?? null,
       price_max: requestContext?.price_max ?? null,
       lastOrderId: requestContext?.lastOrderId ?? null,
       history: requestContext?.history ?? [],
     };
+
+    let intentResolution: ChatAPIResponse['intentResolution'] | undefined;
+    let toolCall: ChatAPIResponse['toolCall'] | undefined;
+    let toolError: ChatAPIResponse['toolError'] | undefined;
+    let toolResult: ChatAPIResponse['toolResult'] | undefined;
+    let refundReferenceId: ChatAPIResponse['refundReferenceId'] | undefined;
+
+    if (intentOutput !== undefined) {
+      const resolvedIntent = buyerIntentFacade.resolveIntent(intentOutput);
+
+      if (resolvedIntent.success) {
+        intentResolution = { success: true, intent: resolvedIntent.value };
+
+        const adapterContext: RecommendationAdapterContext | undefined = recommendationContext
+          ? {
+              candidates: recommendationContext.candidates,
+              contextSummary: recommendationContext.contextSummary,
+              maxResults: recommendationContext.maxResults,
+            }
+          : undefined;
+
+        const toolCallResult = buyerIntentFacade.buildToolCall(resolvedIntent.value, adapterContext);
+        if (toolCallResult.success) {
+          toolCall = toolCallResult.value;
+          const invoked = await invokeBuyerToolCall(toolCallResult.value);
+          if (invoked.success) {
+            toolResult = invoked.value.output;
+
+            if (
+              invoked.value.toolName === 'refund_request' &&
+              typeof invoked.value.output === 'object' &&
+              invoked.value.output &&
+              'refund' in invoked.value.output
+            ) {
+              const refundOutput = invoked.value.output as { refund?: { refund_number?: string } };
+              refundReferenceId = refundOutput.refund?.refund_number;
+            }
+          } else {
+            toolError = invoked.error;
+          }
+        } else {
+          toolError = toolCallResult.error;
+        }
+      } else {
+        intentResolution = { success: false, error: resolvedIntent.error };
+      }
+    }
 
     const aiResponse = detectIntent(message, context);
     const result = await routeIntent(aiResponse, context, message);
@@ -450,6 +516,11 @@ export async function POST(request: NextRequest) {
       reply: finalReply,
       updatedContext,
       ...result,
+      intentResolution,
+      toolCall,
+      toolError,
+      toolResult,
+      refundReferenceId,
     };
 
     console.info('[chat-api] request succeeded', {
@@ -457,6 +528,8 @@ export async function POST(request: NextRequest) {
       method: request.method,
       path: request.nextUrl.pathname,
       intent: aiResponse.intent,
+      intentResolution: intentResolution?.success ? intentResolution.intent?.intent : undefined,
+      toolCall: toolCall?.toolName,
       messagePreview: message.slice(0, 120),
     });
 
