@@ -71,6 +71,20 @@ export interface ChatAPIRequest {
   message: string;
   context: ChatContext;
   userId?: string;
+  intentOutput?: unknown;
+  recommendationContext?: {
+    candidates: Array<{
+      id: string;
+      title: string;
+      category_id?: number;
+      brand?: string;
+      price?: number;
+      image?: string;
+      tags?: string[];
+    }>;
+    contextSummary?: string;
+    maxResults?: number;
+  };
 }
 
 export interface ChatAPIResponse {
@@ -81,4 +95,13 @@ export interface ChatAPIResponse {
   policyText?: string;
   isEscalation?: boolean;
   updatedContext: ChatContext;
+  intentResolution?: {
+    success: boolean;
+    intent?: import('@/lib/chatbot/buyer-intent/types').BuyerIntent;
+    error?: import('@/lib/chatbot/buyer-intent/errors').BuyerIntentError;
+  };
+  toolCall?: import('@/lib/chatbot/buyer-intent/facade').BuyerToolCall;
+  toolError?: import('@/lib/chatbot/buyer-intent/errors').BuyerIntentError;
+  toolResult?: unknown;
+  refundReferenceId?: string;
 }
