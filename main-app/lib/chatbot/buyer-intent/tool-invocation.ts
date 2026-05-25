@@ -19,6 +19,7 @@ import {
   mapRefundToolError,
   withRetry,
 } from '@/lib/services/refund-tools';
+import type { RefundToolErrorDetails } from '@/lib/services/refund-tools/types';
 
 export type BuyerToolInvocationResult = BuyerIntentResult<{
   toolName: string;
@@ -137,7 +138,7 @@ async function executeValidatedTool(
       const details = mapped.details as
         | { retriable: boolean; mascotTrigger: boolean; kind: string }
         | undefined;
-      const normalizedDetails = {
+      const normalizedDetails: RefundToolErrorDetails = {
         kind:
           details?.kind === 'business' || details?.kind === 'validation'
             ? details.kind
