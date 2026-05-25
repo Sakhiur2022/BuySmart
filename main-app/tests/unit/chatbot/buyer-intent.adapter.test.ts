@@ -30,6 +30,20 @@ describe('BuyerIntentPayloadAdapter', () => {
     }
   });
 
+  it('builds refund order fetch input when order signal exists', () => {
+    const result = adapter.toRefundOrderFetchInput({
+      orderSignal: { recentOrders: true },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('fails refund order fetch input when order signal is missing', () => {
+    const result = adapter.toRefundOrderFetchInput({});
+
+    expect(result.success).toBe(false);
+  });
+
   it('requires recommendation candidates before calling the tool', () => {
     const result = adapter.toRecommendationInput({ category: 'skincare' }, { candidates: [] });
 
