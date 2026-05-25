@@ -5,6 +5,7 @@ import {
   SpecificOrderStrategy,
 } from '@/lib/services/refund-tools/order-fetch-strategies';
 import { getBuyerOrderById, getBuyerOrders } from '@/lib/services/order.service';
+import type { Order } from '@/lib/models/order.model';
 
 vi.mock('@/lib/services/order.service', () => ({
   getBuyerOrders: vi.fn(),
@@ -18,12 +19,12 @@ const order = {
   status: 'delivered',
   total_amount: 120,
   currency: 'USD',
-};
+} as unknown as Order;
 
 describe('Order fetch strategies', () => {
   it('returns recent orders for the buyer', async () => {
     vi.mocked(getBuyerOrders).mockResolvedValue({
-      orders: [order as typeof order],
+      orders: [order],
       pagination: { page: 1, pageSize: 5, totalCount: 1, totalPages: 1 },
     });
 
@@ -39,7 +40,7 @@ describe('Order fetch strategies', () => {
 
   it('returns the specific order by id', async () => {
     vi.mocked(getBuyerOrderById).mockResolvedValue({
-      order: order as typeof order,
+      order,
       items: [],
       feedbackByOrderItemId: {},
     });
