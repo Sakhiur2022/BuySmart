@@ -1,4 +1,4 @@
-import type { BuyerIntentError } from '@/lib/chatbot/buyer-intent/errors';
+import type { BuyerIntentError, BuyerIntentErrorCode } from '@/lib/chatbot/buyer-intent/errors';
 import {
   RefundConflictError,
   RefundConstraintError,
@@ -40,7 +40,7 @@ function isTimeoutMessage(message: string): boolean {
 }
 
 function buildError(
-  code: string,
+  code: BuyerIntentErrorCode,
   message: string,
   details: RefundToolErrorDetails,
 ): BuyerIntentError {
@@ -79,7 +79,7 @@ export function mapRefundToolError(error: unknown): BuyerIntentError {
   }
 
   if (error instanceof RefundInvalidAmountError) {
-    return buildError(error.code, error.message, {
+    return buildError(error.code as BuyerIntentErrorCode, error.message, {
       kind: 'business',
       retriable: false,
       mascotTrigger: false,
@@ -87,7 +87,7 @@ export function mapRefundToolError(error: unknown): BuyerIntentError {
   }
 
   if (error instanceof RefundConflictError) {
-    return buildError(error.code, error.message, {
+    return buildError(error.code as BuyerIntentErrorCode, error.message, {
       kind: 'business',
       retriable: false,
       mascotTrigger: false,
@@ -95,7 +95,7 @@ export function mapRefundToolError(error: unknown): BuyerIntentError {
   }
 
   if (error instanceof RefundForeignKeyError || error instanceof RefundConstraintError) {
-    return buildError(error.code, error.message, {
+    return buildError(error.code as BuyerIntentErrorCode, error.message, {
       kind: 'validation',
       retriable: false,
       mascotTrigger: false,
