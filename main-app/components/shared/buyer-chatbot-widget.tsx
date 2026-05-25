@@ -41,6 +41,8 @@ const FALLBACK_REPLY =
   "I couldn't reach the BuySmart assistant just now. Please try again in a moment, and if this keeps happening we can connect you with support.";
 
 const RECOMMENDATION_TOAST_DELAY_MS = 1800;
+const REFUND_ORDER_FETCH_TOAST_DELAY_MS = 2000;
+const REFUND_SUBMIT_TOAST_DELAY_MS = 1200;
 
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -169,6 +171,27 @@ function formatRelativeTime(timestamp: number, now: number) {
   if (Math.abs(minutes) < 60) return rtf.format(minutes, 'minute');
   if (Math.abs(hours) < 24) return rtf.format(hours, 'hour');
   return rtf.format(days, 'day');
+}
+
+function getRefundErrorMessage(code: string | undefined) {
+  switch (code) {
+    case 'ORDER_NOT_FOUND':
+      return 'We could not find that order. Try a different order.';
+    case 'REFUND_CONFLICT':
+      return 'A refund request already exists for that order.';
+    case 'REFUND_INELIGIBLE_STATUS':
+      return 'That order is not eligible for a refund yet.';
+    case 'REFUND_INELIGIBLE_PAYMENT_STATUS':
+      return 'That payment is not eligible for a refund yet.';
+    case 'REFUND_INVALID_AMOUNT':
+      return 'The refund amount is not valid for this order.';
+    case 'REFUND_VALIDATION_ERROR':
+      return 'We need a few more details before submitting the refund.';
+    case 'REFUND_TIMEOUT':
+      return 'The refund service is taking too long. Please try again.';
+    default:
+      return 'We could not process the refund right now.';
+  }
 }
 
 function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
@@ -492,8 +515,13 @@ export default function BuyerChatbotWidget() {
     const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
       normalizedMessage,
     );
+    const shouldWatchRefundFlow = /\b(refund|return)\b/.test(normalizedMessage);
     let recommendationToastId: string | null = null;
     let recommendationToastTimer: number | null = null;
+    let refundOrdersToastId: string | null = null;
+    let refundOrdersToastTimer: number | null = null;
+    let refundSubmitToastId: string | null = null;
+    let refundSubmitToastTimer: number | null = null;
 
     if (shouldShowRecommendationToast) {
       recommendationToastTimer = window.setTimeout(() => {
@@ -503,6 +531,24 @@ export default function BuyerChatbotWidget() {
           durationMs: 4000,
         });
       }, RECOMMENDATION_TOAST_DELAY_MS);
+    }
+
+    if (shouldWatchRefundFlow) {
+      refundOrdersToastTimer = window.setTimeout(() => {
+        refundOrdersToastId = addToast({
+          message: 'Fetching your recent orders...',
+          variant: 'info',
+          durationMs: 0,
+        });
+      }, REFUND_ORDER_FETCH_TOAST_DELAY_MS);
+
+      refundSubmitToastTimer = window.setTimeout(() => {
+        refundSubmitToastId = addToast({
+          message: 'Submitting your refund...',
+          variant: 'info',
+          durationMs: 0,
+        });
+      }, REFUND_SUBMIT_TOAST_DELAY_MS);
     }
 
     try {
@@ -531,6 +577,38 @@ export default function BuyerChatbotWidget() {
 
       if (!isChatApiResponse(body)) {
         throw new Error('The chat service returned an unexpected response.');
+      }
+
+      if (body.toolCall?.toolName?.startsWith('refund_')) {
+        const toolName = body.toolCall.toolName;
+        const toolError = body.toolError;
+        const toolDetails = toolError?.details as
+          | { mascotTrigger?: boolean; kind?: string }
+          | undefined;
+
+        if (toolError) {
+          if (toolDetails?.mascotTrigger) {
+            addToast({
+              message: 'Refunds are temporarily unavailable. Please use Orders to submit manually.',
+              variant: 'error',
+              durationMs: 0,
+              actionLabel: 'Open Orders',
+              onAction: () => {
+                window.location.href = '/buyer/orders';
+              },
+            });
+          } else {
+            addToast({
+              message: getRefundErrorMessage(toolError.code),
+              variant: 'error',
+              durationMs: toolDetails?.kind === 'business' ? 6000 : 8000,
+            });
+          }
+        }
+
+        if (toolName === 'refund_orders_fetch' && !toolError) {
+          // Orders are ready; loading toasts are dismissed below.
+        }
       }
 
       setMessages((currentMessages) => [...currentMessages, buildAssistantMessage(body)]);
@@ -583,6 +661,18 @@ export default function BuyerChatbotWidget() {
         window.clearTimeout(recommendationToastTimer);
       }
       setIsSending(false);
+      if (refundOrdersToastTimer) {
+        window.clearTimeout(refundOrdersToastTimer);
+      }
+      if (refundSubmitToastTimer) {
+        window.clearTimeout(refundSubmitToastTimer);
+      }
+      if (refundOrdersToastId) {
+        dismissToast(refundOrdersToastId);
+      }
+      if (refundSubmitToastId) {
+        dismissToast(refundSubmitToastId);
+      }
     }
   }
 
