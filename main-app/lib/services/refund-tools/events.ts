@@ -1,5 +1,4 @@
-import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
-import type { RefundToolErrorDetails } from '@/lib/services/refund-tools/types';
+import type { RefundOrderCard, RefundToolErrorDetails } from '@/lib/services/refund-tools/types';
 
 export type RefundToolEvent =
   | {
