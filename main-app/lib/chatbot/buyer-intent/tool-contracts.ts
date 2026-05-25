@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { refundOrderSignalSchema } from '@/lib/chatbot/buyer-intent/schemas';
 import { createRefundDTOSchema, refundStatusSchema } from '@/lib/types/refund.types';
 
 export type ToolContract<TInput, TOutput> = {
@@ -118,6 +119,24 @@ export const refundRequestToolOutputSchema = z.object({
     requested_amount: z.number().nonnegative(),
     created_at: z.string().datetime({ offset: true }),
   }),
+});
+
+export const refundOrderFetchToolInputSchema = z.object({
+  orderSignal: refundOrderSignalSchema.optional(),
+});
+
+export const refundOrderCardSchema = z.object({
+  order_id: z.string().uuid(),
+  order_number: z.string().min(1).max(40).optional().nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  status: z.string().min(1).max(40),
+  total_amount: z.number().nonnegative(),
+  currency: z.string().length(3),
+  thumbnail_url: z.string().url().optional().nullable(),
+});
+
+export const refundOrderFetchToolOutputSchema = z.object({
+  orders: z.array(refundOrderCardSchema).max(20),
 });
 
 export const policyQaToolInputSchema = z.object({

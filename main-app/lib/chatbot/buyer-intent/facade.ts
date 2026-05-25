@@ -6,6 +6,7 @@ import { BuyerIntentToolFactory } from '@/lib/chatbot/buyer-intent/tool-factory'
 import type {
   PolicyQaToolInput,
   RecommendationToolInput,
+  RefundOrderFetchToolInput,
   RefundRequestToolInput,
 } from '@/lib/chatbot/buyer-intent/tool-factory';
 import type { RecommendationAdapterContext } from '@/lib/chatbot/buyer-intent/adapter';
@@ -16,7 +17,11 @@ import { createBuyerIntentStrategyRegistry } from '@/lib/chatbot/buyer-intent/in
 export type BuyerToolCall = {
   intent: BuyerIntent;
   toolName: string;
-  input: RefundRequestToolInput | RecommendationToolInput | PolicyQaToolInput;
+  input:
+    | RefundRequestToolInput
+    | RefundOrderFetchToolInput
+    | RecommendationToolInput
+    | PolicyQaToolInput;
 };
 
 export class BuyerChatToolsFacade {
@@ -48,24 +53,26 @@ export class BuyerChatToolsFacade {
     intent: BuyerIntent,
     context?: RecommendationAdapterContext,
   ): BuyerIntentResult<BuyerToolCall> {
-    const toolResult = this.toolFactory.getTool(intent.intent);
-    if (!toolResult.success) {
-      return toolResult;
-    }
-
-    const tool = toolResult.value;
     const adapterResult = this.toToolInput(intent, context);
 
     if (!adapterResult.success) {
       return adapterResult;
     }
 
+    const toolName = adapterResult.value.toolName;
+    const toolResult = this.toolFactory.getToolByName(toolName);
+    if (!toolResult.success) {
+      return toolResult;
+    }
+
+    const tool = toolResult.value;
+
     return {
       success: true,
       value: {
         intent,
         toolName: tool.name,
-        input: adapterResult.value,
+        input: adapterResult.value.input,
       },
     };
   }
@@ -73,14 +80,73 @@ export class BuyerChatToolsFacade {
   private toToolInput(
     intent: BuyerIntent,
     context?: RecommendationAdapterContext,
-  ): BuyerIntentResult<RefundRequestToolInput | RecommendationToolInput | PolicyQaToolInput> {
+  ): BuyerIntentResult<{
+    toolName: string;
+    input:
+      | RefundRequestToolInput
+      | RefundOrderFetchToolInput
+      | RecommendationToolInput
+      | PolicyQaToolInput;
+  }> {
     switch (intent.intent) {
       case 'REFUND_REQUEST':
-        return this.adapter.toRefundRequestInput(intent.payload);
+        if (!intent.payload.orderSignal?.orderId || intent.metadata?.isPartial) {
+          const orderFetchInput = this.adapter.toRefundOrderFetchInput(intent.payload);
+          if (!orderFetchInput.success) {
+            return orderFetchInput;
+          }
+
+          return {
+            success: true,
+            value: {
+              toolName: 'refund_orders_fetch',
+              input: orderFetchInput.value,
+            },
+          };
+        }
+
+        const refundInput = this.adapter.toRefundRequestInput(intent.payload);
+        if (!refundInput.success) {
+          return refundInput;
+        }
+
+        return {
+          success: true,
+          value: {
+            toolName: 'refund_request',
+            input: refundInput.value,
+          },
+        };
       case 'PRODUCT_RECOMMENDATION':
-        return this.adapter.toRecommendationInput(intent.payload, context ?? { candidates: [] });
+        const recommendationInput = this.adapter.toRecommendationInput(
+          intent.payload,
+          context ?? { candidates: [] },
+        );
+
+        if (!recommendationInput.success) {
+          return recommendationInput;
+        }
+
+        return {
+          success: true,
+          value: {
+            toolName: 'product_recommendation',
+            input: recommendationInput.value,
+          },
+        };
       case 'POLICY_QA':
-        return this.adapter.toPolicyQaInput(intent.payload);
+        const policyInput = this.adapter.toPolicyQaInput(intent.payload);
+        if (!policyInput.success) {
+          return policyInput;
+        }
+
+        return {
+          success: true,
+          value: {
+            toolName: 'policy_qa',
+            input: policyInput.value,
+          },
+        };
       default:
         return {
           success: false,

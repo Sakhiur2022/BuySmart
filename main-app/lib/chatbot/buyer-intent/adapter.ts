@@ -25,6 +25,30 @@ export type RecommendationAdapterContext = {
 };
 
 export class BuyerIntentPayloadAdapter {
+  toRefundOrderFetchInput(payload: RefundRequestPayload): BuyerIntentResult<{
+    orderSignal?: RefundRequestPayload['orderSignal'];
+  }> {
+    const orderSignal = payload.orderSignal;
+
+    if (!orderSignal) {
+      return {
+        success: false,
+        error: {
+          code: 'ADAPTER_ERROR',
+          message: 'Order information is required before fetching orders.',
+          fieldPath: ['orderSignal'],
+        },
+      };
+    }
+
+    return {
+      success: true,
+      value: {
+        orderSignal,
+      },
+    };
+  }
+
   toRefundRequestInput(payload: RefundRequestPayload): BuyerIntentResult<RefundRequestToolInput> {
     const orderId = payload.orderSignal?.orderId?.trim();
     if (!orderId) {
