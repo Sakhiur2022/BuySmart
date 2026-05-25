@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
-import type { BuyerIntentType } from '@/lib/chatbot/buyer-intent/types';
-import { BUYER_INTENT_TYPES, type BuyerIntent } from '@/lib/chatbot/buyer-intent/types';
+import {
+  BUYER_INTENT_TYPES,
+  type BuyerIntent,
+  type BuyerIntentType,
+} from '@/lib/chatbot/buyer-intent/types';
 
 const metadataSchema = z
   .object({
