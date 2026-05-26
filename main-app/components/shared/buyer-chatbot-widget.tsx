@@ -34,7 +34,7 @@ const GREETING_MESSAGE: UIMessage = {
   id: 'assistant-greeting',
   role: 'assistant',
   text: 'Hi there! How can I help you today?',
-  createdAt: Date.now(),
+  createdAt: 0,
 };
 
 const FALLBACK_REPLY =
@@ -46,6 +46,64 @@ const REFUND_SUBMIT_TOAST_DELAY_MS = 1200;
 
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(query);
+
+    const updateMatches = () => {
+      setMatches(mediaQuery.matches);
+    };
+
+    updateMatches();
+    mediaQuery.addEventListener('change', updateMatches);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateMatches);
+    };
+  }, [query]);
+
+  return matches;
+}
+
+function ChatWidgetToggle({ isOpen }: { isOpen: boolean }) {
+  return (
+    <div className="relative flex h-8 w-8 items-center justify-center">
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.div
+            initial={{ scale: 0, rotate: -30 }}
+            animate={{ scale: 1, rotate: 0 }}
+            exit={{ scale: 0, rotate: 30 }}
+            transition={{ duration: 0.2, ease: 'circOut' }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <MessageCircle className="h-7 w-7" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ scale: 0, rotate: -30 }}
+            animate={{ scale: 1, rotate: 0 }}
+            exit={{ scale: 0, rotate: 30 }}
+            transition={{ duration: 0.2, ease: 'circOut' }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <X className="h-7 w-7" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 type ToastVariant = 'success' | 'error' | 'info';
@@ -227,6 +285,7 @@ export default function BuyerChatbotWidget() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const hasInteractedRef = useRef(false);
   const shouldReduceMotion = useReducedMotion();
+  const isSmallScreen = useMediaQuery('(max-width: 640px)');
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
@@ -235,7 +294,7 @@ export default function BuyerChatbotWidget() {
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toolStatus = useChatToolStatus();
 
@@ -254,8 +313,8 @@ export default function BuyerChatbotWidget() {
     pathname.startsWith('/orders/');
 
   const positionClassName = shouldLiftWidget
-    ? 'bottom-28 right-4 md:bottom-10 md:right-8'
-    : 'bottom-20 right-4 md:bottom-8 md:right-6';
+    ? 'bottom-20 right-4 md:bottom-24 md:right-8'
+    : 'bottom-8 right-4 md:bottom-10 md:right-6';
 
   function addToast(toast: Omit<Toast, 'id'> & { durationMs?: number }) {
     const id = createMessageId('toast');
@@ -299,6 +358,24 @@ export default function BuyerChatbotWidget() {
         closed: {
           opacity: 0,
           y: 16,
+          scale: 0.96,
+          transition: { duration: 0.18, ease: [0.4, 0, 1, 1] },
+        },
+      };
+
+  const mobilePanelVariants: Variants = shouldReduceMotion
+    ? {
+        open: { opacity: 1 },
+        closed: { opacity: 0 },
+      }
+    : {
+        open: {
+          opacity: 1,
+          scale: 1,
+          transition: { duration: 0.24, ease: [0.16, 1, 0.3, 1] },
+        },
+        closed: {
+          opacity: 0,
           scale: 0.96,
           transition: { duration: 0.18, ease: [0.4, 0, 1, 1] },
         },
@@ -429,6 +506,10 @@ export default function BuyerChatbotWidget() {
       subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -681,250 +762,276 @@ export default function BuyerChatbotWidget() {
   }
 
   return (
-    <div
-      className={`pointer-events-none fixed ${positionClassName} z-30 flex flex-col items-end gap-3 font-sans`}
-    >
-      <ToastList toasts={toasts} onDismiss={dismissToast} />
-      <motion.div
-        className={`w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-2xl ring-1 ring-black/5 sm:w-80 md:w-76 ${
-          isOpen ? 'pointer-events-auto' : 'pointer-events-none'
-        }`}
-        aria-hidden={!isOpen}
-        initial={false}
-        animate={isOpen ? 'open' : 'closed'}
-        variants={panelVariants}
-      >
-        <div className="relative flex items-start justify-between gap-3 overflow-hidden bg-linear-to-r from-rose-500 via-rose-500 to-pink-500 px-4 py-3 text-white">
-          {!shouldReduceMotion ? (
-            <span className="pointer-events-none absolute inset-0 opacity-60">
-              <span className="absolute inset-0 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.4),transparent)] animate-[shimmer_2.8s_ease-in-out_infinite]" />
-            </span>
-          ) : null}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
-              <Sparkles className="h-4 w-4" />
-              Support
-            </div>
-            <h2 className="text-lg font-semibold leading-none">Chat with us</h2>
-            <p className="text-xs text-white/85 sm:text-sm">
-              BuySmart assistant - typically replies in minutes
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsOpen(false)}
-            onMouseDown={() => {
-              hasInteractedRef.current = true;
-            }}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-            aria-label="Close chat"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex h-[min(22rem,calc(100dvh-12rem))] flex-col bg-rose-50/40 sm:h-[min(24rem,calc(100dvh-12rem))]">
-          <motion.div
-            ref={scrollRef}
-            className="chatbot-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-3"
-            aria-live="polite"
-            aria-busy={isSending}
-            initial={false}
-            animate="visible"
-          >
-            <AnimatePresence initial={false}>
-              {messages.map((message) => {
-                const isAssistant = message.role === 'assistant';
-                const showAvatar = isAssistant;
-
-                return (
-                  <motion.div
-                    key={message.id}
-                    className={`flex items-start gap-3 ${isAssistant ? '' : 'justify-end'}`}
-                    variants={messageVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
-                    layout="position"
-                  >
-                    {showAvatar ? (
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-rose-600 shadow-sm ring-1 ring-rose-100">
-                        <div className="relative h-full w-full">
-                          <Image
-                            src="/icons/kitty_thinking.png"
-                            alt="Thinking kitty illustration"
-                            fill
-                            sizes="40px"
-                            className="object-cover"
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className={`max-w-[82%] space-y-2 ${isAssistant ? '' : 'items-end'}`}>
-                      <div
-                        className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ring-1 transition-transform duration-200 ease-out hover:-translate-y-0.5 ${
-                          isAssistant
-                            ? 'rounded-tl-md bg-white text-slate-700 ring-slate-100'
-                            : 'rounded-tr-md bg-rose-500 text-white ring-rose-300/60'
-                        }`}
-                      >
-                        <p>{message.text}</p>
-
-                        {message.products && message.products.length > 0 ? (
-                          <div className="mt-3 space-y-2">
-                            {message.products.map((product) => (
-                              <div
-                                key={product.id}
-                                className="rounded-xl border border-rose-100 bg-rose-50/70 px-3 py-2 text-slate-700"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <p className="font-medium text-slate-900">{product.name}</p>
-                                    <p className="text-xs text-slate-500">
-                                      {product.badge ?? product.category}
-                                    </p>
-                                  </div>
-                                  <p className="whitespace-nowrap text-sm font-semibold text-rose-600">
-                                    {formatCurrency(product.price)}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {message.policyText ? (
-                          <div className="mt-3 whitespace-pre-line rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-slate-700">
-                            {message.policyText}
-                          </div>
-                        ) : null}
-
-                        {message.isEscalation ? (
-                          <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
-                            Support follow-up has been flagged.
-                          </div>
-                        ) : null}
-                      </div>
-                      <p
-                        className={`px-1 text-[11px] text-slate-400 ${isAssistant ? '' : 'text-right'}`}
-                      >
-                        {formatRelativeTime(message.createdAt ?? now, now)}
-                      </p>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-
-            {isSending ? (
-              <motion.div
-                className="flex items-start gap-3"
-                variants={messageVariants}
-                initial="hidden"
-                animate="visible"
-                exit="hidden"
-              >
-                <div className="rounded-2xl rounded-tl-md bg-white px-4 py-3 text-sm text-slate-500 shadow-sm ring-1 ring-slate-100">
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="flex items-center gap-1">
-                      <span>Typing</span>
-                      <span className="flex items-center gap-1">
-                        <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
-                        <span
-                          className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400"
-                          style={{ animationDelay: '0.15s' }}
-                        />
-                        <span
-                          className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400"
-                          style={{ animationDelay: '0.3s' }}
-                        />
-                      </span>
-                    </span>
-                  </span>
-                </div>
-              </motion.div>
-            ) : null}
-          </motion.div>
-
-          <div className="border-t border-rose-100 bg-white px-4 py-3">
-            {errorMessage ? (
-              <div
-                className="mb-2 flex items-center justify-between gap-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700"
-                aria-live="assertive"
-              >
-                <span>{errorMessage}</span>
-                {lastFailedMessage ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleSend(lastFailedMessage);
-                    }}
-                    className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
-                  >
-                    Retry
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm focus-within:border-rose-300 focus-within:ring-2 focus-within:ring-rose-100">
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder="Type a message..."
-                value={draftMessage}
-                onChange={(event) => setDraftMessage(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    void handleSend();
-                  }
-                }}
-                disabled={isSending}
-                className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label="Type a message"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSend();
-                }}
-                disabled={isSending || !draftMessage.trim()}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
-                aria-label="Send message"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      <div className="relative pointer-events-auto">
+    <>
+      {isSmallScreen && isOpen ? (
         <button
           type="button"
+          aria-label="Close chat backdrop"
+          data-testid="buyer-chatbot-backdrop"
+          className="fixed inset-0 z-[190] cursor-default bg-slate-950/35 backdrop-blur-[2px]"
           onClick={() => {
             hasInteractedRef.current = true;
-            setIsOpen((current) => !current);
+            setIsOpen(false);
           }}
-          className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-r from-rose-500 via-rose-500 to-pink-500 text-white shadow-2xl shadow-rose-500/30 transition-transform duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200 ${
-            hasLoaded && !isOpen ? 'animate-[bounce_1.4s_ease-in-out_1]' : ''
-          }`}
-          aria-expanded={isOpen}
-          aria-label={isOpen ? 'Close chat' : 'Open chat'}
-        >
-          <MessageCircle className="h-6 w-6" />
+        />
+      ) : null}
 
-          {!isOpen ? (
-            <span className="absolute right-0 top-0 h-3 w-3 rounded-full bg-red-500 ring-2 ring-white">
-              <span className="absolute inset-0 animate-ping rounded-full bg-red-500 opacity-75" />
-            </span>
-          ) : null}
-        </button>
+      <div
+        className={`pointer-events-none fixed ${isSmallScreen && isOpen ? 'inset-0 z-[200] p-2 sm:p-4' : `${positionClassName} z-[200]`} flex flex-col items-end justify-end gap-3 font-sans`}
+      >
+        <ToastList toasts={toasts} onDismiss={dismissToast} />
+        <motion.div
+          data-testid="buyer-chatbot-panel"
+          className={`flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
+            isSmallScreen && isOpen
+              ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
+              : `pointer-events-auto h-[28rem] w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl sm:w-80 md:w-76 ${
+                  isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+                }`
+          }`}
+          aria-hidden={!isOpen}
+          initial={false}
+          animate={isOpen ? 'open' : 'closed'}
+          variants={isSmallScreen ? mobilePanelVariants : panelVariants}
+        >
+          <div className="relative flex items-start justify-between gap-3 overflow-hidden bg-rose-50 px-4 py-3 text-slate-800 shadow-[inset_0_-1px_0_rgba(15,23,42,0.04)]">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-rose-500/80">
+                <Sparkles className="h-4 w-4" />
+                Support
+              </div>
+              <h2 className="text-lg font-semibold leading-none text-slate-900">Chat with us</h2>
+              <p className="text-xs text-slate-500 sm:text-sm">
+                BuySmart assistant - typically replies in minutes
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                hasInteractedRef.current = true;
+                setIsOpen(false);
+              }}
+              onMouseDown={() => {
+                hasInteractedRef.current = true;
+              }}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+              aria-label="Close chat"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),rgba(255,241,242,0.5))]">
+            <motion.div
+              ref={scrollRef}
+              className="chatbot-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-3"
+              aria-live="polite"
+              aria-busy={isSending}
+              initial={false}
+              animate="visible"
+            >
+              <AnimatePresence initial={false}>
+                {messages.map((message) => {
+                  const isAssistant = message.role === 'assistant';
+                  const showAvatar = isAssistant;
+
+                  return (
+                    <motion.div
+                      key={message.id}
+                      className={`flex items-start gap-3 ${isAssistant ? '' : 'justify-end'}`}
+                      variants={messageVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="hidden"
+                      layout="position"
+                    >
+                      {showAvatar ? (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/80 bg-white text-rose-600 shadow-[0_10px_25px_rgba(244,63,94,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                          <div className="relative h-full w-full">
+                            <Image
+                              src="/icons/kitty_thinking.png"
+                              alt="Thinking kitty illustration"
+                              fill
+                              sizes="40px"
+                              className="object-cover"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className={`max-w-[82%] space-y-2 ${isAssistant ? '' : 'items-end'}`}>
+                        <div
+                          className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-transform duration-200 ease-out hover:-translate-y-0.5 ${
+                            isAssistant
+                              ? 'rounded-tl-md border border-white/80 bg-white/90 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]'
+                              : 'rounded-tr-md border border-rose-300/40 bg-rose-500 text-white shadow-[0_10px_24px_rgba(244,63,94,0.16),inset_0_1px_0_rgba(255,255,255,0.18)]'
+                          }`}
+                        >
+                          <p>{message.text}</p>
+
+                          {message.products && message.products.length > 0 ? (
+                            <div className="mt-3 space-y-2">
+                              {message.products.map((product) => (
+                                <div
+                                  key={product.id}
+                                  className="rounded-xl border border-rose-100 bg-white/80 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-medium text-slate-900">{product.name}</p>
+                                      <p className="text-xs text-slate-500">
+                                        {product.badge ?? product.category}
+                                      </p>
+                                    </div>
+                                    <p className="whitespace-nowrap text-sm font-semibold text-rose-600">
+                                      {formatCurrency(product.price)}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {message.policyText ? (
+                            <div className="mt-3 whitespace-pre-line rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                              {message.policyText}
+                            </div>
+                          ) : null}
+
+                          {message.isEscalation ? (
+                            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                              Support follow-up has been flagged.
+                            </div>
+                          ) : null}
+                        </div>
+                        <p
+                          className={`px-1 text-[11px] text-slate-400 ${isAssistant ? '' : 'text-right'}`}
+                        >
+                          {formatRelativeTime(message.createdAt ?? now, now)}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+
+              {isSending ? (
+                <motion.div
+                  className="flex items-start gap-3"
+                  variants={messageVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="hidden"
+                >
+                  <div className="rounded-2xl rounded-tl-md border border-white/80 bg-white/90 px-4 py-3 text-sm text-slate-500 shadow-[0_10px_24px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="flex items-center gap-1">
+                        <span>Typing</span>
+                        <span className="flex items-center gap-1">
+                          <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
+                          <span
+                            className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400"
+                            style={{ animationDelay: '0.15s' }}
+                          />
+                          <span
+                            className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400"
+                            style={{ animationDelay: '0.3s' }}
+                          />
+                        </span>
+                      </span>
+                    </span>
+                  </div>
+                </motion.div>
+              ) : null}
+            </motion.div>
+
+            <div className="border-t border-rose-100/80 bg-white/85 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
+              {errorMessage ? (
+                <div
+                  className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700"
+                  aria-live="assertive"
+                >
+                  <span>{errorMessage}</span>
+                  {lastFailedMessage ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleSend(lastFailedMessage);
+                      }}
+                      className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] focus-within:border-rose-200 focus-within:ring-2 focus-within:ring-rose-100">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Type a message..."
+                  value={draftMessage}
+                  onChange={(event) => setDraftMessage(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void handleSend();
+                    }
+                  }}
+                  disabled={isSending}
+                  className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label="Type a message"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSend();
+                  }}
+                  disabled={isSending || !draftMessage.trim()}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
+                  aria-label="Send message"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        <div className="relative pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => {
+              hasInteractedRef.current = true;
+              setIsOpen((current) => !current);
+            }}
+            className={`relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-[2rem] border border-rose-200/60 bg-gradient-to-br from-white/55 via-rose-200/45 to-orange-300/60 text-rose-700 shadow-[0_0_0_1px_rgba(255,255,255,0.35),0_18px_30px_rgba(251,113,133,0.26),inset_0_2px_0_rgba(255,255,255,0.65),inset_0_-10px_16px_rgba(249,115,22,0.24)] backdrop-blur-md transition-transform duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200/70 ${
+              hasLoaded && !isOpen ? 'animate-[bounce_1.4s_ease-in-out_1]' : ''
+            }`}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? 'Close chat' : 'Open chat'}
+          >
+            <span
+              className="pointer-events-none absolute inset-0 rounded-[2rem] ring-1 ring-white/35 blur-[0.5px]"
+              aria-hidden="true"
+            />
+            <span
+              className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.85),rgba(255,255,255,0)_55%)] opacity-90"
+              aria-hidden="true"
+            />
+            <span
+              className="pointer-events-none absolute left-2 top-1 h-6 w-10 rotate-[-12deg] rounded-full bg-white/55 blur-[0.5px]"
+              aria-hidden="true"
+            />
+            <ChatWidgetToggle isOpen={isOpen} />
+
+            {!isOpen ? null : null}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
