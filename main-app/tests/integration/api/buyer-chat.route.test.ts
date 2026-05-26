@@ -52,7 +52,7 @@ describe('POST /api/buyer/chat', () => {
     const req = new NextRequest('http://localhost/api/buyer/chat', {
       method: 'POST',
       body: JSON.stringify({
-        message: 'How does checkout work?'
+        message: 'How does checkout work?',
       }),
       headers: { 'content-type': 'application/json' },
     });
