@@ -1008,27 +1008,13 @@ export default function BuyerChatbotWidget() {
               hasInteractedRef.current = true;
               setIsOpen((current) => !current);
             }}
-            className={`relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-[2rem] border border-rose-200/60 bg-gradient-to-br from-white/55 via-rose-200/45 to-orange-300/60 text-rose-700 shadow-[0_0_0_1px_rgba(255,255,255,0.35),0_18px_30px_rgba(251,113,133,0.26),inset_0_2px_0_rgba(255,255,255,0.65),inset_0_-10px_16px_rgba(249,115,22,0.24)] backdrop-blur-md transition-transform duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200/70 ${
+            className={`flex h-14 w-14 items-center justify-center rounded-full bg-rose-500 text-white transition-transform duration-300 hover:scale-105 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200 ${
               hasLoaded && !isOpen ? 'animate-[bounce_1.4s_ease-in-out_1]' : ''
             }`}
             aria-expanded={isOpen}
             aria-label={isOpen ? 'Close chat' : 'Open chat'}
           >
-            <span
-              className="pointer-events-none absolute inset-0 rounded-[2rem] ring-1 ring-white/35 blur-[0.5px]"
-              aria-hidden="true"
-            />
-            <span
-              className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.85),rgba(255,255,255,0)_55%)] opacity-90"
-              aria-hidden="true"
-            />
-            <span
-              className="pointer-events-none absolute left-2 top-1 h-6 w-10 rotate-[-12deg] rounded-full bg-white/55 blur-[0.5px]"
-              aria-hidden="true"
-            />
             <ChatWidgetToggle isOpen={isOpen} />
-
-            {!isOpen ? null : null}
           </button>
         </div>
       </div>
