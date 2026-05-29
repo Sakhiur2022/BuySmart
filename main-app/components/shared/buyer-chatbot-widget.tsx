@@ -34,7 +34,7 @@ const GREETING_MESSAGE: UIMessage = {
   id: 'assistant-greeting',
   role: 'assistant',
   text: 'Hi there! How can I help you today?',
-  createdAt: 0,
+  createdAt: Date.now(),
 };
 
 const FALLBACK_REPLY =
