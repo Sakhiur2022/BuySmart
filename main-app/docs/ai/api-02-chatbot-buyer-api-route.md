@@ -10,7 +10,7 @@
 ## Overview
 
 - Purpose: buyer chat API entrypoint for US-104 in-chat self-service actions.
-- Scope: authenticated POST /api/buyer/chat with intent routing, tool invocation, and context updates.
+- Scope: POST /api/buyer/chat with intent routing, tool invocation, and context updates.
 
 ---
 
@@ -19,7 +19,7 @@
 - Scenario 1: buyer asks for product discovery or general help (intent detection → support/search reply).
 - Scenario 2: refund request in chat (intentOutput validation → tool call → refund reference id in response).
 - Scenario 3: recommendation request (intentOutput validation → recommendation tool → structured result).
-- Scenario 4: unauthenticated access (401 with buyer-friendly error).
+- Scenario 4: guest access for general chat remains available; refund tools still require buyer identity.
 
 ---
 
@@ -33,9 +33,9 @@
 
 ### Authentication Gate
 
-- Input source: session cookies (Supabase SSR).
-- Output: user identity or 401 response.
-- Dependencies: shared auth helper.
+- Input source: session cookies (Supabase SSR) when a tool requires buyer identity.
+- Output: user identity for refund/tool actions, or guest chat fallback for general help.
+- Dependencies: shared auth helper inside account-bound tool executors.
 
 ### Intent Resolution + Tool Invocation
 
@@ -55,7 +55,7 @@
 
 | Endpoint         | Purpose                                        | Input                                    | Output                         |
 | ---------------- | ---------------------------------------------- | ---------------------------------------- | ------------------------------ |
-| POST /api/buyer/chat | Single buyer chat entrypoint (auth + intent) | ChatAPIRequest (message, context, intentOutput) | ChatAPIResponse (reply + context + tool fields) |
+| POST /api/buyer/chat | Single buyer chat entrypoint (guest + optional auth for tools) | ChatAPIRequest (message, context, intentOutput) | ChatAPIResponse (reply + context + tool fields) |
 
 ---
 
@@ -115,5 +115,5 @@
 
 ## Test Plan Summary
 
-- Integration tests: buyer chat route validation, unauthenticated access, refund tool, recommendation tool.
-- Coverage includes: invalid JSON, auth failures, tool invocation success paths.
+- Integration tests: buyer chat route validation, guest access, refund tool, recommendation tool.
+- Coverage includes: invalid JSON, guest chat success, tool invocation success paths.

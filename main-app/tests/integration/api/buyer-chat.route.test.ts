@@ -46,13 +46,22 @@ describe('POST /api/buyer/chat', () => {
     expect(body.error).toBe('Invalid JSON payload.');
   });
 
-  it('returns 401 for unauthenticated requests', async () => {
-    vi.mocked(requireAuthenticatedUser).mockRejectedValueOnce(new Error('UNAUTHENTICATED'));
+  it('allows guest buyers to chat without an account', async () => {
+    vi.mocked(answerSupportQuestion).mockResolvedValue({
+      reply: 'You can browse products before signing in.',
+      shouldEscalate: false,
+    });
 
     const req = new NextRequest('http://localhost/api/buyer/chat', {
       method: 'POST',
       body: JSON.stringify({
-        message: 'How does checkout work?',
+        message: 'Can I browse before making an account?',
+        context: {
+          category: null,
+          price_max: null,
+          lastOrderId: null,
+          history: [],
+        },
       }),
       headers: { 'content-type': 'application/json' },
     });
@@ -60,8 +69,9 @@ describe('POST /api/buyer/chat', () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(401);
-    expect(body.error).toBe('Unauthorized: Not authenticated');
+    expect(res.status).toBe(200);
+    expect(body.intent).toBe('FAQ');
+    expect(body.reply).toBe('You can browse products before signing in.');
   });
 
   it('uses the AI support layer for general buyer questions', async () => {

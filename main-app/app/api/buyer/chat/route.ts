@@ -452,7 +452,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await requireAuthenticatedUser();
     const {
       message,
       context: requestContext,

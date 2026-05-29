@@ -61,7 +61,7 @@ Why used:
 | requestedAmount   | number   | No       | Required before submission                   |
 | currency          | string   | No       | ISO 4217 code                                |
 | items             | array    | No       | Product and order item signals               |
-| buyerId           | string   | No       | Populated from auth context                  |
+| buyerId           | string   | No       | Populated from auth context when signed in   |
 
 ### PRODUCT_RECOMMENDATION Payload
 

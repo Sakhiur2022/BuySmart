@@ -151,7 +151,7 @@ describe('BuyerChatbotWidget', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/chat',
+        '/api/buyer/chat',
         expect.objectContaining({
           method: 'POST',
         }),
@@ -161,6 +161,42 @@ describe('BuyerChatbotWidget', () => {
     expect(await screen.findByText('Searching for category: phone, under 20000 taka.')).toBeInTheDocument();
     expect(screen.getByText('Redmi Note 13 Pro')).toBeInTheDocument();
     expect(screen.getByText('BDT 18,999')).toBeInTheDocument();
+  });
+
+  it('shows an in-message streaming state while the assistant is pending', async () => {
+    let resolveFetch!: (value: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+    await user.type(screen.getByLabelText('Type a message'), 'Need a phone under 20000');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(screen.getByText('Thinking about that now...')).toBeInTheDocument();
+
+    resolveFetch(
+      jsonResponse({
+        intent: 'PRODUCT_SEARCH',
+        reply: 'Searching for category: phone, under 20000 taka.',
+        updatedContext: {
+          category: 'phone',
+          price_max: 20000,
+          lastOrderId: null,
+          history: [],
+        },
+      }),
+    );
+
+    expect(await screen.findByText('Searching for category: phone, under 20000 taka.')).toBeInTheDocument();
   });
 
   it('shows a fallback reply and surfaces API errors when the request fails', async () => {
@@ -178,7 +214,7 @@ describe('BuyerChatbotWidget', () => {
         "I couldn't reach the BuySmart assistant just now. Please try again in a moment, and if this keeps happening we can connect you with support.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Service unavailable')).toBeInTheDocument();
+    expect(await screen.findAllByText('Service unavailable')).toHaveLength(2);
 
     await waitFor(() => {
       expect(screen.getByLabelText('Type a message')).toBeEnabled();
@@ -200,7 +236,7 @@ describe('BuyerChatbotWidget', () => {
         "I couldn't reach the BuySmart assistant just now. Please try again in a moment, and if this keeps happening we can connect you with support.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('The chat service returned an unexpected response.')).toBeInTheDocument();
+    expect(await screen.findAllByText('The chat service returned an unexpected response.')).toHaveLength(2);
   });
 
   it('resets chat history after sign in', async () => {

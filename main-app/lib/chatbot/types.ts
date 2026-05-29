@@ -54,6 +54,9 @@ export interface UIMessage {
   role: MessageRole;
   text: string;
   createdAt?: number;
+  status?: 'streaming' | 'error';
+  errorMessage?: string;
+  retryable?: boolean;
   products?: Product[];
   order?: Order;
   policyText?: string;

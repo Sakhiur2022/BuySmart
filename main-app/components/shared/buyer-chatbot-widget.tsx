@@ -265,6 +265,29 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
   };
 }
 
+function buildStreamingAssistantMessage(messageId: string): UIMessage {
+  return {
+    id: messageId,
+    role: 'assistant',
+    text: 'Thinking about that now...',
+    createdAt: Date.now(),
+    status: 'streaming',
+  };
+}
+
+function buildErrorAssistantMessage(messageId: string, errorText: string): UIMessage {
+  return {
+    id: messageId,
+    role: 'assistant',
+    text: FALLBACK_REPLY,
+    createdAt: Date.now(),
+    status: 'error',
+    errorMessage: errorText,
+    retryable: true,
+    isEscalation: true,
+  };
+}
+
 async function getAuthMarker(supabase: ReturnType<typeof createClient>) {
   try {
     const { data, error } = await supabase.auth.getUser();
@@ -585,7 +608,10 @@ export default function BuyerChatbotWidget() {
       context: chatContext,
     };
 
-    setMessages((currentMessages) => [...currentMessages, userMessage]);
+    const assistantMessageId = createMessageId('assistant-stream');
+    const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
+
+    setMessages((currentMessages) => [...currentMessages, userMessage, assistantPlaceholder]);
     setDraftMessage('');
     setErrorMessage(null);
     setLastFailedMessage(null);
@@ -634,7 +660,7 @@ export default function BuyerChatbotWidget() {
 
     try {
       toolStatus.updateStatus('invoking_tool');
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/buyer/chat', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -692,7 +718,11 @@ export default function BuyerChatbotWidget() {
         }
       }
 
-      setMessages((currentMessages) => [...currentMessages, buildAssistantMessage(body)]);
+      setMessages((currentMessages) =>
+        currentMessages.map((currentMessage) =>
+          currentMessage.id === assistantMessageId ? buildAssistantMessage(body) : currentMessage,
+        ),
+      );
       setChatContext(body.updatedContext);
       toolStatus.updateStatus('completed');
 
@@ -713,18 +743,15 @@ export default function BuyerChatbotWidget() {
       }
     } catch (error) {
       const nextContext = createFallbackContext(chatContext, message);
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        {
-          id: createMessageId('assistant-fallback'),
-          role: 'assistant',
-          text: FALLBACK_REPLY,
-          createdAt: Date.now(),
-          isEscalation: true,
-        },
-      ]);
-      setChatContext(nextContext);
       const errorText = error instanceof Error ? error.message : 'Unable to send message.';
+      setMessages((currentMessages) =>
+        currentMessages.map((currentMessage) =>
+          currentMessage.id === assistantMessageId
+            ? buildErrorAssistantMessage(assistantMessageId, errorText)
+            : currentMessage,
+        ),
+      );
+      setChatContext(nextContext);
       setErrorMessage(errorText);
       setLastFailedMessage(message);
       toolStatus.fail(errorText);
@@ -868,7 +895,33 @@ export default function BuyerChatbotWidget() {
                               : 'rounded-tr-md border border-rose-300/40 bg-rose-500 text-white shadow-[0_10px_24px_rgba(244,63,94,0.16),inset_0_1px_0_rgba(255,255,255,0.18)]'
                           }`}
                         >
-                          <p>{message.text}</p>
+                          {message.status === 'streaming' ? (
+                            <div className="flex items-center gap-2 text-slate-500">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>{message.text}</span>
+                            </div>
+                          ) : (
+                            <p>{message.text}</p>
+                          )}
+
+                          {message.status === 'error' ? (
+                            <div className="mt-3 space-y-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-rose-700">
+                              <p className="text-xs font-medium">
+                                {message.errorMessage ?? 'Unable to complete this message.'}
+                              </p>
+                              {message.retryable && lastFailedMessage ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void handleSend(lastFailedMessage);
+                                  }}
+                                  className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                                >
+                                  Retry
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
 
                           {message.products && message.products.length > 0 ? (
                             <div className="mt-3 space-y-2">
@@ -915,36 +968,6 @@ export default function BuyerChatbotWidget() {
                   );
                 })}
               </AnimatePresence>
-
-              {isSending ? (
-                <motion.div
-                  className="flex items-start gap-3"
-                  variants={messageVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="hidden"
-                >
-                  <div className="rounded-2xl rounded-tl-md border border-white/80 bg-white/90 px-4 py-3 text-sm text-slate-500 shadow-[0_10px_24px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.95)]">
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="flex items-center gap-1">
-                        <span>Typing</span>
-                        <span className="flex items-center gap-1">
-                          <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
-                          <span
-                            className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400"
-                            style={{ animationDelay: '0.15s' }}
-                          />
-                          <span
-                            className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400"
-                            style={{ animationDelay: '0.3s' }}
-                          />
-                        </span>
-                      </span>
-                    </span>
-                  </div>
-                </motion.div>
-              ) : null}
             </motion.div>
 
             <div className="border-t border-rose-100/80 bg-white/85 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
