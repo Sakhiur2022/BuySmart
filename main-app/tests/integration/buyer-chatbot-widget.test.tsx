@@ -18,6 +18,10 @@ const supabaseState = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 
+const mediaQueryState = vi.hoisted(() => ({
+  matches: false,
+}));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => pathnameState.value,
 }));
@@ -44,7 +48,11 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 
 vi.mock('next/image', () => ({
-  default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img {...props} alt={props.alt} />,
+  default: ({ fill, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean }) => {
+    void fill;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img {...props} alt={props.alt} />;
+  },
 }));
 
 function jsonResponse(payload: unknown, ok = true): Response {
@@ -52,6 +60,19 @@ function jsonResponse(payload: unknown, ok = true): Response {
     ok,
     json: async () => payload,
   } as Response;
+}
+
+function mockMatchMedia() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: mediaQueryState.matches && query.includes('max-width: 640px'),
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
 }
 
 describe('BuyerChatbotWidget', () => {
@@ -62,6 +83,8 @@ describe('BuyerChatbotWidget', () => {
     supabaseState.user = null;
     supabaseState.authCallback = null;
     supabaseState.unsubscribe.mockReset();
+    mediaQueryState.matches = false;
+    mockMatchMedia();
   });
 
   it('renders on public guest routes', () => {
@@ -70,6 +93,22 @@ describe('BuyerChatbotWidget', () => {
     render(<BuyerChatbotWidget />);
 
     expect(screen.getByRole('button', { name: 'Open chat' })).toBeInTheDocument();
+  });
+
+  it('opens as a full-screen overlay on small screens', async () => {
+    mediaQueryState.matches = true;
+    mockMatchMedia();
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    const panel = screen.getByTestId('buyer-chatbot-panel');
+    expect(panel).toHaveClass('w-full');
+    expect(panel).toHaveClass('h-[calc(100dvh-1rem)]');
+    expect(screen.getByRole('button', { name: 'Close chat backdrop' })).toBeInTheDocument();
+    expect(screen.getByTestId('buyer-chatbot-backdrop')).toHaveClass('fixed', 'inset-0');
   });
 
   it('sends messages to the chat API and renders structured assistant replies', async () => {
