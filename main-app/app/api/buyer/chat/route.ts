@@ -8,7 +8,6 @@ import { invokeBuyerToolCall } from '@/lib/chatbot/buyer-intent/tool-invocation'
 import { recommendationCandidateSchema } from '@/lib/chatbot/buyer-intent/tool-contracts';
 import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 import { mockGetOrder, mockSearchProducts, MOCK_POLICY } from '@/lib/chatbot/mockData';
-import { requireAuthenticatedUser } from '@/app/api/cart/_shared';
 
 function createRequestId() {
   return `buyer-chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

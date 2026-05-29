@@ -28,7 +28,6 @@ vi.mock('@/lib/controllers/refund.controller', () => ({
 }));
 
 import { POST } from '@/app/api/buyer/chat/route';
-import { requireAuthenticatedUser } from '@/app/api/cart/_shared';
 import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 
 describe('POST /api/buyer/chat', () => {
