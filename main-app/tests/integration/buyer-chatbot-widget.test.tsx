@@ -48,9 +48,11 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 
 vi.mock('next/image', () => ({
-  default: ({ fill: _fill, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean }) => (
-    <img {...props} alt={props.alt} />
-  ),
+  default: ({ fill, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean }) => {
+    void fill;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img {...props} alt={props.alt} />;
+  },
 }));
 
 function jsonResponse(payload: unknown, ok = true): Response {
