@@ -5,7 +5,7 @@ import type { Variants } from 'framer-motion';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
+import { Loader2, MessageCircle, Send, Sparkles, X, Paperclip } from 'lucide-react';
 import type {
   ChatAPIRequest,
   ChatAPIResponse,
@@ -14,7 +14,9 @@ import type {
   UIMessage,
   ChatbotRole,
 } from '@/lib/chatbot/types';
+import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
 import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
+import { useRefundEvidenceAttachment } from '@/lib/hooks/use-refund-evidence-attachment';
 import { createClient } from '@/lib/supabase/client';
 import { clearChatbotSessionStorage, getChatbotStorageKeys } from '@/lib/chatbot/session';
 
@@ -257,6 +259,14 @@ function getRefundErrorMessage(code: string | undefined) {
 }
 
 function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
+  let refundOrderCards: RefundOrderCard[] | undefined;
+  if (response.toolCall?.toolName === 'refund_orders_fetch' && response.toolResult) {
+    const result = response.toolResult as { orders?: RefundOrderCard[] };
+    if (result.orders) {
+      refundOrderCards = result.orders;
+    }
+  }
+
   return {
     id: createMessageId('assistant'),
     role: 'assistant',
@@ -264,6 +274,8 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
     createdAt: Date.now(),
     products: response.products,
     order: response.order,
+    refundOrderCards,
+    requiresEvidence: response.intent === 'SUPPORT' || response.toolCall?.toolName === 'refund_request' ? true : undefined,
     policyText: response.policyText,
     isEscalation: response.isEscalation,
   };
@@ -305,6 +317,26 @@ async function getAuthMarker(supabase: ReturnType<typeof createClient>) {
   }
 }
 
+function RefundOrderCardItem({ order, onSelect }: { order: RefundOrderCard; onSelect: (orderNumber: string) => void }) {
+  return (
+    <div className="rounded-xl border border-rose-100 bg-white/80 p-3 text-slate-700 shadow-sm mt-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-slate-900">Order #{order.order_number || order.order_id.slice(0, 8)}</p>
+          <p className="text-xs text-slate-500">Status: <span className="font-medium text-slate-700">{order.status}</span></p>
+        </div>
+        <p className="text-sm font-semibold text-rose-600">{order.currency} {order.total_amount}</p>
+      </div>
+      <button 
+        onClick={() => onSelect(order.order_number || order.order_id)}
+        className="mt-2 w-full rounded bg-rose-50 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 text-center transition"
+      >
+        Select Order
+      </button>
+    </div>
+  );
+}
+
 type ChatbotWidgetProps = {
   chatbotRole?: ChatbotRole;
 };
@@ -322,6 +354,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
+  const evidenceManager = useRefundEvidenceAttachment();
+
   const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
   const [chatContext, setChatContext] = useState<ChatContext>(DEFAULT_CONTEXT);
   const [isSending, setIsSending] = useState(false);
@@ -597,7 +631,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   }, [isOpen]);
 
   async function handleSend(overrideMessage?: string) {
-    const message = (overrideMessage ?? draftMessage).trim();
+    let message = (overrideMessage ?? draftMessage).trim();
+    if (!message && evidenceManager.file) {
+      message = 'Attached evidence.';
+    }
     if (!message || isSending) {
       return;
     }
@@ -613,7 +650,13 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       message,
       context: chatContext,
       role,
+      evidenceImages: evidenceManager.file ? [URL.createObjectURL(evidenceManager.file)] : undefined
     };
+
+    if (evidenceManager.file) {
+      userMessage.text += '\n[Photo attached]';
+      evidenceManager.remove();
+    }
 
     const assistantMessageId = createMessageId('assistant-stream');
     const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
@@ -959,6 +1002,18 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                             </div>
                           ) : null}
 
+                          {message.refundOrderCards && message.refundOrderCards.length > 0 ? (
+                            <div className="mt-3 space-y-2">
+                              {message.refundOrderCards.map((order) => (
+                                <RefundOrderCardItem 
+                                  key={order.order_id} 
+                                  order={order} 
+                                  onSelect={(selectedOrderNumber) => handleSend(`Selected order: ${selectedOrderNumber}`)} 
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+
                           {message.policyText ? (
                             <div className="mt-3 whitespace-pre-line rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                               {message.policyText}
@@ -1004,7 +1059,33 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 </div>
               ) : null}
 
+              {evidenceManager.file && (
+                <div className="flex items-center gap-2 mb-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">
+                  <Paperclip className="h-3 w-3" />
+                  <span className="flex-1 truncate">{evidenceManager.file.name}</span>
+                  <button type="button" onClick={() => evidenceManager.remove()} className="hover:text-rose-900">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              {evidenceManager.validation && !evidenceManager.validation.valid && (
+                <div className="mb-2 text-[11px] text-red-500">{evidenceManager.validation.reason}</div>
+              )}
+
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] focus-within:border-rose-200 focus-within:ring-2 focus-within:ring-rose-100">
+                <label className="cursor-pointer text-slate-400 hover:text-slate-600">
+                  <Paperclip className="h-4 w-4" />
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        evidenceManager.attach(e.target.files[0]);
+                      }
+                    }} 
+                  />
+                </label>
                 <input
                   ref={inputRef}
                   type="text"
@@ -1026,7 +1107,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   onClick={() => {
                     void handleSend();
                   }}
-                  disabled={isSending || !draftMessage.trim()}
+                  disabled={isSending || (!draftMessage.trim() && !evidenceManager.file)}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
                   aria-label="Send message"
                 >

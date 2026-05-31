@@ -1,3 +1,5 @@
+import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
+
 export type IntentType = 'PRODUCT_SEARCH' | 'TRACK_ORDER' | 'REFUND_POLICY' | 'FAQ' | 'SUPPORT';
 
 export interface AIParams {
@@ -60,6 +62,8 @@ export interface UIMessage {
   retryable?: boolean;
   products?: Product[];
   order?: Order;
+  refundOrderCards?: RefundOrderCard[];
+  requiresEvidence?: boolean;
   policyText?: string;
   isEscalation?: boolean;
 }
@@ -77,6 +81,7 @@ export interface ChatAPIRequest {
   context: ChatContext;
   userId?: string;
   intentOutput?: unknown;
+  evidenceImages?: string[];
   recommendationContext?: {
     candidates: Array<{
       id: string;
