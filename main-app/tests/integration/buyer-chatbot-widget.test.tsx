@@ -5,6 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BuyerChatbotWidget from '@/components/shared/buyer-chatbot-widget';
+import { getChatbotStorageKeys } from '@/lib/chatbot/session';
 
 const pathnameState = vi.hoisted(() => ({
   value: '/buyer',
@@ -21,6 +22,8 @@ const supabaseState = vi.hoisted(() => ({
 const mediaQueryState = vi.hoisted(() => ({
   matches: false,
 }));
+
+const buyerStorageKeys = getChatbotStorageKeys('buyer');
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathnameState.value,
@@ -277,14 +280,14 @@ describe('BuyerChatbotWidget', () => {
 
   it('resets chat history after sign out', async () => {
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-messages',
+      buyerStorageKeys.messages,
       JSON.stringify([
         { id: 'assistant-greeting', role: 'assistant', text: 'Hi there! How can I help you today?' },
         { id: 'user-1', role: 'user', text: 'Need help' },
       ]),
     );
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-context',
+      buyerStorageKeys.context,
       JSON.stringify({
         category: 'phone',
         price_max: 20000,
@@ -312,14 +315,14 @@ describe('BuyerChatbotWidget', () => {
     supabaseState.user = { id: 'user-42' };
 
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-messages',
+      buyerStorageKeys.messages,
       JSON.stringify([
         { id: 'assistant-greeting', role: 'assistant', text: 'Hi there! How can I help you today?' },
         { id: 'guest-1', role: 'user', text: 'guest message' },
       ]),
     );
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-context',
+      buyerStorageKeys.context,
       JSON.stringify({
         category: null,
         price_max: null,
@@ -327,7 +330,7 @@ describe('BuyerChatbotWidget', () => {
         history: [{ role: 'user', content: 'guest message' }],
       }),
     );
-    window.sessionStorage.setItem('buysmart.buyer-chat-widget-auth-marker', 'guest');
+    window.sessionStorage.setItem(buyerStorageKeys.authMarker, 'guest');
 
     render(<BuyerChatbotWidget />);
 
