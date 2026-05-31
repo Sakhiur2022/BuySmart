@@ -5,6 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BuyerChatbotWidget from '@/components/shared/buyer-chatbot-widget';
+import { getChatbotStorageKeys } from '@/lib/chatbot/session';
 
 const pathnameState = vi.hoisted(() => ({
   value: '/buyer',
@@ -21,6 +22,8 @@ const supabaseState = vi.hoisted(() => ({
 const mediaQueryState = vi.hoisted(() => ({
   matches: false,
 }));
+
+const buyerStorageKeys = getChatbotStorageKeys('buyer');
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathnameState.value,
@@ -151,7 +154,7 @@ describe('BuyerChatbotWidget', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/chat',
+        '/api/buyer/chat',
         expect.objectContaining({
           method: 'POST',
         }),
@@ -161,6 +164,42 @@ describe('BuyerChatbotWidget', () => {
     expect(await screen.findByText('Searching for category: phone, under 20000 taka.')).toBeInTheDocument();
     expect(screen.getByText('Redmi Note 13 Pro')).toBeInTheDocument();
     expect(screen.getByText('BDT 18,999')).toBeInTheDocument();
+  });
+
+  it('shows an in-message streaming state while the assistant is pending', async () => {
+    let resolveFetch!: (value: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+    await user.type(screen.getByLabelText('Type a message'), 'Need a phone under 20000');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(screen.getByText('Thinking about that now...')).toBeInTheDocument();
+
+    resolveFetch(
+      jsonResponse({
+        intent: 'PRODUCT_SEARCH',
+        reply: 'Searching for category: phone, under 20000 taka.',
+        updatedContext: {
+          category: 'phone',
+          price_max: 20000,
+          lastOrderId: null,
+          history: [],
+        },
+      }),
+    );
+
+    expect(await screen.findByText('Searching for category: phone, under 20000 taka.')).toBeInTheDocument();
   });
 
   it('shows a fallback reply and surfaces API errors when the request fails', async () => {
@@ -178,7 +217,7 @@ describe('BuyerChatbotWidget', () => {
         "I couldn't reach the BuySmart assistant just now. Please try again in a moment, and if this keeps happening we can connect you with support.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Service unavailable')).toBeInTheDocument();
+    expect(await screen.findAllByText('Service unavailable')).toHaveLength(2);
 
     await waitFor(() => {
       expect(screen.getByLabelText('Type a message')).toBeEnabled();
@@ -200,7 +239,7 @@ describe('BuyerChatbotWidget', () => {
         "I couldn't reach the BuySmart assistant just now. Please try again in a moment, and if this keeps happening we can connect you with support.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('The chat service returned an unexpected response.')).toBeInTheDocument();
+    expect(await screen.findAllByText('The chat service returned an unexpected response.')).toHaveLength(2);
   });
 
   it('resets chat history after sign in', async () => {
@@ -241,14 +280,14 @@ describe('BuyerChatbotWidget', () => {
 
   it('resets chat history after sign out', async () => {
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-messages',
+      buyerStorageKeys.messages,
       JSON.stringify([
         { id: 'assistant-greeting', role: 'assistant', text: 'Hi there! How can I help you today?' },
         { id: 'user-1', role: 'user', text: 'Need help' },
       ]),
     );
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-context',
+      buyerStorageKeys.context,
       JSON.stringify({
         category: 'phone',
         price_max: 20000,
@@ -276,14 +315,14 @@ describe('BuyerChatbotWidget', () => {
     supabaseState.user = { id: 'user-42' };
 
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-messages',
+      buyerStorageKeys.messages,
       JSON.stringify([
         { id: 'assistant-greeting', role: 'assistant', text: 'Hi there! How can I help you today?' },
         { id: 'guest-1', role: 'user', text: 'guest message' },
       ]),
     );
     window.sessionStorage.setItem(
-      'buysmart.buyer-chat-widget-context',
+      buyerStorageKeys.context,
       JSON.stringify({
         category: null,
         price_max: null,
@@ -291,7 +330,7 @@ describe('BuyerChatbotWidget', () => {
         history: [{ role: 'user', content: 'guest message' }],
       }),
     );
-    window.sessionStorage.setItem('buysmart.buyer-chat-widget-auth-marker', 'guest');
+    window.sessionStorage.setItem(buyerStorageKeys.authMarker, 'guest');
 
     render(<BuyerChatbotWidget />);
 

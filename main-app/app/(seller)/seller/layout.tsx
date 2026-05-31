@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { LayoutDashboard, Package, PlusCircle } from 'lucide-react';
+import SellerChatbotWidget from '@/components/shared/seller-chatbot-widget';
 import { cn } from '@/lib/utils';
 
 const sellerNav = [
@@ -32,6 +33,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
 
       {/* Content */}
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">{children}</main>
+      <SellerChatbotWidget />
     </div>
   );
 }
