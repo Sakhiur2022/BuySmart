@@ -43,6 +43,7 @@ export interface Order {
 }
 
 export type MessageRole = 'user' | 'assistant';
+export type ChatbotRole = 'buyer' | 'seller' | 'admin';
 
 export interface ChatMessage {
   role: MessageRole;
@@ -72,6 +73,7 @@ export interface ChatContext {
 
 export interface ChatAPIRequest {
   message: string;
+  role?: ChatbotRole;
   context: ChatContext;
   userId?: string;
   intentOutput?: unknown;

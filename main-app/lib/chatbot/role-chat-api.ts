@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { AIParams, AIResponse, ChatAPIResponse, ChatContext } from '@/lib/chatbot/types';
+import type {
+  AIParams,
+  AIResponse,
+  ChatAPIResponse,
+  ChatContext,
+} from '@/lib/chatbot/types';
 import type { RecommendationAdapterContext } from '@/lib/chatbot/buyer-intent/adapter';
 import { BuyerChatToolsFacade } from '@/lib/chatbot/buyer-intent/facade';
 import { getIntentValidationEventEmitter } from '@/lib/chatbot/buyer-intent/events';
@@ -9,8 +14,8 @@ import { recommendationCandidateSchema } from '@/lib/chatbot/buyer-intent/tool-c
 import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 import { mockGetOrder, mockSearchProducts, MOCK_POLICY } from '@/lib/chatbot/mockData';
 
-function createRequestId() {
-  return `buyer-chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function createRequestId(role: 'buyer' | 'seller' | 'admin') {
+  return `${role}-chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function getErrorMessage(error: unknown) {
@@ -27,7 +32,7 @@ function logChatError(
   details: Record<string, unknown>,
   error?: unknown,
 ) {
-  console.error('[buyer-chat-api] request failed', {
+  console.error('[chat-api] request failed', {
     requestId,
     stage,
     ...details,
@@ -248,12 +253,11 @@ function composeReply(intent: string, params: AIParams): string {
         parts.push(`features: ${params.features.join(', ')}`);
       }
       if (params.price_min || params.price_max) {
-        const priceRange =
-          params.price_min && params.price_max
-            ? `${params.price_min}–${params.price_max} taka`
-            : params.price_max
-              ? `under ${params.price_max} taka`
-              : `above ${params.price_min} taka`;
+        const priceRange = params.price_min && params.price_max
+          ? `${params.price_min}–${params.price_max} taka`
+          : params.price_max
+          ? `under ${params.price_max} taka`
+          : `above ${params.price_min} taka`;
         parts.push(priceRange);
       }
 
@@ -291,19 +295,11 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
     query: normalized,
   };
 
-  const hasOrderPhrases =
-    /\b(track|where.*order|order status|find my order|order update|shipment|delivered)\b/.test(
-      normalized,
-    );
-  const hasRefundPhrases =
-    /\b(refund|return|refund policy|cancel order|wrong item|defective|exchange)\b/.test(normalized);
-  const hasSupportPhrases =
-    /\b(help|support|human|agent|customer service|complaint|issue|problem)\b/.test(normalized);
+  const hasOrderPhrases = /\b(track|where.*order|order status|find my order|order update|shipment|delivered)\b/.test(normalized);
+  const hasRefundPhrases = /\b(refund|return|refund policy|cancel order|wrong item|defective|exchange)\b/.test(normalized);
+  const hasSupportPhrases = /\b(help|support|human|agent|customer service|complaint|issue|problem)\b/.test(normalized);
   const hasHumanSupportPhrases = wantsHumanSupport(normalized);
-  const hasProductPhrases =
-    /\b(show|find|search|looking for|need|recommend|suggest|available|buy|price|budget)\b/.test(
-      normalized,
-    );
+  const hasProductPhrases = /\b(show|find|search|looking for|need|recommend|suggest|available|buy|price|budget)\b/.test(normalized);
 
   let intent: AIResponse['intent'] = 'FAQ';
 
@@ -327,8 +323,8 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
 
   const mergedParams: AIParams = {
     ...params,
-    category: params.category ?? context.category ?? undefined,
-    price_max: params.price_max ?? context.price_max ?? undefined,
+    category: params.category ?? (context.category ?? undefined),
+    price_max: params.price_max ?? (context.price_max ?? undefined),
   };
 
   if (!mergedParams.features) {
@@ -396,25 +392,11 @@ async function routeIntent(
   }
 }
 
-function formatBuyerChatErrorResponse(error: unknown): {
-  status: number;
-  body: { error: string; requestId?: string };
-} {
-  if (error instanceof Error) {
-    if (error.message === 'UNAUTHENTICATED') {
-      return { status: 401, body: { error: 'Unauthorized: Not authenticated' } };
-    }
-
-    if (error.message.includes('Validation') || error.message.includes('Invalid')) {
-      return { status: 400, body: { error: error.message } };
-    }
-  }
-
-  return { status: 500, body: { error: 'Failed to process chat request.' } };
-}
-
-export async function POST(request: NextRequest) {
-  const requestId = createRequestId();
+export async function handleRoleChatRequest(
+  request: NextRequest,
+  role: 'buyer' | 'seller' | 'admin',
+) {
+  const requestId = createRequestId(role);
   let parsedBody;
   let payload: unknown;
 
@@ -432,7 +414,10 @@ export async function POST(request: NextRequest) {
       error,
     );
 
-    return NextResponse.json({ error: 'Invalid JSON payload.', requestId }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid JSON payload.', requestId },
+      { status: 400 },
+    );
   }
 
   if (!parsedBody.success) {
@@ -440,6 +425,7 @@ export async function POST(request: NextRequest) {
       method: request.method,
       path: request.nextUrl.pathname,
       issues: parsedBody.error.flatten(),
+      payload,
     });
 
     return NextResponse.json(
@@ -453,13 +439,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const {
-      message,
-      context: requestContext,
-      intentOutput,
-      recommendationContext,
-    } = parsedBody.data;
-
+    const { message, context: requestContext, intentOutput, recommendationContext } = parsedBody.data;
     const context: ChatContext = {
       category: requestContext?.category ?? null,
       price_max: requestContext?.price_max ?? null,
@@ -487,10 +467,7 @@ export async function POST(request: NextRequest) {
             }
           : undefined;
 
-        const toolCallResult = buyerIntentFacade.buildToolCall(
-          resolvedIntent.value,
-          adapterContext,
-        );
+        const toolCallResult = buyerIntentFacade.buildToolCall(resolvedIntent.value, adapterContext);
         if (toolCallResult.success) {
           toolCall = toolCallResult.value;
           const invoked = await invokeBuyerToolCall(toolCallResult.value);
@@ -518,7 +495,7 @@ export async function POST(request: NextRequest) {
     }
 
     const aiResponse = detectIntent(message, context);
-    const result = await routeIntent(aiResponse, context, message, 'buyer');
+    const result = await routeIntent(aiResponse, context, message, role);
     const finalReply = result.reply ?? aiResponse.reply;
 
     const updatedContext: ChatContext = {
@@ -545,7 +522,7 @@ export async function POST(request: NextRequest) {
       refundReferenceId,
     };
 
-    console.info('[buyer-chat-api] request succeeded', {
+    console.info('[chat-api] request succeeded', {
       requestId,
       method: request.method,
       path: request.nextUrl.pathname,
@@ -571,7 +548,12 @@ export async function POST(request: NextRequest) {
       error,
     );
 
-    const { status, body } = formatBuyerChatErrorResponse(error);
-    return NextResponse.json({ ...body, requestId }, { status });
+    return NextResponse.json(
+      {
+        error: 'Failed to process chat request.',
+        requestId,
+      },
+      { status: 500 },
+    );
   }
 }

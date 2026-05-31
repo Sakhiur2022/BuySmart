@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { AGENT_PROMPTS } from '@/lib/agents/prompts';
 import { BUYSMART_SUPPORT_KNOWLEDGE } from '@/lib/chatbot/support-knowledge';
-import type { ChatContext, Product } from '@/lib/chatbot/types';
+import type { ChatContext, ChatbotRole, Product } from '@/lib/chatbot/types';
 import { isAIConfigured } from '@/lib/services/ai/config';
 import { generateChatCompletion } from '@/lib/services/ai/models/llm';
 
@@ -20,9 +20,33 @@ export type ProductSearchAIResult = {
   reply: string;
 };
 
-const SUPPORT_SYSTEM_PROMPT = `${AGENT_PROMPTS.support}
+function buildSupportSystemPrompt(role: ChatbotRole = 'buyer') {
+  const roleDescription =
+    role === 'admin'
+      ? 'admin-facing support for the BuySmart dashboard and platform operations'
+      : role === 'seller'
+      ? 'seller-facing support for product listings, inventory, and order management'
+      : 'buyer-facing support for product discovery, orders, refunds, and checkout';
 
-You are the BuySmart chatbot for buyer-facing support.
+  const roleFocus =
+    role === 'admin'
+      ? 'Use only admin dashboard, platform settings, activity, user management, reporting, and moderation knowledge.'
+      : role === 'seller'
+      ? 'Use only seller dashboard, product listing, inventory, order management, pricing, and fulfillment knowledge.'
+      : 'Use only buyer shopping, product, cart, checkout, orders, refund, and support knowledge.';
+
+  const roleHint =
+    role === 'admin'
+      ? 'If the question is about seller or buyer actions, answer from the admin point of view and direct the user to the relevant admin feature if applicable.'
+      : role === 'seller'
+      ? 'If the question is about buyer actions, answer from the seller point of view when possible and mention seller-focused workflows like listings, stock, orders, and payouts.'
+      : 'If the question is about admin or seller actions, explain that this chat is for buyers and keep the answer buyer-focused unless asked to switch roles.';
+
+  return `${AGENT_PROMPTS.support}
+
+You are the BuySmart chatbot for ${roleDescription}.
+
+${roleFocus}
 
 Use only the project knowledge below. If the answer is not grounded in that knowledge, say you are not fully sure.
 
@@ -39,9 +63,11 @@ Rules:
 - Keep the reply short and helpful.
 - Prefer the exact visible UI labels from the project knowledge.
 - Do not mention routes, URLs, source files, JSON, APIs, databases, or implementation details unless the user explicitly asks about the technical project.
-- For general product, cart, checkout, order, dashboard, or refund questions, answer directly from the provided knowledge.
+- For general product, cart, checkout, order, dashboard, listing, or refund questions, answer directly from the provided knowledge.
+- ${roleHint}
 - If the user asks for a human, live agent, or customer service follow-up, set shouldEscalate to true.
 - If unsure, say so briefly instead of inventing steps.`;
+}
 
 const PRODUCT_SEARCH_SYSTEM_PROMPT = `${AGENT_PROMPTS.support}
 
@@ -171,6 +197,7 @@ function buildProductSearchFallbackReply(
 export async function answerSupportQuestion(
   message: string,
   context: ChatContext,
+  role: ChatbotRole = 'buyer',
 ): Promise<SupportAIResult> {
   if (!isAIConfigured()) {
     return buildFallbackReply(message);
@@ -187,7 +214,7 @@ export async function answerSupportQuestion(
       [
         {
           role: 'system',
-          content: SUPPORT_SYSTEM_PROMPT,
+          content: buildSupportSystemPrompt(role),
         },
         {
           role: 'user',
