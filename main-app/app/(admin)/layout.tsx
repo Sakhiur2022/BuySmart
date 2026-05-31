@@ -31,7 +31,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="flex min-h-screen">
       <AdminSidebar />
       <main className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
-      <AdminChatbotWidget role="admin" />
+      <AdminChatbotWidget />
     </div>
   );
 }

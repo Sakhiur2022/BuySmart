@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Variants } from 'framer-motion';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
@@ -306,13 +306,14 @@ async function getAuthMarker(supabase: ReturnType<typeof createClient>) {
 }
 
 type ChatbotWidgetProps = {
-  role?: ChatbotRole;
+  chatbotRole?: ChatbotRole;
 };
 
-export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
+export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetProps) {
   const pathname = usePathname();
   const supabase = useMemo(() => createClient(), []);
-  const storageKeys = useMemo(() => getChatbotStorageKeys(role), [role]);
+  const storageKeys = useMemo(() => getChatbotStorageKeys(chatbotRole), [chatbotRole]);
+  const role = chatbotRole;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const hasInteractedRef = useRef(false);
@@ -321,7 +322,7 @@ export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
-  const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(role)]);
+  const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
   const [chatContext, setChatContext] = useState<ChatContext>(DEFAULT_CONTEXT);
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -419,8 +420,8 @@ export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
         visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } },
       };
 
-  function resetChatSession(nextAuthMarker?: string, preserveOpenState = false) {
-    setMessages([getGreetingMessage(role)]);
+  const resetChatSession = useCallback((nextAuthMarker?: string, preserveOpenState = false) => {
+    setMessages([getGreetingMessage(chatbotRole)]);
     setChatContext(DEFAULT_CONTEXT);
     setDraftMessage('');
     setErrorMessage(null);
@@ -437,7 +438,7 @@ export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
         // Ignore storage failures and keep the widget functional.
       }
     }
-  }
+  }, [chatbotRole, storageKeys.authMarker]);
 
   useEffect(() => {
     let isActive = true;
@@ -490,7 +491,7 @@ export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
         }
       } catch {
         setIsOpen(false);
-        setMessages([getGreetingMessage(role)]);
+        setMessages([getGreetingMessage(chatbotRole)]);
         setChatContext(DEFAULT_CONTEXT);
       } finally {
         if (isActive) {
@@ -504,7 +505,7 @@ export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
     return () => {
       isActive = false;
     };
-  }, [supabase]);
+  }, [chatbotRole, resetChatSession, storageKeys.authMarker, storageKeys.context, storageKeys.messages, storageKeys.open, supabase]);
 
   useEffect(() => {
     if (!hasLoaded) {
@@ -518,7 +519,7 @@ export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
     } catch {
       // Ignore storage failures and keep the widget functional.
     }
-  }, [chatContext, hasLoaded, isOpen, messages]);
+  }, [chatContext, hasLoaded, isOpen, messages, storageKeys.context, storageKeys.messages, storageKeys.open]);
 
   useEffect(() => {
     const {
@@ -533,7 +534,7 @@ export default function ChatbotWidget({ role = 'buyer' }: ChatbotWidgetProps) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [resetChatSession, supabase]);
 
   useEffect(() => {
     setNow(Date.now());
