@@ -223,6 +223,19 @@ function formatCurrency(amount: number) {
   return `BDT ${amount.toLocaleString()}`;
 }
 
+function formatOrderDate(isoDate: string) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
 function formatRelativeTime(timestamp: number, now: number) {
   const diffInSeconds = Math.round((timestamp - now) / 1000);
   const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
@@ -267,10 +280,23 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
     }
   }
 
+  const responseDetails: string[] = [];
+  if (response.refundReferenceId) {
+    responseDetails.push(`Refund reference: ${response.refundReferenceId}`);
+  }
+  if (response.toolCall?.toolName === 'refund_request' && response.toolError) {
+    responseDetails.push(getRefundErrorMessage(response.toolError.code));
+  }
+
+  const replyText =
+    responseDetails.length > 0
+      ? `${response.reply}\n${responseDetails.join('\n')}`
+      : response.reply;
+
   return {
     id: createMessageId('assistant'),
     role: 'assistant',
-    text: response.reply,
+    text: replyText,
     createdAt: Date.now(),
     products: response.products,
     order: response.order,
@@ -317,21 +343,60 @@ async function getAuthMarker(supabase: ReturnType<typeof createClient>) {
   }
 }
 
-function RefundOrderCardItem({ order, onSelect }: { order: RefundOrderCard; onSelect: (orderNumber: string) => void }) {
+function RefundOrderCardItem({
+  order,
+  isSelected,
+  onSelect,
+}: {
+  order: RefundOrderCard;
+  isSelected: boolean;
+  onSelect: (order: RefundOrderCard) => void;
+}) {
   return (
-    <div className="rounded-xl border border-rose-100 bg-white/80 p-3 text-slate-700 shadow-sm mt-2">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-semibold text-slate-900">Order #{order.order_number || order.order_id.slice(0, 8)}</p>
-          <p className="text-xs text-slate-500">Status: <span className="font-medium text-slate-700">{order.status}</span></p>
+    <div className="rounded-xl border border-rose-100 bg-white/90 p-3 text-slate-700 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-rose-100 bg-rose-50">
+          {order.thumbnail_url ? (
+            <Image
+              src={order.thumbnail_url}
+              alt={order.product_name ?? 'Order item'}
+              fill
+              sizes="48px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-rose-400">
+              No image
+            </div>
+          )}
         </div>
-        <p className="text-sm font-semibold text-rose-600">{order.currency} {order.total_amount}</p>
+        <div className="flex-1 space-y-1">
+          <p className="text-sm font-semibold text-slate-900">
+            {order.product_name ?? 'Order items'}
+          </p>
+          <p className="text-xs text-slate-500">
+            Order #{order.order_number || order.order_id.slice(0, 8)}
+          </p>
+          <p className="text-xs text-slate-500">Placed {formatOrderDate(order.created_at)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-semibold text-rose-600">
+            {order.currency} {order.total_amount}
+          </p>
+          <p className="text-[11px] font-medium text-slate-500">{order.status}</p>
+        </div>
       </div>
-      <button 
-        onClick={() => onSelect(order.order_number || order.order_id)}
-        className="mt-2 w-full rounded bg-rose-50 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 text-center transition"
+      <button
+        type="button"
+        onClick={() => onSelect(order)}
+        disabled={isSelected}
+        className={`mt-3 w-full rounded-full py-1.5 text-xs font-semibold transition ${
+          isSelected
+            ? 'cursor-default bg-emerald-50 text-emerald-700'
+            : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+        }`}
       >
-        Select Order
+        {isSelected ? 'Selected' : 'Select order'}
       </button>
     </div>
   );
@@ -355,6 +420,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
   const evidenceManager = useRefundEvidenceAttachment();
+  const [selectedOrder, setSelectedOrder] = useState<RefundOrderCard | null>(null);
+  const [refundComments, setRefundComments] = useState('');
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [isRefundSubmitting, setIsRefundSubmitting] = useState(false);
+  const [isRefundUploading, setIsRefundUploading] = useState(false);
+  const [evidencePreviews, setEvidencePreviews] = useState<
+    Array<{ url: string; name: string }>
+  >([]);
+  const refundPromptedOrderRef = useRef<string | null>(null);
 
   const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
   const [chatContext, setChatContext] = useState<ChatContext>(DEFAULT_CONTEXT);
@@ -460,6 +534,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     setDraftMessage('');
     setErrorMessage(null);
     setIsSending(false);
+    setSelectedOrder(null);
+    setRefundComments('');
+    setRefundError(null);
+    evidenceManager.clear();
     if (!preserveOpenState) {
       setIsOpen(false);
     }
@@ -472,7 +550,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         // Ignore storage failures and keep the widget functional.
       }
     }
-  }, [chatbotRole, storageKeys.authMarker]);
+  }, [chatbotRole, evidenceManager, storageKeys.authMarker]);
 
   useEffect(() => {
     let isActive = true;
@@ -575,6 +653,23 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   }, []);
 
   useEffect(() => {
+    if (evidenceManager.files.length === 0) {
+      setEvidencePreviews([]);
+      return;
+    }
+
+    const previews = evidenceManager.files.map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+    }));
+    setEvidencePreviews(previews);
+
+    return () => {
+      previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [evidenceManager.files]);
+
+  useEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -630,11 +725,68 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     };
   }, [isOpen]);
 
-  async function handleSend(overrideMessage?: string) {
-    let message = (overrideMessage ?? draftMessage).trim();
-    if (!message && evidenceManager.file) {
-      message = 'Attached evidence.';
+  const pushAssistantMessage = useCallback((text: string) => {
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      {
+        id: createMessageId('assistant'),
+        role: 'assistant',
+        text,
+        createdAt: Date.now(),
+      },
+    ]);
+  }, []);
+
+  const handleOrderSelect = useCallback(
+    (order: RefundOrderCard) => {
+      setSelectedOrder(order);
+      setRefundComments('');
+      setRefundError(null);
+      evidenceManager.clear();
+
+      if (refundPromptedOrderRef.current !== order.order_id) {
+        pushAssistantMessage(
+          'Thanks! Please upload photos of the issue and add any optional comments before submitting your refund request.',
+        );
+        refundPromptedOrderRef.current = order.order_id;
+      }
+    },
+    [evidenceManager, pushAssistantMessage],
+  );
+
+  const uploadRefundEvidence = useCallback(async (files: File[], orderId: string) => {
+    if (files.length === 0) {
+      return [] as string[];
     }
+
+    const formData = new FormData();
+    formData.append('orderId', orderId);
+    files.forEach((file) => {
+      formData.append('files', file, file.name);
+    });
+
+    const response = await fetch('/api/buyer/refund-evidence', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const body = (await response.json().catch(() => null)) as
+      | { urls?: string[]; error?: string }
+      | null;
+
+    if (!response.ok || !body?.urls) {
+      const message = body?.error || 'Failed to upload evidence.';
+      throw new Error(message);
+    }
+
+    return body.urls;
+  }, []);
+
+  async function handleSend(
+    overrideMessage?: string,
+    options?: { intentOutput?: unknown; evidenceImages?: string[] },
+  ) {
+    let message = (overrideMessage ?? draftMessage).trim();
     if (!message || isSending) {
       return;
     }
@@ -650,13 +802,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       message,
       context: chatContext,
       role,
-      evidenceImages: evidenceManager.file ? [URL.createObjectURL(evidenceManager.file)] : undefined
+      intentOutput: options?.intentOutput,
+      evidenceImages: options?.evidenceImages,
     };
-
-    if (evidenceManager.file) {
-      userMessage.text += '\n[Photo attached]';
-      evidenceManager.remove();
-    }
 
     const assistantMessageId = createMessageId('assistant-stream');
     const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
@@ -708,6 +856,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       }, REFUND_SUBMIT_TOAST_DELAY_MS);
     }
 
+    let responseBody: ChatAPIResponse | null = null;
+    const timeoutMs = 20000;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       toolStatus.updateStatus('invoking_tool');
       const endpoint =
@@ -722,6 +875,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           'content-type': 'application/json',
         },
         body: JSON.stringify(requestPayload),
+        signal: controller.signal,
       });
 
       toolStatus.updateStatus('awaiting_result');
@@ -741,6 +895,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       if (!isChatApiResponse(body)) {
         throw new Error('The chat service returned an unexpected response.');
       }
+
+      responseBody = body;
 
       if (body.toolCall?.toolName?.startsWith('refund_')) {
         const toolName = body.toolCall.toolName;
@@ -799,7 +955,12 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       }
     } catch (error) {
       const nextContext = createFallbackContext(chatContext, message);
-      const errorText = error instanceof Error ? error.message : 'Unable to send message.';
+      const errorText =
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'The chat request timed out. Please try again.'
+          : error instanceof Error
+            ? error.message
+            : 'Unable to send message.';
       setMessages((currentMessages) =>
         currentMessages.map((currentMessage) =>
           currentMessage.id === assistantMessageId
@@ -821,6 +982,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         durationMs: 8000,
       });
     } finally {
+      window.clearTimeout(timeoutId);
       if (recommendationToastTimer) {
         window.clearTimeout(recommendationToastTimer);
       }
@@ -838,7 +1000,76 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         dismissToast(refundSubmitToastId);
       }
     }
+
+    return responseBody;
   }
+
+  const handleRefundSubmit = useCallback(async () => {
+    if (!selectedOrder || isRefundSubmitting || isSending) {
+      return;
+    }
+
+    if (evidenceManager.validation && !evidenceManager.validation.valid) {
+      setRefundError(evidenceManager.validation.reason ?? 'Please fix the evidence upload issue.');
+      return;
+    }
+
+    setRefundError(null);
+    setIsRefundSubmitting(true);
+
+    try {
+      let evidenceUrls: string[] = [];
+      if (evidenceManager.files.length > 0) {
+        setIsRefundUploading(true);
+        evidenceUrls = await uploadRefundEvidence(evidenceManager.files, selectedOrder.order_id);
+      }
+
+      const intentOutput = {
+        intent: 'REFUND_REQUEST',
+        payload: {
+          orderSignal: { orderId: selectedOrder.order_id },
+          reason: 'other',
+          reasonDescription: refundComments.trim() || undefined,
+          evidence: evidenceUrls.length > 0 ? 'photo_attached' : 'no_photo',
+          evidenceImages: evidenceUrls.length > 0 ? evidenceUrls : undefined,
+          requestedAmount: selectedOrder.total_amount,
+          currency: selectedOrder.currency,
+        },
+        metadata: {
+          source: 'chat-refund-flow',
+        },
+      };
+
+      const userMessage = `Submit refund request for order #${
+        selectedOrder.order_number || selectedOrder.order_id.slice(0, 8)
+      }.`;
+
+      const response = await handleSend(userMessage, {
+        intentOutput,
+        evidenceImages: evidenceUrls,
+      });
+
+      if (response?.refundReferenceId) {
+        setSelectedOrder(null);
+        setRefundComments('');
+        evidenceManager.clear();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Refund submission failed.';
+      setRefundError(message);
+    } finally {
+      setIsRefundUploading(false);
+      setIsRefundSubmitting(false);
+    }
+  }, [
+    evidenceManager,
+    handleSend,
+    isRefundSubmitting,
+    isSending,
+    refundComments,
+    selectedOrder,
+    uploadRefundEvidence,
+  ]);
 
   if (!shouldRender) {
     return null;
@@ -1005,10 +1236,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                           {message.refundOrderCards && message.refundOrderCards.length > 0 ? (
                             <div className="mt-3 space-y-2">
                               {message.refundOrderCards.map((order) => (
-                                <RefundOrderCardItem 
-                                  key={order.order_id} 
-                                  order={order} 
-                                  onSelect={(selectedOrderNumber) => handleSend(`Selected order: ${selectedOrderNumber}`)} 
+                                <RefundOrderCardItem
+                                  key={order.order_id}
+                                  order={order}
+                                  isSelected={selectedOrder?.order_id === order.order_id}
+                                  onSelect={handleOrderSelect}
                                 />
                               ))}
                             </div>
@@ -1059,33 +1291,121 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 </div>
               ) : null}
 
-              {evidenceManager.file && (
-                <div className="flex items-center gap-2 mb-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-800">
-                  <Paperclip className="h-3 w-3" />
-                  <span className="flex-1 truncate">{evidenceManager.file.name}</span>
-                  <button type="button" onClick={() => evidenceManager.remove()} className="hover:text-rose-900">
-                    <X className="h-3 w-3" />
+              {selectedOrder ? (
+                <div className="mb-3 rounded-2xl border border-rose-100 bg-rose-50/70 p-3 text-xs text-slate-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">Refund request</p>
+                      <p className="text-[11px] text-slate-500">
+                        Order #{selectedOrder.order_number || selectedOrder.order_id.slice(0, 8)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOrder(null);
+                        setRefundComments('');
+                        setRefundError(null);
+                        evidenceManager.clear();
+                      }}
+                      className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                    >
+                      Change order
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold text-slate-600">Photo evidence</p>
+                      <span className="text-[10px] text-slate-500">
+                        {evidenceManager.files.length}/{evidenceManager.maxFiles} images
+                      </span>
+                    </div>
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200 bg-white px-3 py-2 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
+                      <Paperclip className="h-3 w-3" />
+                      Upload photos
+                      <input
+                        type="file"
+                        multiple
+                        className="hidden"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(event) => {
+                          if (event.target.files && event.target.files.length > 0) {
+                            evidenceManager.attach(event.target.files);
+                          }
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+
+                    {evidenceManager.validation && !evidenceManager.validation.valid ? (
+                      <div className="text-[11px] text-rose-600">
+                        {evidenceManager.validation.reason}
+                      </div>
+                    ) : null}
+
+                    {evidencePreviews.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {evidencePreviews.map((preview, index) => (
+                          <div
+                            key={`${preview.name}-${index}`}
+                            className="relative h-16 w-full overflow-hidden rounded-lg border border-rose-100"
+                          >
+                            <Image
+                              src={preview.url}
+                              alt={preview.name}
+                              fill
+                              sizes="96px"
+                              className="object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => evidenceManager.removeAt(index)}
+                              className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-rose-600 shadow"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="text-[11px] font-semibold text-slate-600">
+                      Comments (optional)
+                    </label>
+                    <textarea
+                      value={refundComments}
+                      onChange={(event) => setRefundComments(event.target.value)}
+                      rows={3}
+                      placeholder="Share any details about the issue..."
+                      className="mt-1 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
+                    />
+                  </div>
+
+                  {refundError ? (
+                    <div className="mt-2 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[11px] text-rose-700">
+                      {refundError}
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => void handleRefundSubmit()}
+                    disabled={isRefundSubmitting || isRefundUploading}
+                    className="mt-3 w-full rounded-full bg-rose-500 py-2 text-xs font-semibold text-white shadow transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-rose-300"
+                  >
+                    {isRefundUploading
+                      ? 'Uploading photos...'
+                      : isRefundSubmitting
+                        ? 'Submitting refund...'
+                        : 'Submit refund request'}
                   </button>
                 </div>
-              )}
-              {evidenceManager.validation && !evidenceManager.validation.valid && (
-                <div className="mb-2 text-[11px] text-red-500">{evidenceManager.validation.reason}</div>
-              )}
+              ) : null}
 
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] focus-within:border-rose-200 focus-within:ring-2 focus-within:ring-rose-100">
-                <label className="cursor-pointer text-slate-400 hover:text-slate-600">
-                  <Paperclip className="h-4 w-4" />
-                  <input 
-                    type="file" 
-                    className="hidden" 
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        evidenceManager.attach(e.target.files[0]);
-                      }
-                    }} 
-                  />
-                </label>
                 <input
                   ref={inputRef}
                   type="text"
@@ -1107,7 +1427,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   onClick={() => {
                     void handleSend();
                   }}
-                  disabled={isSending || (!draftMessage.trim() && !evidenceManager.file)}
+                  disabled={isSending || !draftMessage.trim()}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
                   aria-label="Send message"
                 >

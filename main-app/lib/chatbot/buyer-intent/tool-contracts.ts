@@ -132,6 +132,7 @@ export const refundOrderCardSchema = z.object({
   status: z.string().min(1).max(40),
   total_amount: z.number().nonnegative(),
   currency: z.string().length(3),
+  product_name: z.string().min(1).max(200).optional().nullable(),
   thumbnail_url: z.string().url().optional().nullable(),
 });
 
