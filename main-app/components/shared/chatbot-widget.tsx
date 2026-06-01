@@ -438,6 +438,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [now, setNow] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toolStatus = useChatToolStatus();
+  const sessionVersionRef = useRef(0);
 
   const isHiddenRoute = pathname.startsWith('/auth') || pathname.startsWith('/api');
 
@@ -532,6 +533,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       };
 
   const resetChatSession = useCallback((nextAuthMarker?: string, preserveOpenState = false) => {
+    sessionVersionRef.current += 1;
     setMessages([getGreetingMessage(chatbotRole)]);
     setChatContext(DEFAULT_CONTEXT);
     setDraftMessage('');
@@ -557,10 +559,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
   useEffect(() => {
     let isActive = true;
+    const hydrationVersion = sessionVersionRef.current;
 
     const hydrateChatState = async () => {
       const authMarker = await getAuthMarker(supabase);
       if (!isActive) {
+        return;
+      }
+
+      if (hydrationVersion !== sessionVersionRef.current) {
         return;
       }
 
