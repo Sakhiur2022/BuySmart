@@ -453,32 +453,35 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     ? 'bottom-20 right-4 md:bottom-24 md:right-8'
     : 'bottom-8 right-4 md:bottom-10 md:right-6';
 
-  function addToast(toast: Omit<Toast, 'id'> & { durationMs?: number }) {
-    const id = createMessageId('toast');
-    const durationMs = toast.durationMs ?? 5000;
-    setToasts((prev) => [
-      ...prev,
-      {
-        id,
-        message: toast.message,
-        variant: toast.variant,
-        actionLabel: toast.actionLabel,
-        onAction: toast.onAction,
-      },
-    ]);
+  const addToast = useCallback(
+    (toast: Omit<Toast, 'id'> & { durationMs?: number }) => {
+      const id = createMessageId('toast');
+      const durationMs = toast.durationMs ?? 5000;
+      setToasts((prev) => [
+        ...prev,
+        {
+          id,
+          message: toast.message,
+          variant: toast.variant,
+          actionLabel: toast.actionLabel,
+          onAction: toast.onAction,
+        },
+      ]);
 
-    if (durationMs > 0) {
-      window.setTimeout(() => {
-        setToasts((prev) => prev.filter((item) => item.id !== id));
-      }, durationMs);
-    }
+      if (durationMs > 0) {
+        window.setTimeout(() => {
+          setToasts((prev) => prev.filter((item) => item.id !== id));
+        }, durationMs);
+      }
 
-    return id;
-  }
+      return id;
+    },
+    [],
+  );
 
-  function dismissToast(id: string) {
+  const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((item) => item.id !== id));
-  }
+  }, []);
 
   const panelVariants: Variants = shouldReduceMotion
     ? {
@@ -782,227 +785,243 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return body.urls;
   }, []);
 
-  async function handleSend(
-    overrideMessage?: string,
-    options?: { intentOutput?: unknown; evidenceImages?: string[] },
-  ) {
-    let message = (overrideMessage ?? draftMessage).trim();
-    if (!message || isSending) {
-      return;
-    }
-
-    const userMessage: UIMessage = {
-      id: createMessageId('user'),
-      role: 'user',
-      text: message,
-      createdAt: Date.now(),
-    };
-
-    const requestPayload: ChatAPIRequest = {
-      message,
-      context: chatContext,
-      role,
-      intentOutput: options?.intentOutput,
-      evidenceImages: options?.evidenceImages,
-    };
-
-    const assistantMessageId = createMessageId('assistant-stream');
-    const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
-
-    setMessages((currentMessages) => [...currentMessages, userMessage, assistantPlaceholder]);
-    setDraftMessage('');
-    setErrorMessage(null);
-    setLastFailedMessage(null);
-    setIsSending(true);
-    toolStatus.updateStatus('resolving_intent');
-
-    const normalizedMessage = message.toLowerCase();
-    const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
-      normalizedMessage,
-    );
-    const shouldWatchRefundFlow = /\b(refund|return)\b/.test(normalizedMessage);
-    let recommendationToastId: string | null = null;
-    let recommendationToastTimer: number | null = null;
-    let refundOrdersToastId: string | null = null;
-    let refundOrdersToastTimer: number | null = null;
-    let refundSubmitToastId: string | null = null;
-    let refundSubmitToastTimer: number | null = null;
-
-    if (shouldShowRecommendationToast) {
-      recommendationToastTimer = window.setTimeout(() => {
-        recommendationToastId = addToast({
-          message: 'Still fetching recommendations...',
-          variant: 'info',
-          durationMs: 4000,
-        });
-      }, RECOMMENDATION_TOAST_DELAY_MS);
-    }
-
-    if (shouldWatchRefundFlow) {
-      refundOrdersToastTimer = window.setTimeout(() => {
-        refundOrdersToastId = addToast({
-          message: 'Fetching your recent orders...',
-          variant: 'info',
-          durationMs: 0,
-        });
-      }, REFUND_ORDER_FETCH_TOAST_DELAY_MS);
-
-      refundSubmitToastTimer = window.setTimeout(() => {
-        refundSubmitToastId = addToast({
-          message: 'Submitting your refund...',
-          variant: 'info',
-          durationMs: 0,
-        });
-      }, REFUND_SUBMIT_TOAST_DELAY_MS);
-    }
-
-    let responseBody: ChatAPIResponse | null = null;
-    const timeoutMs = 20000;
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      toolStatus.updateStatus('invoking_tool');
-      const endpoint =
-        role === 'seller'
-          ? '/api/seller/chat'
-          : role === 'admin'
-          ? '/api/admin/chat'
-          : '/api/buyer/chat';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-      });
-
-      toolStatus.updateStatus('awaiting_result');
-      const body = (await response.json().catch(() => null)) as
-        | ChatAPIResponse
-        | { error?: string }
-        | null;
-
-      if (!response.ok) {
-        const apiError =
-          body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
-            ? body.error
-            : 'Unable to send message.';
-        throw new Error(apiError);
+  const handleSend = useCallback(
+    async (
+      overrideMessage?: string,
+      options?: { intentOutput?: unknown; evidenceImages?: string[] },
+    ) => {
+      const message = (overrideMessage ?? draftMessage).trim();
+      if (!message || isSending) {
+        return;
       }
 
-      if (!isChatApiResponse(body)) {
-        throw new Error('The chat service returned an unexpected response.');
+      const userMessage: UIMessage = {
+        id: createMessageId('user'),
+        role: 'user',
+        text: message,
+        createdAt: Date.now(),
+      };
+
+      const requestPayload: ChatAPIRequest = {
+        message,
+        context: chatContext,
+        role,
+        intentOutput: options?.intentOutput,
+        evidenceImages: options?.evidenceImages,
+      };
+
+      const assistantMessageId = createMessageId('assistant-stream');
+      const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
+
+      setMessages((currentMessages) => [...currentMessages, userMessage, assistantPlaceholder]);
+      setDraftMessage('');
+      setErrorMessage(null);
+      setLastFailedMessage(null);
+      setIsSending(true);
+      toolStatus.updateStatus('resolving_intent');
+
+      const normalizedMessage = message.toLowerCase();
+      const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
+        normalizedMessage,
+      );
+      const shouldWatchRefundFlow = /\b(refund|return)\b/.test(normalizedMessage);
+      let recommendationToastId: string | null = null;
+      let recommendationToastTimer: number | null = null;
+      let refundOrdersToastId: string | null = null;
+      let refundOrdersToastTimer: number | null = null;
+      let refundSubmitToastId: string | null = null;
+      let refundSubmitToastTimer: number | null = null;
+
+      if (shouldShowRecommendationToast) {
+        recommendationToastTimer = window.setTimeout(() => {
+          recommendationToastId = addToast({
+            message: 'Still fetching recommendations...',
+            variant: 'info',
+            durationMs: 4000,
+          });
+        }, RECOMMENDATION_TOAST_DELAY_MS);
       }
 
-      responseBody = body;
+      if (shouldWatchRefundFlow) {
+        refundOrdersToastTimer = window.setTimeout(() => {
+          refundOrdersToastId = addToast({
+            message: 'Fetching your recent orders...',
+            variant: 'info',
+            durationMs: 0,
+          });
+        }, REFUND_ORDER_FETCH_TOAST_DELAY_MS);
 
-      if (body.toolCall?.toolName?.startsWith('refund_')) {
-        const toolName = body.toolCall.toolName;
-        const toolError = body.toolError;
-        const toolDetails = toolError?.details as
-          | { mascotTrigger?: boolean; kind?: string }
-          | undefined;
+        refundSubmitToastTimer = window.setTimeout(() => {
+          refundSubmitToastId = addToast({
+            message: 'Submitting your refund...',
+            variant: 'info',
+            durationMs: 0,
+          });
+        }, REFUND_SUBMIT_TOAST_DELAY_MS);
+      }
 
-        if (toolError) {
-          if (toolDetails?.mascotTrigger) {
-            addToast({
-              message: 'Refunds are temporarily unavailable. Please use Orders to submit manually.',
-              variant: 'error',
-              durationMs: 0,
-              actionLabel: 'Open Orders',
-              onAction: () => {
-                window.location.href = '/buyer/orders';
-              },
-            });
-          } else {
-            addToast({
-              message: getRefundErrorMessage(toolError.code),
-              variant: 'error',
-              durationMs: toolDetails?.kind === 'business' ? 6000 : 8000,
-            });
+      let responseBody: ChatAPIResponse | null = null;
+      const timeoutMs = 20000;
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        toolStatus.updateStatus('invoking_tool');
+        const endpoint =
+          role === 'seller'
+            ? '/api/seller/chat'
+            : role === 'admin'
+            ? '/api/admin/chat'
+            : '/api/buyer/chat';
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(requestPayload),
+          signal: controller.signal,
+        });
+        toolStatus.updateStatus('awaiting_result');
+        const body = (await response.json().catch(() => null)) as
+          | ChatAPIResponse
+          | { error?: string }
+          | null;
+
+        if (!response.ok) {
+          const apiError =
+            body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
+              ? body.error
+              : 'Unable to send message.';
+          throw new Error(apiError);
+        }
+
+        if (!isChatApiResponse(body)) {
+          throw new Error('The chat service returned an unexpected response.');
+        }
+
+        responseBody = body;
+
+        if (body.toolCall?.toolName?.startsWith('refund_')) {
+          const toolName = body.toolCall.toolName;
+          const toolError = body.toolError;
+          const toolDetails = toolError?.details as
+            | { mascotTrigger?: boolean; kind?: string }
+            | undefined;
+
+          if (toolError) {
+            if (toolDetails?.mascotTrigger) {
+              addToast({
+                message: 'Refunds are temporarily unavailable. Please use Orders to submit manually.',
+                variant: 'error',
+                durationMs: 0,
+                actionLabel: 'Open Orders',
+                onAction: () => {
+                  window.location.href = '/buyer/orders';
+                },
+              });
+            } else {
+              addToast({
+                message: getRefundErrorMessage(toolError.code),
+                variant: 'error',
+                durationMs: toolDetails?.kind === 'business' ? 6000 : 8000,
+              });
+            }
+          }
+
+          if (toolName === 'refund_orders_fetch' && !toolError) {
+            // Orders are ready; loading toasts are dismissed below.
           }
         }
 
-        if (toolName === 'refund_orders_fetch' && !toolError) {
-          // Orders are ready; loading toasts are dismissed below.
+        setMessages((currentMessages) =>
+          currentMessages.map((currentMessage) =>
+            currentMessage.id === assistantMessageId ? buildAssistantMessage(body) : currentMessage,
+          ),
+        );
+        setChatContext(body.updatedContext);
+        toolStatus.updateStatus('completed');
+
+        if (recommendationToastTimer) {
+          window.clearTimeout(recommendationToastTimer);
+        }
+        if (recommendationToastId) {
+          dismissToast(recommendationToastId);
+        }
+
+        const possibleRefund = body as { refundReferenceId?: string };
+        if (possibleRefund.refundReferenceId) {
+          addToast({
+            message: `Refund submitted. Reference ID: ${possibleRefund.refundReferenceId}`,
+            variant: 'success',
+            durationMs: 7000,
+          });
+        }
+      } catch (error) {
+        const nextContext = createFallbackContext(chatContext, message);
+        const errorText =
+          error instanceof DOMException && error.name === 'AbortError'
+            ? 'The chat request timed out. Please try again.'
+            : error instanceof Error
+              ? error.message
+              : 'Unable to send message.';
+        setMessages((currentMessages) =>
+          currentMessages.map((currentMessage) =>
+            currentMessage.id === assistantMessageId
+              ? buildErrorAssistantMessage(assistantMessageId, errorText)
+              : currentMessage,
+          ),
+        );
+        setChatContext(nextContext);
+        setErrorMessage(errorText);
+        setLastFailedMessage(message);
+        toolStatus.fail(errorText);
+        addToast({
+          message: 'The assistant could not complete that request. Try again?',
+          variant: 'error',
+          actionLabel: 'Retry',
+          onAction: () => {
+            void handleSend(message);
+          },
+          durationMs: 8000,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (recommendationToastTimer) {
+          window.clearTimeout(recommendationToastTimer);
+        }
+        setIsSending(false);
+        if (refundOrdersToastTimer) {
+          window.clearTimeout(refundOrdersToastTimer);
+        }
+        if (refundSubmitToastTimer) {
+          window.clearTimeout(refundSubmitToastTimer);
+        }
+        if (refundOrdersToastId) {
+          dismissToast(refundOrdersToastId);
+        }
+        if (refundSubmitToastId) {
+          dismissToast(refundSubmitToastId);
         }
       }
 
-      setMessages((currentMessages) =>
-        currentMessages.map((currentMessage) =>
-          currentMessage.id === assistantMessageId ? buildAssistantMessage(body) : currentMessage,
-        ),
-      );
-      setChatContext(body.updatedContext);
-      toolStatus.updateStatus('completed');
-
-      if (recommendationToastTimer) {
-        window.clearTimeout(recommendationToastTimer);
-      }
-      if (recommendationToastId) {
-        dismissToast(recommendationToastId);
-      }
-
-      const possibleRefund = body as { refundReferenceId?: string };
-      if (possibleRefund.refundReferenceId) {
-        addToast({
-          message: `Refund submitted. Reference ID: ${possibleRefund.refundReferenceId}`,
-          variant: 'success',
-          durationMs: 7000,
-        });
-      }
-    } catch (error) {
-      const nextContext = createFallbackContext(chatContext, message);
-      const errorText =
-        error instanceof DOMException && error.name === 'AbortError'
-          ? 'The chat request timed out. Please try again.'
-          : error instanceof Error
-            ? error.message
-            : 'Unable to send message.';
-      setMessages((currentMessages) =>
-        currentMessages.map((currentMessage) =>
-          currentMessage.id === assistantMessageId
-            ? buildErrorAssistantMessage(assistantMessageId, errorText)
-            : currentMessage,
-        ),
-      );
-      setChatContext(nextContext);
-      setErrorMessage(errorText);
-      setLastFailedMessage(message);
-      toolStatus.fail(errorText);
-      addToast({
-        message: 'The assistant could not complete that request. Try again?',
-        variant: 'error',
-        actionLabel: 'Retry',
-        onAction: () => {
-          void handleSend(message);
-        },
-        durationMs: 8000,
-      });
-    } finally {
-      window.clearTimeout(timeoutId);
-      if (recommendationToastTimer) {
-        window.clearTimeout(recommendationToastTimer);
-      }
-      setIsSending(false);
-      if (refundOrdersToastTimer) {
-        window.clearTimeout(refundOrdersToastTimer);
-      }
-      if (refundSubmitToastTimer) {
-        window.clearTimeout(refundSubmitToastTimer);
-      }
-      if (refundOrdersToastId) {
-        dismissToast(refundOrdersToastId);
-      }
-      if (refundSubmitToastId) {
-        dismissToast(refundSubmitToastId);
-      }
-    }
-
-    return responseBody;
-  }
+      return responseBody;
+    },
+    [
+      addToast,
+      chatContext,
+      dismissToast,
+      draftMessage,
+      isSending,
+      role,
+      setChatContext,
+      setDraftMessage,
+      setErrorMessage,
+      setIsSending,
+      setLastFailedMessage,
+      setMessages,
+      toolStatus,
+    ],
+  );
 
   const handleRefundSubmit = useCallback(async () => {
     if (!selectedOrder || isRefundSubmitting || isSending) {
@@ -1372,10 +1391,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   </div>
 
                   <div className="mt-3">
-                    <label className="text-[11px] font-semibold text-slate-600">
+                    <label htmlFor="refund-comments" className="text-[11px] font-semibold text-slate-600">
                       Comments (optional)
                     </label>
                     <textarea
+                      id="refund-comments"
                       value={refundComments}
                       onChange={(event) => setRefundComments(event.target.value)}
                       rows={3}
