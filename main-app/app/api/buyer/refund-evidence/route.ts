@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { createClient } from '@/lib/supabase/server';
+import { getServiceRoleSupabase } from '@/lib/supabase/service-role';
 import {
+  REFUND_EVIDENCE_ALLOWED_TYPES,
   REFUND_EVIDENCE_BUCKET,
   REFUND_EVIDENCE_MAX_BYTES,
   REFUND_EVIDENCE_MAX_FILES,
@@ -16,6 +18,36 @@ function buildStoragePath(userId: string, orderId: string | null, fileName: stri
   const safeName = sanitizeFileName(fileName);
   const prefix = orderId ? `refunds/${userId}/${orderId}` : `refunds/${userId}`;
   return `${prefix}/${Date.now()}-${safeName}`;
+}
+
+async function ensureRefundEvidenceBucket(): Promise<string | null> {
+  const admin = getServiceRoleSupabase();
+
+  if (!admin) {
+    return 'Storage administration is not configured.';
+  }
+
+  const { data: buckets, error: listError } = await admin.storage.listBuckets();
+
+  if (listError) {
+    return listError.message || 'Failed to inspect storage buckets.';
+  }
+
+  if (buckets?.some((bucket) => bucket.name === REFUND_EVIDENCE_BUCKET)) {
+    return null;
+  }
+
+  const { error: createError } = await admin.storage.createBucket(REFUND_EVIDENCE_BUCKET, {
+    public: true,
+    allowedMimeTypes: [...REFUND_EVIDENCE_ALLOWED_TYPES],
+    fileSizeLimit: REFUND_EVIDENCE_MAX_BYTES,
+  });
+
+  if (createError) {
+    return createError.message || 'Failed to create refund evidence bucket.';
+  }
+
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -65,6 +97,12 @@ export async function POST(request: Request) {
     const uploadedPaths: string[] = [];
     const publicUrls: string[] = [];
     const safeOrderId = typeof orderId === 'string' && orderId.trim() ? orderId.trim() : null;
+
+    const bucketError = await ensureRefundEvidenceBucket();
+
+    if (bucketError) {
+      return NextResponse.json({ error: bucketError }, { status: 500 });
+    }
 
     for (const file of files) {
       const storagePath = buildStoragePath(user.id, safeOrderId, file.name);
