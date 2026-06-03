@@ -353,7 +353,7 @@ function RefundOrderCardItem({
   onSelect: (order: RefundOrderCard) => void;
 }) {
   return (
-    <div className="rounded-xl border border-rose-100 bg-white/90 p-3 text-slate-700 shadow-sm">
+    <div className="w-full overflow-hidden rounded-xl border border-rose-100 bg-white/90 p-3 text-slate-700 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-rose-100 bg-rose-50">
           {order.thumbnail_url ? (
@@ -437,6 +437,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const prevMessagesLenRef = useRef<number>(messages.length);
   const toolStatus = useChatToolStatus();
   const sessionVersionRef = useRef(0);
 
@@ -674,21 +676,40 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     }));
     setEvidencePreviews(previews);
 
+    // After attaching images, ensure the refund form (and submit button)
+    // is scrolled into view so the user can submit.
+    setShouldAutoScroll(true);
+    setTimeout(() => {
+      const el = scrollRef.current;
+      if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      }
+    }, 120);
+
     return () => {
       previews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
   }, [evidenceManager.files]);
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
+    if (!isOpen) return;
+
+    // Only auto-scroll when new messages were appended and the user
+    // was at (or near) the bottom. This prevents layout changes
+    // (like opening the refund UI) from forcing the view down.
+    const prevLen = prevMessagesLenRef.current ?? 0;
+    const curLen = messages.length;
+    const appended = curLen > prevLen;
+
+    prevMessagesLenRef.current = curLen;
+
+    if (!appended || !shouldAutoScroll) return;
 
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  }, [isOpen, isSending, messages]);
+  }, [isOpen, isSending, messages, shouldAutoScroll]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -760,6 +781,16 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         );
         refundPromptedOrderRef.current = order.order_id;
       }
+
+      // Ensure the refund card is visible after selection: enable auto-scroll
+      // and scroll to the bottom of the messages container.
+      setShouldAutoScroll(true);
+      setTimeout(() => {
+        const el = scrollRef.current;
+        if (el) {
+          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+        }
+      }, 120);
     },
     [evidenceManager, pushAssistantMessage],
   );
@@ -1122,7 +1153,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         <ToastList toasts={toasts} onDismiss={dismissToast} />
         <motion.div
           data-testid="buyer-chatbot-panel"
-          className={`flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
+          className={`relative flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
             isSmallScreen && isOpen
               ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
               : `pointer-events-auto h-[28rem] w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl sm:w-80 md:w-76 ${
@@ -1165,7 +1196,24 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),rgba(255,241,242,0.5))]">
             <motion.div
               ref={scrollRef}
-              className="chatbot-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-3"
+              onScroll={() => {
+                const scrollEl = scrollRef.current;
+                if (!scrollEl) {
+                  return;
+                }
+
+                const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+                setShouldAutoScroll(distanceFromBottom < 80);
+              }}
+              onWheel={() => {
+                // Any wheel interaction implies the user wants to control scrolling
+                setShouldAutoScroll(false);
+              }}
+              onTouchStart={() => {
+                // Touch interactions likewise
+                setShouldAutoScroll(false);
+              }}
+              className="chatbot-scrollbar flex-1 space-y-4 overflow-y-auto px-4 pr-6 md:pr-12 pt-3 pb-20 md:pb-24"
               aria-live="polite"
               aria-busy={isSending}
               initial={false}
@@ -1179,7 +1227,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   return (
                     <motion.div
                       key={message.id}
-                      className={`flex items-start gap-3 ${isAssistant ? '' : 'justify-end'}`}
+                      className={`flex items-start gap-3 min-w-0 ${isAssistant ? '' : 'justify-end'}`}
                       variants={messageVariants}
                       initial="hidden"
                       animate="visible"
@@ -1200,7 +1248,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                         </div>
                       ) : null}
 
-                      <div className={`max-w-[82%] space-y-2 ${isAssistant ? '' : 'items-end'}`}>
+                      <div className={`max-w-[82%] md:max-w-[76%] space-y-2 ${isAssistant ? '' : 'items-end'}`}>
                         <div
                           className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-transform duration-200 ease-out hover:-translate-y-0.5 ${
                             isAssistant
@@ -1241,11 +1289,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                               {message.products.map((product) => (
                                 <div
                                   key={product.id}
-                                  className="rounded-xl border border-rose-100 bg-white/80 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                                  className="rounded-xl border border-rose-100 bg-white/80 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] max-w-full"
                                 >
                                   <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="font-medium text-slate-900">{product.name}</p>
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-slate-900 truncate">{product.name}</p>
                                       <p className="text-xs text-slate-500">
                                         {product.badge ?? product.category}
                                       </p>
@@ -1295,6 +1343,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 })}
               </AnimatePresence>
             </motion.div>
+
+          {/* removed floating submit button to simplify layout */}
 
             <div className="border-t border-rose-100/80 bg-white/85 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
               {errorMessage ? (
@@ -1470,7 +1520,13 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
             type="button"
             onClick={() => {
               hasInteractedRef.current = true;
-              setIsOpen((current) => !current);
+              setIsOpen((current) => {
+                if (!current) {
+                  setShouldAutoScroll(true);
+                }
+
+                return !current;
+              });
             }}
             className={`flex h-14 w-14 items-center justify-center rounded-full bg-rose-500 text-white transition-transform duration-300 hover:scale-105 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200 ${
               hasLoaded && !isOpen ? 'animate-[bounce_1.4s_ease-in-out_1]' : ''
