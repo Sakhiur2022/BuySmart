@@ -5,7 +5,16 @@ import type { Variants } from 'framer-motion';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { Loader2, MessageCircle, Send, Sparkles, X, Paperclip } from 'lucide-react';
+import {
+  Loader2,
+  Maximize2,
+  MessageCircle,
+  Minimize2,
+  Send,
+  Sparkles,
+  X,
+  Paperclip,
+} from 'lucide-react';
 import type {
   ChatAPIRequest,
   ChatAPIResponse,
@@ -32,8 +41,8 @@ function getGreetingMessage(role: ChatbotRole): UIMessage {
     role === 'admin'
       ? 'Hello! I can help you navigate the admin dashboard and platform operations.'
       : role === 'seller'
-      ? 'Hello! I can help you manage listings, orders, and inventory.'
-      : 'Hi there! How can I help you today?';
+        ? 'Hello! I can help you manage listings, orders, and inventory.'
+        : 'Hi there! How can I help you today?';
 
   return {
     id: 'assistant-greeting',
@@ -301,7 +310,10 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
     products: response.products,
     order: response.order,
     refundOrderCards,
-    requiresEvidence: response.intent === 'SUPPORT' || response.toolCall?.toolName === 'refund_request' ? true : undefined,
+    requiresEvidence:
+      response.intent === 'SUPPORT' || response.toolCall?.toolName === 'refund_request'
+        ? true
+        : undefined,
     policyText: response.policyText,
     isEscalation: response.isEscalation,
   };
@@ -417,6 +429,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const shouldReduceMotion = useReducedMotion();
   const isSmallScreen = useMediaQuery('(max-width: 640px)');
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
   const evidenceManager = useRefundEvidenceAttachment();
@@ -425,9 +438,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [refundError, setRefundError] = useState<string | null>(null);
   const [isRefundSubmitting, setIsRefundSubmitting] = useState(false);
   const [isRefundUploading, setIsRefundUploading] = useState(false);
-  const [evidencePreviews, setEvidencePreviews] = useState<
-    Array<{ url: string; name: string }>
-  >([]);
+  const [evidencePreviews, setEvidencePreviews] = useState<Array<{ url: string; name: string }>>(
+    [],
+  );
   const refundPromptedOrderRef = useRef<string | null>(null);
 
   const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
@@ -456,31 +469,28 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     ? 'bottom-20 right-4 md:bottom-24 md:right-8'
     : 'bottom-8 right-4 md:bottom-10 md:right-6';
 
-  const addToast = useCallback(
-    (toast: Omit<Toast, 'id'> & { durationMs?: number }) => {
-      const id = createMessageId('toast');
-      const durationMs = toast.durationMs ?? 5000;
-      setToasts((prev) => [
-        ...prev,
-        {
-          id,
-          message: toast.message,
-          variant: toast.variant,
-          actionLabel: toast.actionLabel,
-          onAction: toast.onAction,
-        },
-      ]);
+  const addToast = useCallback((toast: Omit<Toast, 'id'> & { durationMs?: number }) => {
+    const id = createMessageId('toast');
+    const durationMs = toast.durationMs ?? 5000;
+    setToasts((prev) => [
+      ...prev,
+      {
+        id,
+        message: toast.message,
+        variant: toast.variant,
+        actionLabel: toast.actionLabel,
+        onAction: toast.onAction,
+      },
+    ]);
 
-      if (durationMs > 0) {
-        window.setTimeout(() => {
-          setToasts((prev) => prev.filter((item) => item.id !== id));
-        }, durationMs);
-      }
+    if (durationMs > 0) {
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((item) => item.id !== id));
+      }, durationMs);
+    }
 
-      return id;
-    },
-    [],
-  );
+    return id;
+  }, []);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((item) => item.id !== id));
@@ -534,30 +544,33 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } },
       };
 
-  const resetChatSession = useCallback((nextAuthMarker?: string, preserveOpenState = false) => {
-    sessionVersionRef.current += 1;
-    setMessages([getGreetingMessage(chatbotRole)]);
-    setChatContext(DEFAULT_CONTEXT);
-    setDraftMessage('');
-    setErrorMessage(null);
-    setIsSending(false);
-    setSelectedOrder(null);
-    setRefundComments('');
-    setRefundError(null);
-    evidenceManager.clear();
-    if (!preserveOpenState) {
-      setIsOpen(false);
-    }
-    clearChatbotSessionStorage();
-
-    if (nextAuthMarker) {
-      try {
-        sessionStorage.setItem(storageKeys.authMarker, nextAuthMarker);
-      } catch {
-        // Ignore storage failures and keep the widget functional.
+  const resetChatSession = useCallback(
+    (nextAuthMarker?: string, preserveOpenState = false) => {
+      sessionVersionRef.current += 1;
+      setMessages([getGreetingMessage(chatbotRole)]);
+      setChatContext(DEFAULT_CONTEXT);
+      setDraftMessage('');
+      setErrorMessage(null);
+      setIsSending(false);
+      setSelectedOrder(null);
+      setRefundComments('');
+      setRefundError(null);
+      evidenceManager.clear();
+      if (!preserveOpenState) {
+        setIsOpen(false);
       }
-    }
-  }, [chatbotRole, evidenceManager, storageKeys.authMarker]);
+      clearChatbotSessionStorage();
+
+      if (nextAuthMarker) {
+        try {
+          sessionStorage.setItem(storageKeys.authMarker, nextAuthMarker);
+        } catch {
+          // Ignore storage failures and keep the widget functional.
+        }
+      }
+    },
+    [chatbotRole, evidenceManager, storageKeys.authMarker],
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -629,7 +642,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return () => {
       isActive = false;
     };
-  }, [chatbotRole, resetChatSession, storageKeys.authMarker, storageKeys.context, storageKeys.messages, storageKeys.open, supabase]);
+  }, [
+    chatbotRole,
+    resetChatSession,
+    storageKeys.authMarker,
+    storageKeys.context,
+    storageKeys.messages,
+    storageKeys.open,
+    supabase,
+  ]);
 
   useEffect(() => {
     if (!hasLoaded) {
@@ -643,7 +664,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     } catch {
       // Ignore storage failures and keep the widget functional.
     }
-  }, [chatContext, hasLoaded, isOpen, messages, storageKeys.context, storageKeys.messages, storageKeys.open]);
+  }, [
+    chatContext,
+    hasLoaded,
+    isOpen,
+    messages,
+    storageKeys.context,
+    storageKeys.messages,
+    storageKeys.open,
+  ]);
 
   useEffect(() => {
     const {
@@ -723,6 +752,12 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return () => {
       window.clearInterval(timer);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsFullscreen(false);
+    }
   }, [isOpen]);
 
   useEffect(() => {
@@ -811,9 +846,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       body: formData,
     });
 
-    const body = (await response.json().catch(() => null)) as
-      | { urls?: string[]; error?: string }
-      | null;
+    const body = (await response.json().catch(() => null)) as {
+      urls?: string[];
+      error?: string;
+    } | null;
 
     if (!response.ok || !body?.urls) {
       const message = body?.error || 'Failed to upload evidence.';
@@ -909,8 +945,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           role === 'seller'
             ? '/api/seller/chat'
             : role === 'admin'
-            ? '/api/admin/chat'
-            : '/api/buyer/chat';
+              ? '/api/admin/chat'
+              : '/api/buyer/chat';
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -949,7 +985,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           if (toolError) {
             if (toolDetails?.mascotTrigger) {
               addToast({
-                message: 'Refunds are temporarily unavailable. Please use Orders to submit manually.',
+                message:
+                  'Refunds are temporarily unavailable. Please use Orders to submit manually.',
                 variant: 'error',
                 durationMs: 0,
                 actionLabel: 'Open Orders',
@@ -1134,7 +1171,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
   return (
     <>
-      {isSmallScreen && isOpen ? (
+      {isSmallScreen && isOpen && !isFullscreen ? (
         <button
           type="button"
           aria-label="Close chat backdrop"
@@ -1147,23 +1184,40 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         />
       ) : null}
 
+      {isFullscreen ? (
+        <button
+          type="button"
+          aria-label="Exit fullscreen"
+          className="fixed inset-0 z-[205] cursor-default bg-slate-950/45 backdrop-blur-[3px]"
+          onClick={() => setIsFullscreen(false)}
+        />
+      ) : null}
+
       <div
-        className={`pointer-events-none fixed ${isSmallScreen && isOpen ? 'inset-0 z-[200] p-2 sm:p-4' : `${positionClassName} z-[200]`} flex flex-col items-end justify-end gap-3 font-sans`}
+        className={`pointer-events-none fixed ${
+          isFullscreen
+            ? 'inset-0 z-[210] flex items-center justify-center p-4 sm:p-8'
+            : isSmallScreen && isOpen
+              ? 'inset-0 z-[200] p-2 sm:p-4'
+              : `${positionClassName} z-[200]`
+        } flex flex-col items-end justify-end gap-3 font-sans`}
       >
         <ToastList toasts={toasts} onDismiss={dismissToast} />
         <motion.div
           data-testid="buyer-chatbot-panel"
           className={`relative flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
-            isSmallScreen && isOpen
-              ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
-              : `pointer-events-auto h-[28rem] w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl sm:w-80 md:w-76 ${
-                  isOpen ? 'pointer-events-auto' : 'pointer-events-none'
-                }`
+            isFullscreen
+              ? 'pointer-events-auto h-[min(90dvh,54rem)] w-[min(92vw,72rem)] rounded-[2rem]'
+              : isSmallScreen && isOpen
+                ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
+                : `pointer-events-auto h-[28rem] w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl sm:w-80 md:w-76 ${
+                    isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+                  }`
           }`}
           aria-hidden={!isOpen}
           initial={false}
           animate={isOpen ? 'open' : 'closed'}
-          variants={isSmallScreen ? mobilePanelVariants : panelVariants}
+          variants={isSmallScreen && !isFullscreen ? mobilePanelVariants : panelVariants}
         >
           <div className="relative flex items-start justify-between gap-3 overflow-hidden bg-rose-50 px-4 py-3 text-slate-800 shadow-[inset_0_-1px_0_rgba(15,23,42,0.04)]">
             <div className="space-y-1">
@@ -1177,20 +1231,34 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                hasInteractedRef.current = true;
-                setIsOpen(false);
-              }}
-              onMouseDown={() => {
-                hasInteractedRef.current = true;
-              }}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-              aria-label="Close chat"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsFullscreen((current) => !current)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Maximize2 className="h-5 w-5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  hasInteractedRef.current = true;
+                  setIsOpen(false);
+                }}
+                onMouseDown={() => {
+                  hasInteractedRef.current = true;
+                }}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                aria-label="Close chat"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),rgba(255,241,242,0.5))]">
@@ -1202,7 +1270,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   return;
                 }
 
-                const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+                const distanceFromBottom =
+                  scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
                 setShouldAutoScroll(distanceFromBottom < 80);
               }}
               onWheel={() => {
@@ -1248,7 +1317,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                         </div>
                       ) : null}
 
-                      <div className={`max-w-[82%] md:max-w-[76%] space-y-2 ${isAssistant ? '' : 'items-end'}`}>
+                      <div
+                        className={`max-w-[82%] md:max-w-[76%] space-y-2 ${isAssistant ? '' : 'items-end'}`}
+                      >
                         <div
                           className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-transform duration-200 ease-out hover:-translate-y-0.5 ${
                             isAssistant
@@ -1293,7 +1364,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <p className="font-medium text-slate-900 truncate">{product.name}</p>
+                                      <p className="font-medium text-slate-900 truncate">
+                                        {product.name}
+                                      </p>
                                       <p className="text-xs text-slate-500">
                                         {product.badge ?? product.category}
                                       </p>
@@ -1344,7 +1417,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               </AnimatePresence>
             </motion.div>
 
-          {/* removed floating submit button to simplify layout */}
+            {/* removed floating submit button to simplify layout */}
 
             <div className="border-t border-rose-100/80 bg-white/85 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
               {errorMessage ? (
@@ -1448,7 +1521,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   </div>
 
                   <div className="mt-3">
-                    <label htmlFor="refund-comments" className="text-[11px] font-semibold text-slate-600">
+                    <label
+                      htmlFor="refund-comments"
+                      className="text-[11px] font-semibold text-slate-600"
+                    >
                       Comments (optional)
                     </label>
                     <textarea

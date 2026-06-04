@@ -605,9 +605,14 @@ export async function POST(request: NextRequest) {
     };
 
     if (intentResolution) {
-      logPayload.intentResolution = intentResolution.success
-        ? (intentResolution.intent?.intent ?? 'unknown')
-        : 'validation_failed';
+      if (intentResolution.success) {
+        logPayload.intentResolution = intentResolution.intent?.intent ?? 'unknown';
+      } else {
+        logPayload.intentResolution =
+          intentResolution.error?.code === 'MISSING_INTENT'
+            ? 'missing_intent'
+            : 'validation_failed';
+      }
     }
 
     if (toolCall?.toolName) {
