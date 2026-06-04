@@ -342,6 +342,44 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
   };
 }
 
+function buildFallbackIntentOutput(
+  aiResponse: AIResponse,
+  context: ChatContext,
+  userMessage: string,
+) {
+  if (aiResponse.intent !== 'REFUND_POLICY') {
+    return undefined;
+  }
+
+  const normalized = normalizeText(userMessage);
+  if (shouldShowRefundPolicy(normalized)) {
+    return {
+      intent: 'POLICY_QA',
+      payload: {
+        question: userMessage.trim(),
+        domain: 'returns',
+        confidence: 'ambiguous',
+      },
+      metadata: {
+        source: 'heuristic',
+      },
+    };
+  }
+
+  const orderId = aiResponse.params.orderId ?? context.lastOrderId ?? undefined;
+
+  return {
+    intent: 'REFUND_REQUEST',
+    payload: {
+      orderSignal: orderId ? { orderId } : { recentOrders: true },
+    },
+    metadata: {
+      isPartial: true,
+      source: 'heuristic',
+    },
+  };
+}
+
 async function routeIntent(
   aiResponse: AIResponse,
   context: ChatContext,
@@ -473,8 +511,15 @@ export async function POST(request: NextRequest) {
     let toolResult: ChatAPIResponse['toolResult'] | undefined;
     let refundReferenceId: ChatAPIResponse['refundReferenceId'] | undefined;
 
-    if (intentOutput !== undefined) {
-      const resolvedIntent = buyerIntentFacade.resolveIntent(intentOutput);
+    const aiResponse = detectIntent(message, context);
+    const fallbackIntentOutput =
+      intentOutput === undefined
+        ? buildFallbackIntentOutput(aiResponse, context, message)
+        : undefined;
+    const effectiveIntentOutput = intentOutput ?? fallbackIntentOutput;
+
+    if (effectiveIntentOutput !== undefined) {
+      const resolvedIntent = buyerIntentFacade.resolveIntent(effectiveIntentOutput);
 
       if (resolvedIntent.success) {
         intentResolution = { success: true, intent: resolvedIntent.value };
@@ -515,9 +560,15 @@ export async function POST(request: NextRequest) {
       } else {
         intentResolution = { success: false, error: resolvedIntent.error };
       }
+    } else {
+      intentResolution = {
+        success: false,
+        error: {
+          code: 'MISSING_INTENT',
+          message: 'Intent output not provided.',
+        },
+      };
     }
-
-    const aiResponse = detectIntent(message, context);
     const result = await routeIntent(aiResponse, context, message, 'buyer');
     const finalReply = result.reply ?? aiResponse.reply;
 
@@ -545,15 +596,30 @@ export async function POST(request: NextRequest) {
       refundReferenceId,
     };
 
-    console.info('[buyer-chat-api] request succeeded', {
+    const logPayload: Record<string, unknown> = {
       requestId,
       method: request.method,
       path: request.nextUrl.pathname,
       intent: aiResponse.intent,
-      intentResolution: intentResolution?.success ? intentResolution.intent?.intent : undefined,
-      toolCall: toolCall?.toolName,
       messagePreview: message.slice(0, 120),
-    });
+    };
+
+    if (intentResolution) {
+      if (intentResolution.success) {
+        logPayload.intentResolution = intentResolution.intent?.intent ?? 'unknown';
+      } else {
+        logPayload.intentResolution =
+          intentResolution.error?.code === 'MISSING_INTENT'
+            ? 'missing_intent'
+            : 'validation_failed';
+      }
+    }
+
+    if (toolCall?.toolName) {
+      logPayload.toolCall = toolCall.toolName;
+    }
+
+    console.info('[buyer-chat-api] request succeeded', logPayload);
 
     return NextResponse.json(responsePayload);
   } catch (error) {

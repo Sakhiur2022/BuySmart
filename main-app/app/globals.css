@@ -249,10 +249,15 @@
 .chatbot-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: hsl(350, 84%, 60%) hsl(350, 60%, 92%);
+  scrollbar-gutter: stable both-edges;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 .chatbot-scrollbar::-webkit-scrollbar {
-  width: 10px;
+  width: 12px;
+  background: transparent;
 }
 
 .chatbot-scrollbar::-webkit-scrollbar-track {
@@ -263,7 +268,8 @@
 .chatbot-scrollbar::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, hsl(350, 84%, 70%), hsl(350, 84%, 55%));
   border-radius: 999px;
-  border: 2px solid hsl(350, 60%, 92%);
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 
 .chatbot-scrollbar::-webkit-scrollbar-thumb:hover {

@@ -1,6 +1,7 @@
 import type { RefundOrderSignal } from '@/lib/chatbot/buyer-intent/types';
 import type { BuyerOrderDetailResult } from '@/lib/models/order.model';
 import { getBuyerOrderById, getBuyerOrders } from '@/lib/services/order.service';
+import { fetchOrderItemsByOrderId } from '@/lib/repositories/order.repository';
 import { toRefundOrderCard } from '@/lib/services/refund-tools/order-card-adapter';
 import type { RefundOrdersFetchResult } from '@/lib/services/refund-tools/types';
 
@@ -29,8 +30,15 @@ export class RecentOrdersStrategy implements OrderFetchStrategy {
       pageSize,
     });
 
+    const ordersWithItems = await Promise.all(
+      result.orders.map(async (order) => ({
+        order,
+        items: await fetchOrderItemsByOrderId(order.order_id),
+      })),
+    );
+
     return {
-      orders: result.orders.map((order) => toRefundOrderCard(order)),
+      orders: ordersWithItems.map(({ order, items }) => toRefundOrderCard(order, items)),
     };
   }
 }

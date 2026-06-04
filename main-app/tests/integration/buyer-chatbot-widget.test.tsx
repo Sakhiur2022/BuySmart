@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, waitForElementToBeRemoved } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BuyerChatbotWidget from '@/components/shared/buyer-chatbot-widget';
@@ -270,12 +270,16 @@ describe('BuyerChatbotWidget', () => {
 
     expect(await screen.findByText('I can help with products, orders, refunds, or support.')).toBeInTheDocument();
 
-    supabaseState.authCallback?.('SIGNED_IN', { user: { id: 'user-1' } });
+    await waitFor(() => {
+      expect(supabaseState.authCallback).not.toBeNull();
+    });
+    act(() => {
+      supabaseState.authCallback?.('SIGNED_IN', { user: { id: 'user-1' } });
+    });
 
     await waitFor(() => {
-      expect(screen.queryByText('hello')).not.toBeInTheDocument();
+      expect(screen.getByText('Hi there! How can I help you today?')).toBeVisible();
     });
-    expect(screen.getByText('Hi there! How can I help you today?')).toBeInTheDocument();
   });
 
   it('resets chat history after sign out', async () => {
@@ -303,12 +307,30 @@ describe('BuyerChatbotWidget', () => {
 
     expect(screen.getByText('Need help')).toBeInTheDocument();
 
-    supabaseState.authCallback?.('SIGNED_OUT', null);
+    await waitFor(() => {
+      expect(supabaseState.authCallback).not.toBeNull();
+    });
+    act(() => {
+      supabaseState.authCallback?.('SIGNED_OUT', null);
+    });
 
     await waitFor(() => {
-      expect(screen.queryByText('Need help')).not.toBeInTheDocument();
+      const messages = JSON.parse(window.sessionStorage.getItem(buyerStorageKeys.messages) ?? '[]');
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        id: 'assistant-greeting',
+        role: 'assistant',
+        text: 'Hi there! How can I help you today?',
+      });
     });
-    expect(screen.getByText('Hi there! How can I help you today?')).toBeInTheDocument();
+
+    await waitForElementToBeRemoved(() => screen.getByText('Need help'));
+
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Hi there! How can I help you today?')).toBeVisible();
+    });
   });
 
   it('does not restore guest chat history after a signed-in reload', async () => {

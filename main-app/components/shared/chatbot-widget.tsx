@@ -5,7 +5,16 @@ import type { Variants } from 'framer-motion';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
+import {
+  Loader2,
+  Maximize2,
+  MessageCircle,
+  Minimize2,
+  Send,
+  Sparkles,
+  X,
+  Paperclip,
+} from 'lucide-react';
 import type {
   ChatAPIRequest,
   ChatAPIResponse,
@@ -14,7 +23,9 @@ import type {
   UIMessage,
   ChatbotRole,
 } from '@/lib/chatbot/types';
+import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
 import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
+import { useRefundEvidenceAttachment } from '@/lib/hooks/use-refund-evidence-attachment';
 import { createClient } from '@/lib/supabase/client';
 import { clearChatbotSessionStorage, getChatbotStorageKeys } from '@/lib/chatbot/session';
 
@@ -30,8 +41,8 @@ function getGreetingMessage(role: ChatbotRole): UIMessage {
     role === 'admin'
       ? 'Hello! I can help you navigate the admin dashboard and platform operations.'
       : role === 'seller'
-      ? 'Hello! I can help you manage listings, orders, and inventory.'
-      : 'Hi there! How can I help you today?';
+        ? 'Hello! I can help you manage listings, orders, and inventory.'
+        : 'Hi there! How can I help you today?';
 
   return {
     id: 'assistant-greeting',
@@ -221,6 +232,19 @@ function formatCurrency(amount: number) {
   return `BDT ${amount.toLocaleString()}`;
 }
 
+function formatOrderDate(isoDate: string) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
 function formatRelativeTime(timestamp: number, now: number) {
   const diffInSeconds = Math.round((timestamp - now) / 1000);
   const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
@@ -257,13 +281,39 @@ function getRefundErrorMessage(code: string | undefined) {
 }
 
 function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
+  let refundOrderCards: RefundOrderCard[] | undefined;
+  if (response.toolCall?.toolName === 'refund_orders_fetch' && response.toolResult) {
+    const result = response.toolResult as { orders?: RefundOrderCard[] };
+    if (result.orders) {
+      refundOrderCards = result.orders;
+    }
+  }
+
+  const responseDetails: string[] = [];
+  if (response.refundReferenceId) {
+    responseDetails.push(`Refund reference: ${response.refundReferenceId}`);
+  }
+  if (response.toolCall?.toolName === 'refund_request' && response.toolError) {
+    responseDetails.push(getRefundErrorMessage(response.toolError.code));
+  }
+
+  const replyText =
+    responseDetails.length > 0
+      ? `${response.reply}\n${responseDetails.join('\n')}`
+      : response.reply;
+
   return {
     id: createMessageId('assistant'),
     role: 'assistant',
-    text: response.reply,
+    text: replyText,
     createdAt: Date.now(),
     products: response.products,
     order: response.order,
+    refundOrderCards,
+    requiresEvidence:
+      response.intent === 'SUPPORT' || response.toolCall?.toolName === 'refund_request'
+        ? true
+        : undefined,
     policyText: response.policyText,
     isEscalation: response.isEscalation,
   };
@@ -305,6 +355,65 @@ async function getAuthMarker(supabase: ReturnType<typeof createClient>) {
   }
 }
 
+function RefundOrderCardItem({
+  order,
+  isSelected,
+  onSelect,
+}: {
+  order: RefundOrderCard;
+  isSelected: boolean;
+  onSelect: (order: RefundOrderCard) => void;
+}) {
+  return (
+    <div className="w-full overflow-hidden rounded-xl border border-rose-100 bg-white/90 p-3 text-slate-700 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-rose-100 bg-rose-50">
+          {order.thumbnail_url ? (
+            <Image
+              src={order.thumbnail_url}
+              alt={order.product_name ?? 'Order item'}
+              fill
+              sizes="48px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-rose-400">
+              No image
+            </div>
+          )}
+        </div>
+        <div className="flex-1 space-y-1">
+          <p className="text-sm font-semibold text-slate-900">
+            {order.product_name ?? 'Order items'}
+          </p>
+          <p className="text-xs text-slate-500">
+            Order #{order.order_number || order.order_id.slice(0, 8)}
+          </p>
+          <p className="text-xs text-slate-500">Placed {formatOrderDate(order.created_at)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-semibold text-rose-600">
+            {order.currency} {order.total_amount}
+          </p>
+          <p className="text-[11px] font-medium text-slate-500">{order.status}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onSelect(order)}
+        disabled={isSelected}
+        className={`mt-3 w-full rounded-full py-1.5 text-xs font-semibold transition ${
+          isSelected
+            ? 'cursor-default bg-emerald-50 text-emerald-700'
+            : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+        }`}
+      >
+        {isSelected ? 'Selected' : 'Select order'}
+      </button>
+    </div>
+  );
+}
+
 type ChatbotWidgetProps = {
   chatbotRole?: ChatbotRole;
 };
@@ -320,8 +429,20 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const shouldReduceMotion = useReducedMotion();
   const isSmallScreen = useMediaQuery('(max-width: 640px)');
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
+  const evidenceManager = useRefundEvidenceAttachment();
+  const [selectedOrder, setSelectedOrder] = useState<RefundOrderCard | null>(null);
+  const [refundComments, setRefundComments] = useState('');
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [isRefundSubmitting, setIsRefundSubmitting] = useState(false);
+  const [isRefundUploading, setIsRefundUploading] = useState(false);
+  const [evidencePreviews, setEvidencePreviews] = useState<Array<{ url: string; name: string }>>(
+    [],
+  );
+  const refundPromptedOrderRef = useRef<string | null>(null);
+
   const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
   const [chatContext, setChatContext] = useState<ChatContext>(DEFAULT_CONTEXT);
   const [isSending, setIsSending] = useState(false);
@@ -329,7 +450,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const prevMessagesLenRef = useRef<number>(messages.length);
   const toolStatus = useChatToolStatus();
+  const sessionVersionRef = useRef(0);
 
   const isHiddenRoute = pathname.startsWith('/auth') || pathname.startsWith('/api');
 
@@ -345,7 +469,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     ? 'bottom-20 right-4 md:bottom-24 md:right-8'
     : 'bottom-8 right-4 md:bottom-10 md:right-6';
 
-  function addToast(toast: Omit<Toast, 'id'> & { durationMs?: number }) {
+  const addToast = useCallback((toast: Omit<Toast, 'id'> & { durationMs?: number }) => {
     const id = createMessageId('toast');
     const durationMs = toast.durationMs ?? 5000;
     setToasts((prev) => [
@@ -366,11 +490,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     }
 
     return id;
-  }
+  }, []);
 
-  function dismissToast(id: string) {
+  const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((item) => item.id !== id));
-  }
+  }, []);
 
   const panelVariants: Variants = shouldReduceMotion
     ? {
@@ -420,32 +544,45 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } },
       };
 
-  const resetChatSession = useCallback((nextAuthMarker?: string, preserveOpenState = false) => {
-    setMessages([getGreetingMessage(chatbotRole)]);
-    setChatContext(DEFAULT_CONTEXT);
-    setDraftMessage('');
-    setErrorMessage(null);
-    setIsSending(false);
-    if (!preserveOpenState) {
-      setIsOpen(false);
-    }
-    clearChatbotSessionStorage();
-
-    if (nextAuthMarker) {
-      try {
-        sessionStorage.setItem(storageKeys.authMarker, nextAuthMarker);
-      } catch {
-        // Ignore storage failures and keep the widget functional.
+  const resetChatSession = useCallback(
+    (nextAuthMarker?: string, preserveOpenState = false) => {
+      sessionVersionRef.current += 1;
+      setMessages([getGreetingMessage(chatbotRole)]);
+      setChatContext(DEFAULT_CONTEXT);
+      setDraftMessage('');
+      setErrorMessage(null);
+      setIsSending(false);
+      setSelectedOrder(null);
+      setRefundComments('');
+      setRefundError(null);
+      evidenceManager.clear();
+      if (!preserveOpenState) {
+        setIsOpen(false);
       }
-    }
-  }, [chatbotRole, storageKeys.authMarker]);
+      clearChatbotSessionStorage();
+
+      if (nextAuthMarker) {
+        try {
+          sessionStorage.setItem(storageKeys.authMarker, nextAuthMarker);
+        } catch {
+          // Ignore storage failures and keep the widget functional.
+        }
+      }
+    },
+    [chatbotRole, evidenceManager, storageKeys.authMarker],
+  );
 
   useEffect(() => {
     let isActive = true;
+    const hydrationVersion = sessionVersionRef.current;
 
     const hydrateChatState = async () => {
       const authMarker = await getAuthMarker(supabase);
       if (!isActive) {
+        return;
+      }
+
+      if (hydrationVersion !== sessionVersionRef.current) {
         return;
       }
 
@@ -505,7 +642,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return () => {
       isActive = false;
     };
-  }, [chatbotRole, resetChatSession, storageKeys.authMarker, storageKeys.context, storageKeys.messages, storageKeys.open, supabase]);
+  }, [
+    chatbotRole,
+    resetChatSession,
+    storageKeys.authMarker,
+    storageKeys.context,
+    storageKeys.messages,
+    storageKeys.open,
+    supabase,
+  ]);
 
   useEffect(() => {
     if (!hasLoaded) {
@@ -519,7 +664,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     } catch {
       // Ignore storage failures and keep the widget functional.
     }
-  }, [chatContext, hasLoaded, isOpen, messages, storageKeys.context, storageKeys.messages, storageKeys.open]);
+  }, [
+    chatContext,
+    hasLoaded,
+    isOpen,
+    messages,
+    storageKeys.context,
+    storageKeys.messages,
+    storageKeys.open,
+  ]);
 
   useEffect(() => {
     const {
@@ -541,15 +694,51 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   }, []);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (evidenceManager.files.length === 0) {
+      setEvidencePreviews([]);
       return;
     }
+
+    const previews = evidenceManager.files.map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+    }));
+    setEvidencePreviews(previews);
+
+    // After attaching images, ensure the refund form (and submit button)
+    // is scrolled into view so the user can submit.
+    setShouldAutoScroll(true);
+    setTimeout(() => {
+      const el = scrollRef.current;
+      if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      }
+    }, 120);
+
+    return () => {
+      previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [evidenceManager.files]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Only auto-scroll when new messages were appended and the user
+    // was at (or near) the bottom. This prevents layout changes
+    // (like opening the refund UI) from forcing the view down.
+    const prevLen = prevMessagesLenRef.current ?? 0;
+    const curLen = messages.length;
+    const appended = curLen > prevLen;
+
+    prevMessagesLenRef.current = curLen;
+
+    if (!appended || !shouldAutoScroll) return;
 
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  }, [isOpen, isSending, messages]);
+  }, [isOpen, isSending, messages, shouldAutoScroll]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -563,6 +752,12 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return () => {
       window.clearInterval(timer);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsFullscreen(false);
+    }
   }, [isOpen]);
 
   useEffect(() => {
@@ -596,206 +791,379 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     };
   }, [isOpen]);
 
-  async function handleSend(overrideMessage?: string) {
-    const message = (overrideMessage ?? draftMessage).trim();
-    if (!message || isSending) {
-      return;
-    }
+  const pushAssistantMessage = useCallback((text: string) => {
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      {
+        id: createMessageId('assistant'),
+        role: 'assistant',
+        text,
+        createdAt: Date.now(),
+      },
+    ]);
+  }, []);
 
-    const userMessage: UIMessage = {
-      id: createMessageId('user'),
-      role: 'user',
-      text: message,
-      createdAt: Date.now(),
-    };
+  const handleOrderSelect = useCallback(
+    (order: RefundOrderCard) => {
+      setSelectedOrder(order);
+      setRefundComments('');
+      setRefundError(null);
+      evidenceManager.clear();
 
-    const requestPayload: ChatAPIRequest = {
-      message,
-      context: chatContext,
-      role,
-    };
-
-    const assistantMessageId = createMessageId('assistant-stream');
-    const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
-
-    setMessages((currentMessages) => [...currentMessages, userMessage, assistantPlaceholder]);
-    setDraftMessage('');
-    setErrorMessage(null);
-    setLastFailedMessage(null);
-    setIsSending(true);
-    toolStatus.updateStatus('resolving_intent');
-
-    const normalizedMessage = message.toLowerCase();
-    const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
-      normalizedMessage,
-    );
-    const shouldWatchRefundFlow = /\b(refund|return)\b/.test(normalizedMessage);
-    let recommendationToastId: string | null = null;
-    let recommendationToastTimer: number | null = null;
-    let refundOrdersToastId: string | null = null;
-    let refundOrdersToastTimer: number | null = null;
-    let refundSubmitToastId: string | null = null;
-    let refundSubmitToastTimer: number | null = null;
-
-    if (shouldShowRecommendationToast) {
-      recommendationToastTimer = window.setTimeout(() => {
-        recommendationToastId = addToast({
-          message: 'Still fetching recommendations...',
-          variant: 'info',
-          durationMs: 4000,
-        });
-      }, RECOMMENDATION_TOAST_DELAY_MS);
-    }
-
-    if (shouldWatchRefundFlow) {
-      refundOrdersToastTimer = window.setTimeout(() => {
-        refundOrdersToastId = addToast({
-          message: 'Fetching your recent orders...',
-          variant: 'info',
-          durationMs: 0,
-        });
-      }, REFUND_ORDER_FETCH_TOAST_DELAY_MS);
-
-      refundSubmitToastTimer = window.setTimeout(() => {
-        refundSubmitToastId = addToast({
-          message: 'Submitting your refund...',
-          variant: 'info',
-          durationMs: 0,
-        });
-      }, REFUND_SUBMIT_TOAST_DELAY_MS);
-    }
-
-    try {
-      toolStatus.updateStatus('invoking_tool');
-      const endpoint =
-        role === 'seller'
-          ? '/api/seller/chat'
-          : role === 'admin'
-          ? '/api/admin/chat'
-          : '/api/buyer/chat';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(requestPayload),
-      });
-
-      toolStatus.updateStatus('awaiting_result');
-      const body = (await response.json().catch(() => null)) as
-        | ChatAPIResponse
-        | { error?: string }
-        | null;
-
-      if (!response.ok) {
-        const apiError =
-          body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
-            ? body.error
-            : 'Unable to send message.';
-        throw new Error(apiError);
+      if (refundPromptedOrderRef.current !== order.order_id) {
+        pushAssistantMessage(
+          'Thanks! Please upload photos of the issue and add any optional comments before submitting your refund request.',
+        );
+        refundPromptedOrderRef.current = order.order_id;
       }
 
-      if (!isChatApiResponse(body)) {
-        throw new Error('The chat service returned an unexpected response.');
+      // Ensure the refund card is visible after selection: enable auto-scroll
+      // and scroll to the bottom of the messages container.
+      setShouldAutoScroll(true);
+      setTimeout(() => {
+        const el = scrollRef.current;
+        if (el) {
+          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+        }
+      }, 120);
+    },
+    [evidenceManager, pushAssistantMessage],
+  );
+
+  const uploadRefundEvidence = useCallback(async (files: File[], orderId: string) => {
+    if (files.length === 0) {
+      return [] as string[];
+    }
+
+    const formData = new FormData();
+    formData.append('orderId', orderId);
+    files.forEach((file) => {
+      formData.append('files', file, file.name);
+    });
+
+    const response = await fetch('/api/buyer/refund-evidence', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const body = (await response.json().catch(() => null)) as {
+      urls?: string[];
+      error?: string;
+    } | null;
+
+    if (!response.ok || !body?.urls) {
+      const message = body?.error || 'Failed to upload evidence.';
+      throw new Error(message);
+    }
+
+    return body.urls;
+  }, []);
+
+  const handleSend = useCallback(
+    async (
+      overrideMessage?: string,
+      options?: { intentOutput?: unknown; evidenceImages?: string[] },
+    ) => {
+      const message = (overrideMessage ?? draftMessage).trim();
+      if (!message || isSending) {
+        return;
       }
 
-      if (body.toolCall?.toolName?.startsWith('refund_')) {
-        const toolName = body.toolCall.toolName;
-        const toolError = body.toolError;
-        const toolDetails = toolError?.details as
-          | { mascotTrigger?: boolean; kind?: string }
-          | undefined;
+      const userMessage: UIMessage = {
+        id: createMessageId('user'),
+        role: 'user',
+        text: message,
+        createdAt: Date.now(),
+      };
 
-        if (toolError) {
-          if (toolDetails?.mascotTrigger) {
-            addToast({
-              message: 'Refunds are temporarily unavailable. Please use Orders to submit manually.',
-              variant: 'error',
-              durationMs: 0,
-              actionLabel: 'Open Orders',
-              onAction: () => {
-                window.location.href = '/buyer/orders';
-              },
-            });
-          } else {
-            addToast({
-              message: getRefundErrorMessage(toolError.code),
-              variant: 'error',
-              durationMs: toolDetails?.kind === 'business' ? 6000 : 8000,
-            });
+      const requestPayload: ChatAPIRequest = {
+        message,
+        context: chatContext,
+        role,
+        intentOutput: options?.intentOutput,
+        evidenceImages: options?.evidenceImages,
+      };
+
+      const assistantMessageId = createMessageId('assistant-stream');
+      const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
+
+      setMessages((currentMessages) => [...currentMessages, userMessage, assistantPlaceholder]);
+      setDraftMessage('');
+      setErrorMessage(null);
+      setLastFailedMessage(null);
+      setIsSending(true);
+      toolStatus.updateStatus('resolving_intent');
+
+      const normalizedMessage = message.toLowerCase();
+      const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
+        normalizedMessage,
+      );
+      const shouldWatchRefundFlow = /\b(refund|return)\b/.test(normalizedMessage);
+      let recommendationToastId: string | null = null;
+      let recommendationToastTimer: number | null = null;
+      let refundOrdersToastId: string | null = null;
+      let refundOrdersToastTimer: number | null = null;
+      let refundSubmitToastId: string | null = null;
+      let refundSubmitToastTimer: number | null = null;
+
+      if (shouldShowRecommendationToast) {
+        recommendationToastTimer = window.setTimeout(() => {
+          recommendationToastId = addToast({
+            message: 'Still fetching recommendations...',
+            variant: 'info',
+            durationMs: 4000,
+          });
+        }, RECOMMENDATION_TOAST_DELAY_MS);
+      }
+
+      if (shouldWatchRefundFlow) {
+        refundOrdersToastTimer = window.setTimeout(() => {
+          refundOrdersToastId = addToast({
+            message: 'Fetching your recent orders...',
+            variant: 'info',
+            durationMs: 0,
+          });
+        }, REFUND_ORDER_FETCH_TOAST_DELAY_MS);
+
+        refundSubmitToastTimer = window.setTimeout(() => {
+          refundSubmitToastId = addToast({
+            message: 'Submitting your refund...',
+            variant: 'info',
+            durationMs: 0,
+          });
+        }, REFUND_SUBMIT_TOAST_DELAY_MS);
+      }
+
+      let responseBody: ChatAPIResponse | null = null;
+      const timeoutMs = 20000;
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        toolStatus.updateStatus('invoking_tool');
+        const endpoint =
+          role === 'seller'
+            ? '/api/seller/chat'
+            : role === 'admin'
+              ? '/api/admin/chat'
+              : '/api/buyer/chat';
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(requestPayload),
+          signal: controller.signal,
+        });
+        toolStatus.updateStatus('awaiting_result');
+        const body = (await response.json().catch(() => null)) as
+          | ChatAPIResponse
+          | { error?: string }
+          | null;
+
+        if (!response.ok) {
+          const apiError =
+            body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
+              ? body.error
+              : 'Unable to send message.';
+          throw new Error(apiError);
+        }
+
+        if (!isChatApiResponse(body)) {
+          throw new Error('The chat service returned an unexpected response.');
+        }
+
+        responseBody = body;
+
+        if (body.toolCall?.toolName?.startsWith('refund_')) {
+          const toolName = body.toolCall.toolName;
+          const toolError = body.toolError;
+          const toolDetails = toolError?.details as
+            | { mascotTrigger?: boolean; kind?: string }
+            | undefined;
+
+          if (toolError) {
+            if (toolDetails?.mascotTrigger) {
+              addToast({
+                message:
+                  'Refunds are temporarily unavailable. Please use Orders to submit manually.',
+                variant: 'error',
+                durationMs: 0,
+                actionLabel: 'Open Orders',
+                onAction: () => {
+                  window.location.href = '/buyer/orders';
+                },
+              });
+            } else {
+              addToast({
+                message: getRefundErrorMessage(toolError.code),
+                variant: 'error',
+                durationMs: toolDetails?.kind === 'business' ? 6000 : 8000,
+              });
+            }
+          }
+
+          if (toolName === 'refund_orders_fetch' && !toolError) {
+            // Orders are ready; loading toasts are dismissed below.
           }
         }
 
-        if (toolName === 'refund_orders_fetch' && !toolError) {
-          // Orders are ready; loading toasts are dismissed below.
+        setMessages((currentMessages) =>
+          currentMessages.map((currentMessage) =>
+            currentMessage.id === assistantMessageId ? buildAssistantMessage(body) : currentMessage,
+          ),
+        );
+        setChatContext(body.updatedContext);
+        toolStatus.updateStatus('completed');
+
+        if (recommendationToastTimer) {
+          window.clearTimeout(recommendationToastTimer);
+        }
+        if (recommendationToastId) {
+          dismissToast(recommendationToastId);
+        }
+
+        const possibleRefund = body as { refundReferenceId?: string };
+        if (possibleRefund.refundReferenceId) {
+          addToast({
+            message: `Refund submitted. Reference ID: ${possibleRefund.refundReferenceId}`,
+            variant: 'success',
+            durationMs: 7000,
+          });
+        }
+      } catch (error) {
+        const nextContext = createFallbackContext(chatContext, message);
+        const errorText =
+          error instanceof DOMException && error.name === 'AbortError'
+            ? 'The chat request timed out. Please try again.'
+            : error instanceof Error
+              ? error.message
+              : 'Unable to send message.';
+        setMessages((currentMessages) =>
+          currentMessages.map((currentMessage) =>
+            currentMessage.id === assistantMessageId
+              ? buildErrorAssistantMessage(assistantMessageId, errorText)
+              : currentMessage,
+          ),
+        );
+        setChatContext(nextContext);
+        setErrorMessage(errorText);
+        setLastFailedMessage(message);
+        toolStatus.fail(errorText);
+        addToast({
+          message: 'The assistant could not complete that request. Try again?',
+          variant: 'error',
+          actionLabel: 'Retry',
+          onAction: () => {
+            void handleSend(message);
+          },
+          durationMs: 8000,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (recommendationToastTimer) {
+          window.clearTimeout(recommendationToastTimer);
+        }
+        setIsSending(false);
+        if (refundOrdersToastTimer) {
+          window.clearTimeout(refundOrdersToastTimer);
+        }
+        if (refundSubmitToastTimer) {
+          window.clearTimeout(refundSubmitToastTimer);
+        }
+        if (refundOrdersToastId) {
+          dismissToast(refundOrdersToastId);
+        }
+        if (refundSubmitToastId) {
+          dismissToast(refundSubmitToastId);
         }
       }
 
-      setMessages((currentMessages) =>
-        currentMessages.map((currentMessage) =>
-          currentMessage.id === assistantMessageId ? buildAssistantMessage(body) : currentMessage,
-        ),
-      );
-      setChatContext(body.updatedContext);
-      toolStatus.updateStatus('completed');
+      return responseBody;
+    },
+    [
+      addToast,
+      chatContext,
+      dismissToast,
+      draftMessage,
+      isSending,
+      role,
+      setChatContext,
+      setDraftMessage,
+      setErrorMessage,
+      setIsSending,
+      setLastFailedMessage,
+      setMessages,
+      toolStatus,
+    ],
+  );
 
-      if (recommendationToastTimer) {
-        window.clearTimeout(recommendationToastTimer);
-      }
-      if (recommendationToastId) {
-        dismissToast(recommendationToastId);
+  const handleRefundSubmit = useCallback(async () => {
+    if (!selectedOrder || isRefundSubmitting || isSending) {
+      return;
+    }
+
+    if (evidenceManager.validation && !evidenceManager.validation.valid) {
+      setRefundError(evidenceManager.validation.reason ?? 'Please fix the evidence upload issue.');
+      return;
+    }
+
+    setRefundError(null);
+    setIsRefundSubmitting(true);
+
+    try {
+      let evidenceUrls: string[] = [];
+      if (evidenceManager.files.length > 0) {
+        setIsRefundUploading(true);
+        evidenceUrls = await uploadRefundEvidence(evidenceManager.files, selectedOrder.order_id);
       }
 
-      const possibleRefund = body as { refundReferenceId?: string };
-      if (possibleRefund.refundReferenceId) {
-        addToast({
-          message: `Refund submitted. Reference ID: ${possibleRefund.refundReferenceId}`,
-          variant: 'success',
-          durationMs: 7000,
-        });
+      const intentOutput = {
+        intent: 'REFUND_REQUEST',
+        payload: {
+          orderSignal: { orderId: selectedOrder.order_id },
+          reason: 'other',
+          reasonDescription: refundComments.trim() || undefined,
+          evidence: evidenceUrls.length > 0 ? 'photo_attached' : 'no_photo',
+          evidenceImages: evidenceUrls.length > 0 ? evidenceUrls : undefined,
+          requestedAmount: selectedOrder.total_amount,
+          currency: selectedOrder.currency,
+        },
+        metadata: {
+          source: 'chat-refund-flow',
+        },
+      };
+
+      const userMessage = `Submit refund request for order #${
+        selectedOrder.order_number || selectedOrder.order_id.slice(0, 8)
+      }.`;
+
+      const response = await handleSend(userMessage, {
+        intentOutput,
+        evidenceImages: evidenceUrls,
+      });
+
+      if (response?.refundReferenceId) {
+        setSelectedOrder(null);
+        setRefundComments('');
+        evidenceManager.clear();
       }
     } catch (error) {
-      const nextContext = createFallbackContext(chatContext, message);
-      const errorText = error instanceof Error ? error.message : 'Unable to send message.';
-      setMessages((currentMessages) =>
-        currentMessages.map((currentMessage) =>
-          currentMessage.id === assistantMessageId
-            ? buildErrorAssistantMessage(assistantMessageId, errorText)
-            : currentMessage,
-        ),
-      );
-      setChatContext(nextContext);
-      setErrorMessage(errorText);
-      setLastFailedMessage(message);
-      toolStatus.fail(errorText);
-      addToast({
-        message: 'The assistant could not complete that request. Try again?',
-        variant: 'error',
-        actionLabel: 'Retry',
-        onAction: () => {
-          void handleSend(message);
-        },
-        durationMs: 8000,
-      });
+      const message = error instanceof Error ? error.message : 'Refund submission failed.';
+      setRefundError(message);
     } finally {
-      if (recommendationToastTimer) {
-        window.clearTimeout(recommendationToastTimer);
-      }
-      setIsSending(false);
-      if (refundOrdersToastTimer) {
-        window.clearTimeout(refundOrdersToastTimer);
-      }
-      if (refundSubmitToastTimer) {
-        window.clearTimeout(refundSubmitToastTimer);
-      }
-      if (refundOrdersToastId) {
-        dismissToast(refundOrdersToastId);
-      }
-      if (refundSubmitToastId) {
-        dismissToast(refundSubmitToastId);
-      }
+      setIsRefundUploading(false);
+      setIsRefundSubmitting(false);
     }
-  }
+  }, [
+    evidenceManager,
+    handleSend,
+    isRefundSubmitting,
+    isSending,
+    refundComments,
+    selectedOrder,
+    uploadRefundEvidence,
+  ]);
 
   if (!shouldRender) {
     return null;
@@ -803,7 +1171,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
   return (
     <>
-      {isSmallScreen && isOpen ? (
+      {isSmallScreen && isOpen && !isFullscreen ? (
         <button
           type="button"
           aria-label="Close chat backdrop"
@@ -816,23 +1184,40 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         />
       ) : null}
 
+      {isFullscreen ? (
+        <button
+          type="button"
+          aria-label="Exit fullscreen"
+          className="fixed inset-0 z-[205] cursor-default bg-slate-950/45 backdrop-blur-[3px]"
+          onClick={() => setIsFullscreen(false)}
+        />
+      ) : null}
+
       <div
-        className={`pointer-events-none fixed ${isSmallScreen && isOpen ? 'inset-0 z-[200] p-2 sm:p-4' : `${positionClassName} z-[200]`} flex flex-col items-end justify-end gap-3 font-sans`}
+        className={`pointer-events-none fixed ${
+          isFullscreen
+            ? 'inset-0 z-[210] flex items-center justify-center p-4 sm:p-8'
+            : isSmallScreen && isOpen
+              ? 'inset-0 z-[200] p-2 sm:p-4'
+              : `${positionClassName} z-[200]`
+        } flex flex-col items-end justify-end gap-3 font-sans`}
       >
         <ToastList toasts={toasts} onDismiss={dismissToast} />
         <motion.div
           data-testid="buyer-chatbot-panel"
-          className={`flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
-            isSmallScreen && isOpen
-              ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
-              : `pointer-events-auto h-[28rem] w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl sm:w-80 md:w-76 ${
-                  isOpen ? 'pointer-events-auto' : 'pointer-events-none'
-                }`
+          className={`relative flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
+            isFullscreen
+              ? 'pointer-events-auto h-[min(90dvh,54rem)] w-[min(92vw,72rem)] rounded-[2rem]'
+              : isSmallScreen && isOpen
+                ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
+                : `pointer-events-auto h-[28rem] w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl sm:w-80 md:w-76 ${
+                    isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+                  }`
           }`}
           aria-hidden={!isOpen}
           initial={false}
           animate={isOpen ? 'open' : 'closed'}
-          variants={isSmallScreen ? mobilePanelVariants : panelVariants}
+          variants={isSmallScreen && !isFullscreen ? mobilePanelVariants : panelVariants}
         >
           <div className="relative flex items-start justify-between gap-3 overflow-hidden bg-rose-50 px-4 py-3 text-slate-800 shadow-[inset_0_-1px_0_rgba(15,23,42,0.04)]">
             <div className="space-y-1">
@@ -846,26 +1231,58 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                hasInteractedRef.current = true;
-                setIsOpen(false);
-              }}
-              onMouseDown={() => {
-                hasInteractedRef.current = true;
-              }}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-              aria-label="Close chat"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsFullscreen((current) => !current)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Maximize2 className="h-5 w-5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  hasInteractedRef.current = true;
+                  setIsOpen(false);
+                }}
+                onMouseDown={() => {
+                  hasInteractedRef.current = true;
+                }}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                aria-label="Close chat"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),rgba(255,241,242,0.5))]">
             <motion.div
               ref={scrollRef}
-              className="chatbot-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-3"
+              onScroll={() => {
+                const scrollEl = scrollRef.current;
+                if (!scrollEl) {
+                  return;
+                }
+
+                const distanceFromBottom =
+                  scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+                setShouldAutoScroll(distanceFromBottom < 80);
+              }}
+              onWheel={() => {
+                // Any wheel interaction implies the user wants to control scrolling
+                setShouldAutoScroll(false);
+              }}
+              onTouchStart={() => {
+                // Touch interactions likewise
+                setShouldAutoScroll(false);
+              }}
+              className="chatbot-scrollbar flex-1 space-y-4 overflow-y-auto px-4 pr-6 md:pr-12 pt-3 pb-20 md:pb-24"
               aria-live="polite"
               aria-busy={isSending}
               initial={false}
@@ -879,7 +1296,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   return (
                     <motion.div
                       key={message.id}
-                      className={`flex items-start gap-3 ${isAssistant ? '' : 'justify-end'}`}
+                      className={`flex items-start gap-3 min-w-0 ${isAssistant ? '' : 'justify-end'}`}
                       variants={messageVariants}
                       initial="hidden"
                       animate="visible"
@@ -900,7 +1317,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                         </div>
                       ) : null}
 
-                      <div className={`max-w-[82%] space-y-2 ${isAssistant ? '' : 'items-end'}`}>
+                      <div
+                        className={`max-w-[82%] md:max-w-[76%] space-y-2 ${isAssistant ? '' : 'items-end'}`}
+                      >
                         <div
                           className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-transform duration-200 ease-out hover:-translate-y-0.5 ${
                             isAssistant
@@ -941,11 +1360,13 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                               {message.products.map((product) => (
                                 <div
                                   key={product.id}
-                                  className="rounded-xl border border-rose-100 bg-white/80 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                                  className="rounded-xl border border-rose-100 bg-white/80 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] max-w-full"
                                 >
                                   <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="font-medium text-slate-900">{product.name}</p>
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-slate-900 truncate">
+                                        {product.name}
+                                      </p>
                                       <p className="text-xs text-slate-500">
                                         {product.badge ?? product.category}
                                       </p>
@@ -955,6 +1376,19 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                     </p>
                                   </div>
                                 </div>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {message.refundOrderCards && message.refundOrderCards.length > 0 ? (
+                            <div className="mt-3 space-y-2">
+                              {message.refundOrderCards.map((order) => (
+                                <RefundOrderCardItem
+                                  key={order.order_id}
+                                  order={order}
+                                  isSelected={selectedOrder?.order_id === order.order_id}
+                                  onSelect={handleOrderSelect}
+                                />
                               ))}
                             </div>
                           ) : null}
@@ -983,6 +1417,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               </AnimatePresence>
             </motion.div>
 
+            {/* removed floating submit button to simplify layout */}
+
             <div className="border-t border-rose-100/80 bg-white/85 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
               {errorMessage ? (
                 <div
@@ -1001,6 +1437,124 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                       Retry
                     </button>
                   ) : null}
+                </div>
+              ) : null}
+
+              {selectedOrder ? (
+                <div className="mb-3 rounded-2xl border border-rose-100 bg-rose-50/70 p-3 text-xs text-slate-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">Refund request</p>
+                      <p className="text-[11px] text-slate-500">
+                        Order #{selectedOrder.order_number || selectedOrder.order_id.slice(0, 8)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOrder(null);
+                        setRefundComments('');
+                        setRefundError(null);
+                        evidenceManager.clear();
+                      }}
+                      className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                    >
+                      Change order
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold text-slate-600">Photo evidence</p>
+                      <span className="text-[10px] text-slate-500">
+                        {evidenceManager.files.length}/{evidenceManager.maxFiles} images
+                      </span>
+                    </div>
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200 bg-white px-3 py-2 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
+                      <Paperclip className="h-3 w-3" />
+                      Upload photos
+                      <input
+                        type="file"
+                        multiple
+                        className="hidden"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(event) => {
+                          if (event.target.files && event.target.files.length > 0) {
+                            evidenceManager.attach(event.target.files);
+                          }
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+
+                    {evidenceManager.validation && !evidenceManager.validation.valid ? (
+                      <div className="text-[11px] text-rose-600">
+                        {evidenceManager.validation.reason}
+                      </div>
+                    ) : null}
+
+                    {evidencePreviews.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {evidencePreviews.map((preview, index) => (
+                          <div
+                            key={`${preview.name}-${index}`}
+                            className="relative h-16 w-full overflow-hidden rounded-lg border border-rose-100"
+                          >
+                            <Image
+                              src={preview.url}
+                              alt={preview.name}
+                              fill
+                              sizes="96px"
+                              className="object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => evidenceManager.removeAt(index)}
+                              className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-rose-600 shadow"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3">
+                    <label
+                      htmlFor="refund-comments"
+                      className="text-[11px] font-semibold text-slate-600"
+                    >
+                      Comments (optional)
+                    </label>
+                    <textarea
+                      id="refund-comments"
+                      value={refundComments}
+                      onChange={(event) => setRefundComments(event.target.value)}
+                      rows={3}
+                      placeholder="Share any details about the issue..."
+                      className="mt-1 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
+                    />
+                  </div>
+
+                  {refundError ? (
+                    <div className="mt-2 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[11px] text-rose-700">
+                      {refundError}
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => void handleRefundSubmit()}
+                    disabled={isRefundSubmitting || isRefundUploading}
+                    className="mt-3 w-full rounded-full bg-rose-500 py-2 text-xs font-semibold text-white shadow transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-rose-300"
+                  >
+                    {isRefundUploading
+                      ? 'Uploading photos...'
+                      : isRefundSubmitting
+                        ? 'Submitting refund...'
+                        : 'Submit refund request'}
+                  </button>
                 </div>
               ) : null}
 
@@ -1042,7 +1596,13 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
             type="button"
             onClick={() => {
               hasInteractedRef.current = true;
-              setIsOpen((current) => !current);
+              setIsOpen((current) => {
+                if (!current) {
+                  setShouldAutoScroll(true);
+                }
+
+                return !current;
+              });
             }}
             className={`flex h-14 w-14 items-center justify-center rounded-full bg-rose-500 text-white transition-transform duration-300 hover:scale-105 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-200 ${
               hasLoaded && !isOpen ? 'animate-[bounce_1.4s_ease-in-out_1]' : ''

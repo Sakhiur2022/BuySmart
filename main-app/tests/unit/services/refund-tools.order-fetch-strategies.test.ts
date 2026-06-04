@@ -5,11 +5,16 @@ import {
   SpecificOrderStrategy,
 } from '@/lib/services/refund-tools/order-fetch-strategies';
 import { getBuyerOrderById, getBuyerOrders } from '@/lib/services/order.service';
+import { fetchOrderItemsByOrderId } from '@/lib/repositories/order.repository';
 import type { Order } from '@/lib/models/order.model';
 
 vi.mock('@/lib/services/order.service', () => ({
   getBuyerOrders: vi.fn(),
   getBuyerOrderById: vi.fn(),
+}));
+
+vi.mock('@/lib/repositories/order.repository', () => ({
+  fetchOrderItemsByOrderId: vi.fn(),
 }));
 
 const order = {
@@ -27,6 +32,7 @@ describe('Order fetch strategies', () => {
       orders: [order],
       pagination: { page: 1, pageSize: 5, totalCount: 1, totalPages: 1 },
     });
+    vi.mocked(fetchOrderItemsByOrderId).mockResolvedValue([]);
 
     const strategy = new RecentOrdersStrategy();
     const result = await strategy.fetch({

@@ -7,6 +7,7 @@ export type RefundOrderCard = {
   status: Database['public']['Enums']['order_status_enum'];
   total_amount: number;
   currency: string;
+  product_name?: string | null;
   thumbnail_url?: string | null;
 };
 

@@ -2,68 +2,77 @@
 
 import { useCallback, useMemo, useState } from 'react';
 
+import {
+  REFUND_EVIDENCE_MAX_FILES,
+  validateRefundEvidenceFile,
+} from '@/lib/types/refund-evidence.types';
+
 export type RefundAttachmentValidation = {
   valid: boolean;
   reason?: string;
 };
 
 export type RefundEvidenceAttachmentState = {
-  file: File | null;
+  files: File[];
   progress: number;
   validation: RefundAttachmentValidation;
+  maxFiles: number;
 };
 
-const DEFAULT_MAX_SIZE_MB = 5;
-const DEFAULT_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-function validateFile(
-  file: File,
-  maxSizeMb: number,
-  allowedTypes: string[],
-): RefundAttachmentValidation {
-  if (!allowedTypes.includes(file.type)) {
-    return { valid: false, reason: 'Unsupported file format.' };
-  }
-
-  const maxBytes = maxSizeMb * 1024 * 1024;
-  if (file.size > maxBytes) {
-    return { valid: false, reason: `File exceeds ${maxSizeMb}MB.` };
-  }
-
-  return { valid: true };
-}
-
 export function useRefundEvidenceAttachment(options?: {
-  maxSizeMb?: number;
-  allowedTypes?: string[];
+  maxFiles?: number;
 }) {
-  const maxSizeMb = options?.maxSizeMb ?? DEFAULT_MAX_SIZE_MB;
-  const allowedTypes = options?.allowedTypes ?? DEFAULT_ALLOWED_TYPES;
+  const maxFiles = options?.maxFiles ?? REFUND_EVIDENCE_MAX_FILES;
 
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
   const [validation, setValidation] = useState<RefundAttachmentValidation>({ valid: true });
 
   const attach = useCallback(
-    (nextFile: File) => {
-      const nextValidation = validateFile(nextFile, maxSizeMb, allowedTypes);
-      setValidation(nextValidation);
+    (incoming: FileList | File[]) => {
+      const incomingFiles = Array.from(incoming);
+      const accepted: File[] = [];
+      let errorMessage: string | undefined;
 
-      if (!nextValidation.valid) {
-        setFile(null);
-        setProgress(0);
-        return nextValidation;
+      for (const file of incomingFiles) {
+        const fileValidation = validateRefundEvidenceFile(file);
+        if (!fileValidation.valid) {
+          errorMessage = errorMessage ?? fileValidation.reason;
+          continue;
+        }
+
+        accepted.push(file);
       }
 
-      setFile(nextFile);
-      setProgress(0);
-      return nextValidation;
+      setFiles((current) => {
+        const merged = [...current, ...accepted];
+        if (merged.length > maxFiles) {
+          errorMessage = errorMessage ?? `You can upload up to ${maxFiles} images.`;
+          return merged.slice(0, maxFiles);
+        }
+
+        return merged;
+      });
+
+      if (errorMessage) {
+        setValidation({ valid: false, reason: errorMessage });
+      } else {
+        setValidation({ valid: true });
+      }
+
+      return { valid: !errorMessage, reason: errorMessage };
     },
-    [maxSizeMb, allowedTypes],
+    [maxFiles],
   );
 
-  const remove = useCallback(() => {
-    setFile(null);
+  const removeAt = useCallback((index: number) => {
+    setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    setProgress(0);
+    setValidation({ valid: true });
+  }, []);
+
+  const clear = useCallback(() => {
+    setFiles([]);
     setProgress(0);
     setValidation({ valid: true });
   }, []);
@@ -73,14 +82,15 @@ export function useRefundEvidenceAttachment(options?: {
   }, []);
 
   const state: RefundEvidenceAttachmentState = useMemo(
-    () => ({ file, progress, validation }),
-    [file, progress, validation],
+    () => ({ files, progress, validation, maxFiles }),
+    [files, progress, validation, maxFiles],
   );
 
   return {
     ...state,
     attach,
-    remove,
+    removeAt,
+    clear,
     updateProgress,
   };
 }
