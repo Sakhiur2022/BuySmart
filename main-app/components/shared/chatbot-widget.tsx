@@ -7,13 +7,12 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import {
   Loader2,
-  Maximize2,
   MessageCircle,
-  Minimize2,
   Send,
   Sparkles,
   X,
   Paperclip,
+  Square,
 } from 'lucide-react';
 import type {
   ChatAPIRequest,
@@ -58,6 +57,7 @@ const FALLBACK_REPLY =
 const RECOMMENDATION_TOAST_DELAY_MS = 1800;
 const REFUND_ORDER_FETCH_TOAST_DELAY_MS = 2000;
 const REFUND_SUBMIT_TOAST_DELAY_MS = 1200;
+const CHAT_REQUEST_TIMEOUT_MS = 10000;
 
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -329,6 +329,15 @@ function buildStreamingAssistantMessage(messageId: string): UIMessage {
   };
 }
 
+function buildPausedAssistantMessage(messageId: string): UIMessage {
+  return {
+    id: messageId,
+    role: 'assistant',
+    text: 'Reply paused. You can send another message now.',
+    createdAt: Date.now(),
+  };
+}
+
 function buildErrorAssistantMessage(messageId: string, errorText: string): UIMessage {
   return {
     id: messageId,
@@ -429,7 +438,6 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const shouldReduceMotion = useReducedMotion();
   const isSmallScreen = useMediaQuery('(max-width: 640px)');
   const [isOpen, setIsOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
   const evidenceManager = useRefundEvidenceAttachment();
@@ -451,9 +459,16 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [now, setNow] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [sessionGeneration, setSessionGeneration] = useState(0);
   const prevMessagesLenRef = useRef<number>(messages.length);
   const toolStatus = useChatToolStatus();
   const sessionVersionRef = useRef(0);
+  const activeRequestControllerRef = useRef<AbortController | null>(null);
+  const activeRequestIdRef = useRef(0);
+  const activeRequestTimeoutIdRef = useRef<number | null>(null);
+  const activeRequestMessageIdRef = useRef<string | null>(null);
+  const activeRequestFinalizedRef = useRef(false);
+  const activeRequestAbortReasonRef = useRef<'timeout' | 'manual' | null>(null);
 
   const isHiddenRoute = pathname.startsWith('/auth') || pathname.startsWith('/api');
 
@@ -546,7 +561,14 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
   const resetChatSession = useCallback(
     (nextAuthMarker?: string, preserveOpenState = false) => {
+      activeRequestControllerRef.current?.abort();
+      activeRequestControllerRef.current = null;
+      activeRequestTimeoutIdRef.current = null;
+      activeRequestMessageIdRef.current = null;
+      activeRequestFinalizedRef.current = false;
+      activeRequestAbortReasonRef.current = null;
       sessionVersionRef.current += 1;
+      setSessionGeneration((current) => current + 1);
       setMessages([getGreetingMessage(chatbotRole)]);
       setChatContext(DEFAULT_CONTEXT);
       setDraftMessage('');
@@ -680,7 +702,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         const authMarker = session?.user?.id ? `user:${session.user.id}` : 'guest';
-        resetChatSession(authMarker);
+        window.setTimeout(() => {
+          resetChatSession(authMarker, true);
+        }, 0);
       }
     });
 
@@ -755,10 +779,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) {
-      setIsFullscreen(false);
-    }
-  }, [isOpen]);
+    return () => {
+      activeRequestControllerRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -859,6 +883,37 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return body.urls;
   }, []);
 
+  const stopActiveRequest = useCallback(() => {
+    const controller = activeRequestControllerRef.current;
+    const assistantMessageId = activeRequestMessageIdRef.current;
+    if (!controller || controller.signal.aborted) {
+      return;
+    }
+
+    if (activeRequestTimeoutIdRef.current !== null) {
+      window.clearTimeout(activeRequestTimeoutIdRef.current);
+      activeRequestTimeoutIdRef.current = null;
+    }
+
+    if (assistantMessageId && !activeRequestFinalizedRef.current) {
+      activeRequestFinalizedRef.current = true;
+      setMessages((currentMessages) =>
+        currentMessages.map((currentMessage) =>
+          currentMessage.id === assistantMessageId
+            ? buildPausedAssistantMessage(assistantMessageId)
+            : currentMessage,
+        ),
+      );
+    }
+
+    activeRequestAbortReasonRef.current = 'manual';
+    controller.abort();
+    setIsSending(false);
+    setErrorMessage(null);
+    setLastFailedMessage(null);
+    toolStatus.reset();
+  }, [toolStatus]);
+
   const handleSend = useCallback(
     async (
       overrideMessage?: string,
@@ -886,6 +941,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
       const assistantMessageId = createMessageId('assistant-stream');
       const assistantPlaceholder = buildStreamingAssistantMessage(assistantMessageId);
+      const requestId = activeRequestIdRef.current + 1;
+      activeRequestIdRef.current = requestId;
+      activeRequestMessageIdRef.current = assistantMessageId;
+      activeRequestFinalizedRef.current = false;
 
       setMessages((currentMessages) => [...currentMessages, userMessage, assistantPlaceholder]);
       setDraftMessage('');
@@ -893,6 +952,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       setLastFailedMessage(null);
       setIsSending(true);
       toolStatus.updateStatus('resolving_intent');
+      activeRequestAbortReasonRef.current = null;
 
       const normalizedMessage = message.toLowerCase();
       const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
@@ -908,6 +968,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
       if (shouldShowRecommendationToast) {
         recommendationToastTimer = window.setTimeout(() => {
+          if (activeRequestIdRef.current !== requestId) {
+            return;
+          }
+
           recommendationToastId = addToast({
             message: 'Still fetching recommendations...',
             variant: 'info',
@@ -918,6 +982,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
       if (shouldWatchRefundFlow) {
         refundOrdersToastTimer = window.setTimeout(() => {
+          if (activeRequestIdRef.current !== requestId) {
+            return;
+          }
+
           refundOrdersToastId = addToast({
             message: 'Fetching your recent orders...',
             variant: 'info',
@@ -926,6 +994,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         }, REFUND_ORDER_FETCH_TOAST_DELAY_MS);
 
         refundSubmitToastTimer = window.setTimeout(() => {
+          if (activeRequestIdRef.current !== requestId) {
+            return;
+          }
+
           refundSubmitToastId = addToast({
             message: 'Submitting your refund...',
             variant: 'info',
@@ -935,9 +1007,24 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       }
 
       let responseBody: ChatAPIResponse | null = null;
-      const timeoutMs = 20000;
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      activeRequestControllerRef.current = controller;
+      type RequestOutcome = { kind: 'response'; response: Response } | { kind: 'timeout' };
+      let resolveTimeoutRequest: ((value: RequestOutcome) => void) | null = null;
+      const timeoutPromise = new Promise<RequestOutcome>((resolve) => {
+        resolveTimeoutRequest = resolve;
+      });
+      const timeoutId = window.setTimeout(() => {
+        if (activeRequestIdRef.current !== requestId || activeRequestFinalizedRef.current) {
+          return;
+        }
+
+        activeRequestAbortReasonRef.current = 'timeout';
+        activeRequestFinalizedRef.current = true;
+        resolveTimeoutRequest?.({ kind: 'timeout' });
+        controller.abort();
+      }, CHAT_REQUEST_TIMEOUT_MS);
+      activeRequestTimeoutIdRef.current = timeoutId;
 
       try {
         toolStatus.updateStatus('invoking_tool');
@@ -947,7 +1034,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
             : role === 'admin'
               ? '/api/admin/chat'
               : '/api/buyer/chat';
-        const response = await fetch(endpoint, {
+        const requestPromise = fetch(endpoint, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -955,6 +1042,32 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           body: JSON.stringify(requestPayload),
           signal: controller.signal,
         });
+        requestPromise.catch(() => {
+          // The timeout or manual stop path handles the final UI state.
+        });
+        const requestOutcome = (await Promise.race([
+          requestPromise.then((response) => ({ kind: 'response', response }) as const),
+          timeoutPromise,
+        ])) as RequestOutcome;
+
+        if (requestOutcome.kind === 'timeout') {
+          const errorText = 'The chat request timed out. Please try again.';
+
+          setMessages((currentMessages) =>
+            currentMessages.map((currentMessage) =>
+              currentMessage.id === assistantMessageId
+                ? buildErrorAssistantMessage(assistantMessageId, errorText)
+                : currentMessage,
+            ),
+          );
+          setChatContext(createFallbackContext(chatContext, message));
+          setErrorMessage(errorText);
+          setLastFailedMessage(message);
+          toolStatus.fail(errorText);
+          return null;
+        }
+
+        const response = requestOutcome.response;
         toolStatus.updateStatus('awaiting_result');
         const body = (await response.json().catch(() => null)) as
           | ChatAPIResponse
@@ -1033,38 +1146,69 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         }
       } catch (error) {
         const nextContext = createFallbackContext(chatContext, message);
-        const errorText =
-          error instanceof DOMException && error.name === 'AbortError'
-            ? 'The chat request timed out. Please try again.'
-            : error instanceof Error
-              ? error.message
-              : 'Unable to send message.';
-        setMessages((currentMessages) =>
-          currentMessages.map((currentMessage) =>
-            currentMessage.id === assistantMessageId
-              ? buildErrorAssistantMessage(assistantMessageId, errorText)
-              : currentMessage,
-          ),
-        );
-        setChatContext(nextContext);
-        setErrorMessage(errorText);
-        setLastFailedMessage(message);
-        toolStatus.fail(errorText);
-        addToast({
-          message: 'The assistant could not complete that request. Try again?',
-          variant: 'error',
-          actionLabel: 'Retry',
-          onAction: () => {
-            void handleSend(message);
-          },
-          durationMs: 8000,
-        });
+        const isAbortError = error instanceof DOMException && error.name === 'AbortError';
+        const abortReason = activeRequestAbortReasonRef.current;
+
+        if (isAbortError && abortReason === 'manual') {
+          setMessages((currentMessages) =>
+            currentMessages.map((currentMessage) =>
+              currentMessage.id === assistantMessageId
+                ? buildPausedAssistantMessage(assistantMessageId)
+                : currentMessage,
+            ),
+          );
+
+          if (activeRequestIdRef.current === requestId) {
+            setErrorMessage(null);
+            setLastFailedMessage(null);
+            toolStatus.reset();
+          }
+        } else {
+          const errorText =
+            isAbortError || abortReason === 'timeout'
+              ? 'The chat request timed out. Please try again.'
+              : error instanceof Error
+                ? error.message
+                : 'Unable to send message.';
+
+          setMessages((currentMessages) =>
+            currentMessages.map((currentMessage) =>
+              currentMessage.id === assistantMessageId
+                ? buildErrorAssistantMessage(assistantMessageId, errorText)
+                : currentMessage,
+            ),
+          );
+
+          if (activeRequestIdRef.current === requestId) {
+            setChatContext(nextContext);
+            setErrorMessage(errorText);
+            setLastFailedMessage(message);
+            toolStatus.fail(errorText);
+            addToast({
+              message: 'The assistant could not complete that request. Try again?',
+              variant: 'error',
+              actionLabel: 'Retry',
+              onAction: () => {
+                void handleSend(message);
+              },
+              durationMs: 8000,
+            });
+          }
+        }
       } finally {
         window.clearTimeout(timeoutId);
+        if (activeRequestTimeoutIdRef.current === timeoutId) {
+          activeRequestTimeoutIdRef.current = null;
+        }
         if (recommendationToastTimer) {
           window.clearTimeout(recommendationToastTimer);
         }
-        setIsSending(false);
+        if (activeRequestIdRef.current === requestId) {
+          setIsSending(false);
+          activeRequestControllerRef.current = null;
+          activeRequestAbortReasonRef.current = null;
+          activeRequestMessageIdRef.current = null;
+        }
         if (refundOrdersToastTimer) {
           window.clearTimeout(refundOrdersToastTimer);
         }
@@ -1171,7 +1315,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
   return (
     <>
-      {isSmallScreen && isOpen && !isFullscreen ? (
+      {isSmallScreen && isOpen ? (
         <button
           type="button"
           aria-label="Close chat backdrop"
@@ -1184,40 +1328,28 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         />
       ) : null}
 
-      {isFullscreen ? (
-        <button
-          type="button"
-          aria-label="Exit fullscreen"
-          className="fixed inset-0 z-[205] cursor-default bg-slate-950/45 backdrop-blur-[3px]"
-          onClick={() => setIsFullscreen(false)}
-        />
-      ) : null}
-
       <div
         className={`pointer-events-none fixed ${
-          isFullscreen
-            ? 'inset-0 z-[210] flex items-center justify-center p-4 sm:p-8'
-            : isSmallScreen && isOpen
-              ? 'inset-0 z-[200] p-2 sm:p-4'
-              : `${positionClassName} z-[200]`
+          isSmallScreen && isOpen
+            ? 'inset-0 z-[200] p-2 sm:p-4'
+            : `${positionClassName} z-[200]`
         } flex flex-col items-end justify-end gap-3 font-sans`}
       >
         <ToastList toasts={toasts} onDismiss={dismissToast} />
         <motion.div
           data-testid="buyer-chatbot-panel"
+          key={sessionGeneration}
           className={`relative flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
-            isFullscreen
-              ? 'pointer-events-auto h-[min(90dvh,54rem)] w-[min(92vw,72rem)] rounded-[2rem]'
-              : isSmallScreen && isOpen
-                ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
-                : `pointer-events-auto h-[28rem] w-[min(20rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl sm:w-80 md:w-76 ${
-                    isOpen ? 'pointer-events-auto' : 'pointer-events-none'
-                  }`
+            isSmallScreen && isOpen
+              ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
+              : `pointer-events-auto h-[min(30rem,calc(100dvh-2rem))] w-[min(40rem,calc(100vw-1.5rem))] rounded-3xl ${
+                  isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+                }`
           }`}
           aria-hidden={!isOpen}
           initial={false}
           animate={isOpen ? 'open' : 'closed'}
-          variants={isSmallScreen && !isFullscreen ? mobilePanelVariants : panelVariants}
+          variants={isSmallScreen ? mobilePanelVariants : panelVariants}
         >
           <div className="relative flex items-start justify-between gap-3 overflow-hidden bg-rose-50 px-4 py-3 text-slate-800 shadow-[inset_0_-1px_0_rgba(15,23,42,0.04)]">
             <div className="space-y-1">
@@ -1231,34 +1363,20 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsFullscreen((current) => !current)}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-5 w-5" />
-                ) : (
-                  <Maximize2 className="h-5 w-5" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  hasInteractedRef.current = true;
-                  setIsOpen(false);
-                }}
-                onMouseDown={() => {
-                  hasInteractedRef.current = true;
-                }}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                aria-label="Close chat"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                hasInteractedRef.current = true;
+                setIsOpen(false);
+              }}
+              onMouseDown={() => {
+                hasInteractedRef.current = true;
+              }}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+              aria-label="Close chat"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),rgba(255,241,242,0.5))]">
@@ -1578,13 +1696,18 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 <button
                   type="button"
                   onClick={() => {
+                    if (isSending) {
+                      stopActiveRequest();
+                      return;
+                    }
+
                     void handleSend();
                   }}
-                  disabled={isSending || !draftMessage.trim()}
+                  disabled={!isSending && !draftMessage.trim()}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
-                  aria-label="Send message"
+                  aria-label={isSending ? 'Stop generating' : 'Send message'}
                 >
-                  <Send className="h-4 w-4" />
+                  {isSending ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                 </button>
               </div>
             </div>

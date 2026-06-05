@@ -3,7 +3,7 @@
 import React from 'react';
 import { act, render, screen, waitFor, waitForElementToBeRemoved } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BuyerChatbotWidget from '@/components/shared/buyer-chatbot-widget';
 import { getChatbotStorageKeys } from '@/lib/chatbot/session';
 
@@ -90,6 +90,10 @@ describe('BuyerChatbotWidget', () => {
     mockMatchMedia();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders on public guest routes', () => {
     pathnameState.value = '/products';
 
@@ -112,6 +116,19 @@ describe('BuyerChatbotWidget', () => {
     expect(panel).toHaveClass('h-[calc(100dvh-1rem)]');
     expect(screen.getByRole('button', { name: 'Close chat backdrop' })).toBeInTheDocument();
     expect(screen.getByTestId('buyer-chatbot-backdrop')).toHaveClass('fixed', 'inset-0');
+  });
+
+  it('opens at a large but bounded size by default on desktop', async () => {
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    const panel = screen.getByTestId('buyer-chatbot-panel');
+    expect(panel).toHaveClass('h-[min(30rem,calc(100dvh-2rem))]');
+    expect(panel).toHaveClass('w-[min(40rem,calc(100vw-1.5rem))]');
+    expect(panel).toHaveClass('rounded-3xl');
+    expect(screen.queryByRole('button', { name: 'Close chat backdrop' })).not.toBeInTheDocument();
   });
 
   it('sends messages to the chat API and renders structured assistant replies', async () => {
@@ -200,6 +217,67 @@ describe('BuyerChatbotWidget', () => {
     );
 
     expect(await screen.findByText('Searching for category: phone, under 20000 taka.')).toBeInTheDocument();
+  });
+
+  it('lets the user stop a pending reply and continue typing', async () => {
+    const fetchMock = vi.fn().mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          });
+        }),
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+    await user.type(screen.getByLabelText('Type a message'), 'Need a phone under 20000');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(screen.getByRole('button', { name: 'Stop generating' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Stop generating' }));
+
+    expect(await screen.findByText('Reply paused. You can send another message now.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Type a message')).toBeEnabled();
+
+    await user.type(screen.getByLabelText('Type a message'), 'Hello again');
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+  });
+
+  it('times out a stalled reply and restores the input', async () => {
+    vi.useFakeTimers();
+
+    const fetchMock = vi.fn().mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          });
+        }),
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+    await user.type(screen.getByLabelText('Type a message'), 'Track my order');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000);
+    });
+
+    expect(
+      await screen.findByText('The chat request timed out. Please try again.'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Type a message')).toBeEnabled();
   });
 
   it('shows a fallback reply and surfaces API errors when the request fails', async () => {
