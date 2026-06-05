@@ -22,6 +22,7 @@ import type {
   UIMessage,
   ChatbotRole,
 } from '@/lib/chatbot/types';
+import { buildRefundTimeoutReply, isRefundRelatedMessage } from '@/lib/chatbot/refund-fallback';
 import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
 import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
 import { useRefundEvidenceAttachment } from '@/lib/hooks/use-refund-evidence-attachment';
@@ -57,7 +58,8 @@ const FALLBACK_REPLY =
 const RECOMMENDATION_TOAST_DELAY_MS = 1800;
 const REFUND_ORDER_FETCH_TOAST_DELAY_MS = 2000;
 const REFUND_SUBMIT_TOAST_DELAY_MS = 1200;
-const CHAT_REQUEST_TIMEOUT_MS = 10000;
+const CHAT_REQUEST_TIMEOUT_MS = 20000;
+const CHAT_REQUEST_TIMEOUT_SECONDS = CHAT_REQUEST_TIMEOUT_MS / 1000;
 
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -215,6 +217,10 @@ function isValidMessage(value: unknown): value is UIMessage {
     typeof candidate.id === 'string' &&
     (candidate.role === 'user' || candidate.role === 'assistant') &&
     typeof candidate.text === 'string' &&
+    (typeof candidate.status === 'undefined' ||
+      candidate.status === 'streaming' ||
+      candidate.status === 'error' ||
+      candidate.status === 'timeout') &&
     (typeof candidate.createdAt === 'number' || typeof candidate.createdAt === 'undefined')
   );
 }
@@ -348,6 +354,14 @@ function buildErrorAssistantMessage(messageId: string, errorText: string): UIMes
     errorMessage: errorText,
     retryable: true,
     isEscalation: true,
+  };
+}
+
+function buildTimeoutAssistantMessage(messageId: string, replyText: string, errorText: string): UIMessage {
+  return {
+    ...buildErrorAssistantMessage(messageId, errorText),
+    text: replyText,
+    status: 'timeout',
   };
 }
 
@@ -958,7 +972,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       const shouldShowRecommendationToast = /\b(recommend|suggest|gift|browse|discover)\b/.test(
         normalizedMessage,
       );
-      const shouldWatchRefundFlow = /\b(refund|return)\b/.test(normalizedMessage);
+      const shouldWatchRefundFlow = isRefundRelatedMessage(message);
       let recommendationToastId: string | null = null;
       let recommendationToastTimer: number | null = null;
       let refundOrdersToastId: string | null = null;
@@ -1051,12 +1065,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         ])) as RequestOutcome;
 
         if (requestOutcome.kind === 'timeout') {
-          const errorText = 'The chat request timed out. Please try again.';
+          const errorText = `The chat request timed out after ${CHAT_REQUEST_TIMEOUT_SECONDS} seconds. Please try again.`;
+          const replyText = isRefundRelatedMessage(message)
+            ? buildRefundTimeoutReply(message, CHAT_REQUEST_TIMEOUT_SECONDS)
+            : errorText;
 
           setMessages((currentMessages) =>
             currentMessages.map((currentMessage) =>
               currentMessage.id === assistantMessageId
-                ? buildErrorAssistantMessage(assistantMessageId, errorText)
+                ? buildTimeoutAssistantMessage(assistantMessageId, replyText, errorText)
                 : currentMessage,
             ),
           );
@@ -1166,15 +1183,21 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         } else {
           const errorText =
             isAbortError || abortReason === 'timeout'
-              ? 'The chat request timed out. Please try again.'
+              ? `The chat request timed out after ${CHAT_REQUEST_TIMEOUT_SECONDS} seconds. Please try again.`
               : error instanceof Error
                 ? error.message
                 : 'Unable to send message.';
+          const replyText =
+            isAbortError || abortReason === 'timeout'
+              ? isRefundRelatedMessage(message)
+                ? buildRefundTimeoutReply(message, CHAT_REQUEST_TIMEOUT_SECONDS)
+                : errorText
+              : FALLBACK_REPLY;
 
           setMessages((currentMessages) =>
             currentMessages.map((currentMessage) =>
               currentMessage.id === assistantMessageId
-                ? buildErrorAssistantMessage(assistantMessageId, errorText)
+                ? buildTimeoutAssistantMessage(assistantMessageId, replyText, errorText)
                 : currentMessage,
             ),
           );
@@ -1446,18 +1469,37 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                           }`}
                         >
                           {message.status === 'streaming' ? (
-                            <div className="flex items-center gap-2 text-slate-500">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>{message.text}</span>
+                            <div className="space-y-2 text-slate-500">
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>{message.text}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={stopActiveRequest}
+                                className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                                aria-label="Pause reply"
+                              >
+                                <Square className="h-3.5 w-3.5" />
+                                Pause reply
+                              </button>
                             </div>
                           ) : (
                             <p>{message.text}</p>
                           )}
 
-                          {message.status === 'error' ? (
-                            <div className="mt-3 space-y-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-rose-700">
+                          {message.status === 'error' || message.status === 'timeout' ? (
+                            <div
+                              className={`mt-3 space-y-2 rounded-xl px-3 py-2 ${
+                                message.status === 'timeout'
+                                  ? 'border border-amber-100 bg-amber-50 text-amber-800'
+                                  : 'border border-rose-100 bg-rose-50 text-rose-700'
+                              }`}
+                            >
                               <p className="text-xs font-medium">
-                                {message.errorMessage ?? 'Unable to complete this message.'}
+                                {message.status === 'timeout'
+                                  ? message.errorMessage ?? 'The assistant is taking longer than expected.'
+                                  : message.errorMessage ?? 'Unable to complete this message.'}
                               </p>
                               {message.retryable && lastFailedMessage ? (
                                 <button
@@ -1465,7 +1507,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                   onClick={() => {
                                     void handleSend(lastFailedMessage);
                                   }}
-                                  className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                                  className={`rounded-full border bg-white px-3 py-1 text-[11px] font-semibold transition ${
+                                    message.status === 'timeout'
+                                      ? 'border-amber-200 text-amber-800 hover:border-amber-300 hover:bg-amber-100'
+                                      : 'border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-100'
+                                  }`}
                                 >
                                   Retry
                                 </button>
@@ -1705,7 +1751,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   }}
                   disabled={!isSending && !draftMessage.trim()}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
-                  aria-label={isSending ? 'Stop generating' : 'Send message'}
+                  aria-label={isSending ? 'Pause reply' : 'Send message'}
                 >
                   {isSending ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                 </button>

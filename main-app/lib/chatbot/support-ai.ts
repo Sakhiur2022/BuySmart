@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { AGENT_PROMPTS } from '@/lib/agents/prompts';
 import { BUYSMART_SUPPORT_KNOWLEDGE } from '@/lib/chatbot/support-knowledge';
+import { buildRefundFallbackReply, isRefundRelatedMessage } from '@/lib/chatbot/refund-fallback';
 import type { ChatContext, ChatbotRole, Product } from '@/lib/chatbot/types';
 import { isAIConfigured } from '@/lib/services/ai/config';
 import { generateChatCompletion } from '@/lib/services/ai/models/llm';
@@ -112,6 +113,13 @@ function normalizeReply(text: string): string {
 
 function buildFallbackReply(message: string): SupportAIResult {
   const normalized = message.toLowerCase();
+
+  if (isRefundRelatedMessage(message)) {
+    return {
+      reply: buildRefundFallbackReply(message),
+      shouldEscalate: false,
+    };
+  }
 
   if (/\b(cart|checkout)\b/.test(normalized)) {
     return {

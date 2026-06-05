@@ -271,11 +271,42 @@ describe('BuyerChatbotWidget', () => {
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(20000);
+      await vi.advanceTimersByTimeAsync(21000);
+    });
+
+    expect(screen.getByText('The chat request timed out after 20 seconds. Please try again.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Type a message')).toBeEnabled();
+  });
+
+  it('uses refund fallback copy when a refund-related reply times out', async () => {
+    vi.useFakeTimers();
+
+    const fetchMock = vi.fn().mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          });
+        }),
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+    await user.type(screen.getByLabelText('Type a message'), 'Refund request for order ORD-1001');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(21000);
     });
 
     expect(
-      await screen.findByText('The chat request timed out. Please try again.'),
+      screen.getByText(
+        'The chat request timed out after 20 seconds. Tap Orders, open View details for order ORD-1001, then use Request Refund.',
+      ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Type a message')).toBeEnabled();
   });
