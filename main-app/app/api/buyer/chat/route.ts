@@ -178,8 +178,62 @@ function parsePriceValues(message: string) {
 }
 
 function parseOrderId(message: string) {
+  const uuidMatch = message.match(
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
+  );
+  if (uuidMatch) {
+    return uuidMatch[0].toLowerCase();
+  }
+
   const match = message.match(/\bORD[-_]?\d+\b/i);
   return match ? match[0].toUpperCase().replace('_', '-') : undefined;
+}
+
+function parseRefundReason(message: string): 'damage' | 'non_delivery' | 'wrong_item' | 'other' | undefined {
+  const normalized = normalizeText(message);
+
+  if (/\b(damaged|damage|broken|defective|faulty|cracked|broken screen)\b/.test(normalized)) {
+    return 'damage';
+  }
+
+  if (
+    /\b(wrong item|incorrect item|wrong order|sent the wrong|different item|mixed up)\b/.test(
+      normalized,
+    )
+  ) {
+    return 'wrong_item';
+  }
+
+  if (
+    /\b(not delivered|never delivered|did not arrive|didn't arrive|missing|late delivery|late)\b/.test(
+      normalized,
+    )
+  ) {
+    return 'non_delivery';
+  }
+
+  if (/\b(other|another reason|different reason)\b/.test(normalized)) {
+    return 'other';
+  }
+
+  return undefined;
+}
+
+function parseRefundAmount(message: string) {
+  const normalized = normalizeText(message).replace(/,/g, '');
+  const patterns = [
+    /(?:refund(?: request)?|request(?:ed)? refund|refund amount|requested amount|claim(?:ing)?|amount)[^0-9]{0,24}(\d{1,7}(?:\.\d{1,2})?)/,
+    /\b(\d{1,7}(?:\.\d{1,2})?)\s*(?:taka|tk|bdt|usd|\$)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (match) {
+      return Number(match[1]);
+    }
+  }
+
+  return undefined;
 }
 
 function composeTrackOrderReply(params: AIParams) {
@@ -367,6 +421,22 @@ function buildFallbackIntentOutput(
   }
 
   const orderId = aiResponse.params.orderId ?? context.lastOrderId ?? undefined;
+  const reason = parseRefundReason(userMessage);
+  const requestedAmount = parseRefundAmount(userMessage);
+
+  if (orderId && reason && requestedAmount !== undefined) {
+    return {
+      intent: 'REFUND_REQUEST',
+      payload: {
+        orderSignal: { orderId },
+        reason,
+        requestedAmount,
+      },
+      metadata: {
+        source: 'heuristic',
+      },
+    };
+  }
 
   return {
     intent: 'REFUND_REQUEST',

@@ -716,9 +716,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         const authMarker = session?.user?.id ? `user:${session.user.id}` : 'guest';
-        window.setTimeout(() => {
-          resetChatSession(authMarker, true);
-        }, 0);
+        resetChatSession(authMarker, true);
       }
     });
 
@@ -1751,7 +1749,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   }}
                   disabled={!isSending && !draftMessage.trim()}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
-                  aria-label={isSending ? 'Pause reply' : 'Send message'}
+                  aria-label={isSending ? 'Stop generating' : 'Send message'}
                 >
                   {isSending ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                 </button>

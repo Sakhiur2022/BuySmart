@@ -134,6 +134,32 @@ describe('POST /api/buyer/chat', () => {
     expect(body.refundReferenceId).toBe('RFD-20260523-ABC123');
   });
 
+  it('auto-submits a detailed refund request from chat text when intentOutput is missing', async () => {
+    const req = new NextRequest('http://localhost/api/buyer/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        message:
+          'Please submit a refund for order 2c1cf3c0-7e6b-4e0e-8e78-8f3d1a53a822 because it arrived damaged. I need 55.5 taka back.',
+        context: {
+          category: null,
+          price_max: null,
+          lastOrderId: null,
+          history: [],
+        },
+      }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.intentResolution?.success).toBe(true);
+    expect(body.toolCall?.toolName).toBe('refund_request');
+    expect(body.toolResult?.refund?.refund_number).toBe('RFD-20260523-ABC123');
+    expect(body.refundReferenceId).toBe('RFD-20260523-ABC123');
+  });
+
   it('validates recommendation intent and invokes recommendation tool', async () => {
     mockGroqChainSuccess(
       JSON.stringify({
