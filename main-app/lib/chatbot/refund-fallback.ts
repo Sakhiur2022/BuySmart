@@ -1,5 +1,6 @@
 const REFUND_MESSAGE_PATTERN = /\b(refund|return|refund policy|refund status|request refund|wrong item|defective|damaged|exchange)\b/i;
 const ORDER_ID_PATTERN = /\bORD[-_]?(\d+)\b/i;
+export const REFUND_MANUAL_REQUEST_ROUTE = '/buyer/orders';
 
 function extractOrderId(message: string) {
   const match = message.match(ORDER_ID_PATTERN);
@@ -15,22 +16,22 @@ export function buildRefundFallbackReply(message: string) {
   const orderId = extractOrderId(message);
 
   if (/\b(status|progress|update|track|check)\b/.test(normalized)) {
-    return 'Open Refund status and tap Details for the latest update.';
+    return 'Open Orders and check Refund status for the latest update.';
   }
 
   if (/\b(request|apply|start|submit|make|get)\b/.test(normalized)) {
     if (orderId) {
-      return `Tap Orders, open View details for order ${orderId}, then use Request Refund.`;
+      return `Open Orders, open View details for order ${orderId}, then tap Request Refund.`;
     }
 
-    return 'Tap Orders, open View details for the order, then use Request Refund.';
+    return 'Open Orders, open View details for the order, then tap Request Refund.';
   }
 
   if (orderId) {
-    return `Tap Orders, open View details for order ${orderId}, then use Request Refund.`;
+    return `Open Orders, open View details for order ${orderId}, then tap Request Refund.`;
   }
 
-  return 'I can help with Refund status or Request Refund from Orders.';
+  return 'Open Orders to check Refund status or submit a Request Refund manually.';
 }
 
 export function buildRefundTimeoutReply(message: string, timeoutSeconds: number) {

@@ -22,7 +22,11 @@ import type {
   UIMessage,
   ChatbotRole,
 } from '@/lib/chatbot/types';
-import { buildRefundTimeoutReply, isRefundRelatedMessage } from '@/lib/chatbot/refund-fallback';
+import {
+  buildRefundTimeoutReply,
+  isRefundRelatedMessage,
+  REFUND_MANUAL_REQUEST_ROUTE,
+} from '@/lib/chatbot/refund-fallback';
 import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
 import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
 import { useRefundEvidenceAttachment } from '@/lib/hooks/use-refund-evidence-attachment';
@@ -1075,6 +1079,17 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 : currentMessage,
             ),
           );
+          if (isRefundRelatedMessage(message)) {
+            addToast({
+              message: 'Open Orders to submit the refund request manually.',
+              variant: 'info',
+              actionLabel: 'Open Orders',
+              onAction: () => {
+                window.location.href = REFUND_MANUAL_REQUEST_ROUTE;
+              },
+              durationMs: 0,
+            });
+          }
           setChatContext(createFallbackContext(chatContext, message));
           setErrorMessage(errorText);
           setLastFailedMessage(message);
@@ -1510,9 +1525,56 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                       ? 'border-amber-200 text-amber-800 hover:border-amber-300 hover:bg-amber-100'
                                       : 'border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-100'
                                   }`}
-                                >
+                                  >
                                   Retry
                                 </button>
+                              ) : null}
+
+                              {message.status === 'timeout' &&
+                              /open orders|request refund|refund status/i.test(message.text) ? (
+                                <div className="mt-2 overflow-hidden rounded-xl border border-rose-200 bg-white/85 px-3 py-2 text-rose-700">
+                                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-rose-500/80">
+                                    <span>Manual refund path</span>
+                                    <motion.span
+                                      aria-hidden="true"
+                                      animate={{ x: [0, 8, 0], opacity: [0.55, 1, 0.55] }}
+                                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                                      className="text-rose-400"
+                                    >
+                                      →
+                                    </motion.span>
+                                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-700">
+                                      Orders
+                                    </span>
+                                    <motion.span
+                                      aria-hidden="true"
+                                      animate={{ x: [0, 8, 0], opacity: [0.55, 1, 0.55] }}
+                                      transition={{
+                                        duration: 1.5,
+                                        repeat: Infinity,
+                                        ease: 'easeInOut',
+                                        delay: 0.15,
+                                      }}
+                                      className="text-rose-400"
+                                    >
+                                      →
+                                    </motion.span>
+                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">
+                                      Request Refund
+                                    </span>
+                                  </div>
+                                  <div className="mt-2 flex items-center justify-between gap-3">
+                                    <p className="text-[11px] leading-5 text-slate-600">
+                                      Open Orders to submit the refund request manually.
+                                    </p>
+                                    <a
+                                      href={REFUND_MANUAL_REQUEST_ROUTE}
+                                      className="inline-flex shrink-0 items-center justify-center rounded-full bg-rose-500 px-3 py-2 text-[11px] font-semibold text-white shadow-[0_10px_20px_rgba(244,63,94,0.16)] transition hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                                    >
+                                      Open Orders
+                                    </a>
+                                  </div>
+                                </div>
                               ) : null}
                             </div>
                           ) : null}

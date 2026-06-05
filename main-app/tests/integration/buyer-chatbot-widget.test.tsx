@@ -319,10 +319,11 @@ describe('BuyerChatbotWidget', () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            'The chat request timed out after 20 seconds. Tap Orders, open View details for order ORD-1001, then use Request Refund.',
+            'The chat request timed out after 20 seconds. Open Orders, open View details for order ORD-1001, then tap Request Refund.',
           ),
         ).toBeInTheDocument();
       });
+      expect(screen.getByRole('button', { name: 'Open Orders' })).toBeInTheDocument();
       expect(screen.getByLabelText('Type a message')).toBeEnabled();
     } finally {
       setTimeoutSpy.mockRestore();
