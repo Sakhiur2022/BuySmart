@@ -136,6 +136,31 @@ describe('RefundRepository', () => {
     });
   });
 
+  it('returns unique refunded order ids for a buyer', async () => {
+    const refunds = createAwaitableQueryBuilder({
+      data: [{ order_id: 'order-1' }, { order_id: 'order-1' }, { order_id: 'order-2' }],
+      error: null,
+    });
+
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === 'refunds') {
+          return refunds;
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const repository = new RefundRepository();
+    const result = await repository.getRefundedOrderIdsByBuyer('buyer-1');
+
+    expect(refunds.eq).toHaveBeenCalledWith('user_id', 'buyer-1');
+    expect(result).toEqual(['order-1', 'order-2']);
+  });
+
   it('returns empty pagination envelope when seller has no scoped orders', async () => {
     const refunds = createAwaitableQueryBuilder({
       data: [],

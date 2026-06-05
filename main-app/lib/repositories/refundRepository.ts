@@ -380,6 +380,27 @@ export class RefundRepository implements IRefundRepository {
     return Boolean(scopedRow);
   }
 
+  public async getRefundedOrderIdsByBuyer(buyerId: string): Promise<string[]> {
+    const supabase = await this.clientFactory();
+    const { data, error } = await supabase
+      .from('refunds')
+      .select('order_id')
+      .eq('user_id', buyerId);
+
+    if (error) {
+      this.throwMappedError(error, 'Failed to fetch refunded order ids');
+    }
+
+    const orderIds = new Set<string>();
+    (data ?? []).forEach((row) => {
+      if (row.order_id) {
+        orderIds.add(row.order_id);
+      }
+    });
+
+    return [...orderIds];
+  }
+
   public async getEligibilitySnapshot(input: {
     orderId: string;
     buyerId: string;

@@ -2,10 +2,15 @@ import type { RefundOrderSignal } from '@/lib/chatbot/buyer-intent/types';
 import type { BuyerOrderDetailResult } from '@/lib/models/order.model';
 import { getBuyerOrderById, getBuyerOrders } from '@/lib/services/order.service';
 import { fetchOrderItemsByOrderId } from '@/lib/repositories/order.repository';
+import { RefundRepository } from '@/lib/repositories/refundRepository';
 import { toRefundOrderCard } from '@/lib/services/refund-tools/order-card-adapter';
 import type { RefundOrdersFetchResult } from '@/lib/services/refund-tools/types';
 
 const DEFAULT_RECENT_ORDER_LIMIT = 5;
+
+type RefundOrderLookup = {
+  getRefundedOrderIdsByBuyer(buyerId: string): Promise<string[]>;
+};
 
 export type OrderFetchContext = {
   buyerId: string;
@@ -19,6 +24,12 @@ export interface OrderFetchStrategy {
 }
 
 export class RecentOrdersStrategy implements OrderFetchStrategy {
+  private readonly refundOrderLookup: RefundOrderLookup;
+
+  public constructor(input?: { refundOrderLookup?: RefundOrderLookup }) {
+    this.refundOrderLookup = input?.refundOrderLookup ?? new RefundRepository();
+  }
+
   canHandle(context: OrderFetchContext): boolean {
     return Boolean(context.orderSignal?.recentOrders || !context.orderSignal?.orderId);
   }
@@ -30,8 +41,13 @@ export class RecentOrdersStrategy implements OrderFetchStrategy {
       pageSize,
     });
 
+    const refundedOrderIds = new Set(
+      await this.refundOrderLookup.getRefundedOrderIdsByBuyer(context.buyerId),
+    );
+    const eligibleOrders = result.orders.filter((order) => !refundedOrderIds.has(order.order_id));
+
     const ordersWithItems = await Promise.all(
-      result.orders.map(async (order) => ({
+      eligibleOrders.map(async (order) => ({
         order,
         items: await fetchOrderItemsByOrderId(order.order_id),
       })),
@@ -44,6 +60,12 @@ export class RecentOrdersStrategy implements OrderFetchStrategy {
 }
 
 export class SpecificOrderStrategy implements OrderFetchStrategy {
+  private readonly refundOrderLookup: RefundOrderLookup;
+
+  public constructor(input?: { refundOrderLookup?: RefundOrderLookup }) {
+    this.refundOrderLookup = input?.refundOrderLookup ?? new RefundRepository();
+  }
+
   canHandle(context: OrderFetchContext): boolean {
     return Boolean(context.orderSignal?.orderId);
   }
@@ -52,6 +74,14 @@ export class SpecificOrderStrategy implements OrderFetchStrategy {
     const orderId = context.orderSignal?.orderId?.trim();
     if (!orderId) {
       throw new Error('Order id is required');
+    }
+
+    const refundedOrderIds = new Set(
+      await this.refundOrderLookup.getRefundedOrderIdsByBuyer(context.buyerId),
+    );
+
+    if (refundedOrderIds.has(orderId)) {
+      return { orders: [] };
     }
 
     const detail: BuyerOrderDetailResult = await getBuyerOrderById(context.buyerId, orderId);
