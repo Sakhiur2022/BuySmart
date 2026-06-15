@@ -1493,15 +1493,25 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               </button>
               <button
                 type="button"
-                onClick={() => setIsFullscreen((current) => !current)}
+                onClick={() => {}}
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                aria-label="Adjust chat size"
               >
-                {isFullscreen ? (
-                  <Minimize2 className="h-5 w-5" />
-                ) : (
-                  <Maximize2 className="h-5 w-5" />
-                )}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                  <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                  <path d="M21 16v3a2 2 0 0 1-2 2h-3" />
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                </svg>
               </button>
               <button
                 type="button"
