@@ -13,6 +13,7 @@ import type { BuyerOrderWithItemStatuses, OrderItemStatus, OrderStatus } from '@
 type BuyerOrdersClientProps = {
   orders: BuyerOrderWithItemStatuses[];
   pageSize: number;
+  refundGuide?: boolean;
 };
 
 const ORDER_STATUS_OPTIONS: Array<{ value: OrderStatus; label: string }> = [
@@ -133,7 +134,7 @@ function parseDateInput(value: string, isEnd: boolean): Date | null {
   return parsed;
 }
 
-export default function BuyerOrdersClient({ orders, pageSize }: BuyerOrdersClientProps) {
+export default function BuyerOrdersClient({ orders, pageSize, refundGuide = false }: BuyerOrdersClientProps) {
   const maxDate = useMemo(() => getLocalDateString(), []);
   const [status, setStatus] = useState<OrderStatus | 'all'>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -263,6 +264,15 @@ export default function BuyerOrdersClient({ orders, pageSize }: BuyerOrdersClien
           <CardTitle className="text-lg">Orders</CardTitle>
         </CardHeader>
         <CardContent>
+          {refundGuide ? (
+            <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <p className="font-semibold">Refund guide active</p>
+              <p className="mt-1 text-xs leading-5 text-rose-800">
+                Find the order you want to refund, then use the highlighted View details button.
+              </p>
+            </div>
+          ) : null}
+
           {pageOrders.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-muted/30 px-6 py-10 text-center text-sm text-muted-foreground">
               No orders match these filters yet.
@@ -294,8 +304,21 @@ export default function BuyerOrdersClient({ orders, pageSize }: BuyerOrdersClien
                       <span className="text-sm font-semibold text-foreground">
                         {formatCurrency(order.total_amount)}
                       </span>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/buyer/orders/${order.order_id}`}>View details</Link>
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="outline"
+                        className={
+                          refundGuide
+                            ? 'border-rose-200 bg-rose-50 text-rose-700 shadow-[0_0_0_1px_rgba(251,113,133,0.22),0_0_20px_rgba(244,63,94,0.14)] animate-pulse hover:bg-rose-100'
+                            : undefined
+                        }
+                      >
+                        <Link
+                          href={`/buyer/orders/${order.order_id}${refundGuide ? '?guide=refund' : ''}`}
+                        >
+                          View details
+                        </Link>
                       </Button>
                     </div>
                   </div>

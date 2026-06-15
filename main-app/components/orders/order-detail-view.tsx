@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import BuyerRefundDetailSection from '@/components/orders/buyer-refund-detail-section';
+import GuidanceAutoScroll from '@/components/orders/guidance-auto-scroll';
 import { formatCurrency } from '@/lib/utils';
 import type { Order, OrderItem, OrderStatus } from '@/lib/models/order.model';
 import type { RefundDetailDTO } from '@/lib/types/refund.types';
@@ -195,11 +196,13 @@ export function OrderDetailView({
   items,
   feedbackByOrderItemId,
   refundDetail,
+  refundGuide = false,
 }: {
   order: Order;
   items: OrderItem[];
   feedbackByOrderItemId: Record<string, { feedback_id: string; status: string }>;
   refundDetail?: RefundDetailDTO | null;
+  refundGuide?: boolean;
 }) {
   const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
   const steps = getTimelineSteps(order);
@@ -209,6 +212,17 @@ export function OrderDetailView({
 
   return (
     <div className="space-y-6">
+      <GuidanceAutoScroll enabled={refundGuide} targetId="request-refund-cta" />
+
+      {refundGuide ? (
+        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+          <p className="font-semibold">Refund step 2</p>
+          <p className="mt-1 text-xs leading-5 text-rose-800">
+            Scroll down to the highlighted Request Refund button when you are ready to continue.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Order details</p>
@@ -465,11 +479,21 @@ export function OrderDetailView({
             Buy again
           </Link>
         </Button>
-        <Button asChild variant="destructive">
-          <Link href={`/buyer/orders/${order.order_id}/refund`}>
-            Request Refund
-          </Link>
-        </Button>
+        <div id="request-refund-cta" className="inline-flex">
+          <Button
+            asChild
+            variant="destructive"
+            className={
+              refundGuide
+                ? 'animate-pulse border-rose-200 bg-rose-500 shadow-[0_0_0_1px_rgba(251,113,133,0.22),0_0_22px_rgba(244,63,94,0.24)] hover:bg-rose-600'
+                : undefined
+            }
+          >
+            <Link href={`/buyer/orders/${order.order_id}/refund${refundGuide ? '?guide=refund' : ''}`}>
+              Request Refund
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

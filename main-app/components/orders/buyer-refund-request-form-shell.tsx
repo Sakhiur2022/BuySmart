@@ -1,7 +1,13 @@
 import React from "react";
 import { Info } from "lucide-react";
 
-export default function BuyerRefundRequestFormShell({ children }: { children?: React.ReactNode }) {
+export default function BuyerRefundRequestFormShell({
+  children,
+  refundGuide = false,
+}: {
+  children?: React.ReactNode;
+  refundGuide?: boolean;
+}) {
   return (
     <div className="max-w-lg mx-auto bg-white rounded-lg shadow-md p-8 mt-8 space-y-6">
       <div className="space-y-2 text-center">
@@ -10,6 +16,15 @@ export default function BuyerRefundRequestFormShell({ children }: { children?: R
           Submit a refund request for your order. Our support team will review and respond within 5-7 business days.
         </p>
       </div>
+
+      {refundGuide ? (
+        <div className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+          <p className="font-semibold">Refund step 3</p>
+          <p className="mt-1 text-xs leading-5 text-rose-800">
+            Review the form, then use the highlighted Submit refund request button to finish.
+          </p>
+        </div>
+      ) : null}
 
       {/* Helpful information box */}
       <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex gap-3">

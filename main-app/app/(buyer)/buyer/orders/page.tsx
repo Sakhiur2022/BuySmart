@@ -5,7 +5,22 @@ import { getBuyerOrdersWithItemStatuses } from '@/lib/services/order.service';
 
 const PAGE_SIZE = 10;
 
-export default async function BuyerOrdersPage() {
+type BuyerOrdersPageProps = {
+  searchParams?: Promise<{
+    guide?: string | string[];
+  }>;
+};
+
+function getSearchValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+export default async function BuyerOrdersPage({ searchParams }: BuyerOrdersPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const supabase = await createClient();
   const {
     data: { user },
@@ -27,7 +42,11 @@ export default async function BuyerOrdersPage() {
           </p>
         </div>
       </section>
-      <BuyerOrdersClient orders={orders} pageSize={PAGE_SIZE} />
+      <BuyerOrdersClient
+        orders={orders}
+        pageSize={PAGE_SIZE}
+        refundGuide={getSearchValue(resolvedSearchParams?.guide) === 'refund'}
+      />
     </div>
   );
 }

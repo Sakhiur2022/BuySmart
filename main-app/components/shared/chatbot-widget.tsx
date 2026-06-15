@@ -14,6 +14,8 @@ import {
   Paperclip,
   Zap,
   Square,
+  CheckCircle2,
+  ReceiptText,
 } from 'lucide-react';
 import type {
   ChatAPIRequest,
@@ -26,7 +28,7 @@ import type {
 import {
   buildRefundTimeoutReply,
   isRefundRelatedMessage,
-  REFUND_MANUAL_REQUEST_ROUTE,
+  REFUND_MANUAL_REQUEST_GUIDED_ROUTE,
 } from '@/lib/chatbot/refund-fallback';
 import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
 import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
@@ -64,8 +66,30 @@ const FALLBACK_REPLY =
 const RECOMMENDATION_TOAST_DELAY_MS = 1800;
 const REFUND_ORDER_FETCH_TOAST_DELAY_MS = 2000;
 const REFUND_SUBMIT_TOAST_DELAY_MS = 1200;
-const CHAT_REQUEST_TIMEOUT_MS = 20000;
-const CHAT_REQUEST_TIMEOUT_SECONDS = CHAT_REQUEST_TIMEOUT_MS / 1000;
+const LOCAL_CHAT_REQUEST_TIMEOUT_MS = 1500;
+const PROD_CHAT_REQUEST_TIMEOUT_MS = 20000;
+const LOCAL_CHAT_TIMEOUT_STORAGE_KEY = 'buysmart-chat-fast-timeout';
+
+function isLocalhostHost(hostname: string) {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname.endsWith('.localhost')
+  );
+}
+
+// Use the fast timeout on localhost for a nicer dev loop, but keep the production
+// timeout everywhere else, including deployed preview and real app hosts.
+function getChatRequestTimeoutMs(useLocalTimeout: boolean) {
+  return process.env.NODE_ENV === 'development' && !process.env.VITEST
+    ? useLocalTimeout
+      ? LOCAL_CHAT_REQUEST_TIMEOUT_MS
+      : PROD_CHAT_REQUEST_TIMEOUT_MS
+    : PROD_CHAT_REQUEST_TIMEOUT_MS;
+}
+
+const PAUSED_REPLY_MESSAGE = 'Reply paused. You can send another message now.';
 
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -179,6 +203,94 @@ function ToastList({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: str
         </div>
       ))}
     </div>
+  );
+}
+
+type GuidanceKind = 'refund';
+
+type GuidanceState = {
+  kind: GuidanceKind;
+  message: string;
+};
+
+function RefundGuidanceCard({
+  message,
+  onOpenOrders,
+  onDismiss,
+}: {
+  message: string;
+  onOpenOrders: () => void;
+  onDismiss: () => void;
+}) {
+  const steps = [
+    'Open Orders',
+    'Select the order you want refunded',
+    'Add photos or comments, then submit the refund',
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.98 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className="chatbot-scrollbar mb-3 max-h-[min(18rem,calc(100dvh-12rem))] overflow-y-auto rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 via-white to-orange-50 px-4 py-4 pr-2 shadow-[0_16px_30px_rgba(244,63,94,0.08)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_24px_rgba(244,63,94,0.25)]">
+            <ReceiptText className="h-5 w-5" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-500/80">
+              Refund guidance
+            </p>
+            <h3 className="text-sm font-semibold text-slate-900">
+              We can start the refund flow now
+            </h3>
+            <p className="text-xs leading-5 text-slate-600">
+              {message} I&apos;ll keep guiding you step by step until it&apos;s submitted.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-full px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-white hover:text-slate-700"
+        >
+          Dismiss
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {steps.map((step, index) => (
+          <div
+            key={step}
+            className="flex items-center gap-3 rounded-xl border border-white/80 bg-white/75 px-3 py-2 text-xs text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+          >
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-100 text-[11px] font-bold text-rose-700">
+              {index + 1}
+            </span>
+            <span className="min-w-0 flex-1">{step}</span>
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenOrders}
+          className="inline-flex items-center justify-center rounded-full bg-rose-500 px-4 py-2 text-xs font-semibold text-white shadow-[0_10px_20px_rgba(244,63,94,0.18)] transition hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+        >
+          Open Orders and start refund
+        </button>
+        <p className="text-[11px] text-slate-500">
+          We can continue from the order details page whenever you&apos;re ready.
+        </p>
+      </div>
+    </motion.div>
   );
 }
 
@@ -345,7 +457,7 @@ function buildPausedAssistantMessage(messageId: string): UIMessage {
   return {
     id: messageId,
     role: 'assistant',
-    text: 'Reply paused. You can send another message now.',
+    text: 'Reply paused.',
     createdAt: Date.now(),
   };
 }
@@ -476,7 +588,50 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const [activeGuidance, setActiveGuidance] = useState<GuidanceState | null>(null);
+  const [pausedReplyText, setPausedReplyText] = useState<string | null>(null);
   const chatMode = useChatMode(role);
+  const [isLocalhost, setIsLocalhost] = useState(false);
+  const [useLocalTimeout, setUseLocalTimeout] = useState(true);
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const localHost =
+      process.env.NODE_ENV === 'development' &&
+      !process.env.VITEST &&
+      isLocalhostHost(window.location.hostname);
+    setIsLocalhost(localHost);
+
+    if (!localHost) {
+      return;
+    }
+
+    try {
+      const storedValue = window.localStorage.getItem(LOCAL_CHAT_TIMEOUT_STORAGE_KEY);
+      if (storedValue !== null) {
+        setUseLocalTimeout(storedValue === '1');
+      }
+    } catch {
+      setUseLocalTimeout(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isLocalhost) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(LOCAL_CHAT_TIMEOUT_STORAGE_KEY, useLocalTimeout ? '1' : '0');
+    } catch {
+      // Ignore storage failures in private browsing or hardened environments.
+    }
+  }, [isLocalhost, useLocalTimeout]);
+
+  const CHAT_REQUEST_TIMEOUT_MS = getChatRequestTimeoutMs(useLocalTimeout);
+  const CHAT_REQUEST_TIMEOUT_SECONDS = CHAT_REQUEST_TIMEOUT_MS / 1000;
   const [now, setNow] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -500,6 +655,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     pathname === '/buyer/checkout' ||
     pathname === '/buyer/order-confirmation' ||
     pathname.startsWith('/orders/');
+  const shouldRestoreOpenState = !shouldLiftWidget;
 
   const positionClassName = shouldLiftWidget
     ? 'bottom-20 right-4 md:bottom-24 md:right-8'
@@ -594,6 +750,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       setChatContext(DEFAULT_CONTEXT);
       setDraftMessage('');
       setErrorMessage(null);
+      setActiveGuidance(null);
+      setPausedReplyText(null);
       setIsSending(false);
       setSelectedOrder(null);
       setRefundComments('');
@@ -631,7 +789,6 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       }
 
       try {
-        const storedOpenState = sessionStorage.getItem(storageKeys.open);
         const storedMessages = sessionStorage.getItem(storageKeys.messages);
         const storedContext = sessionStorage.getItem(storageKeys.context);
         const storedAuthMarker = sessionStorage.getItem(storageKeys.authMarker);
@@ -639,10 +796,6 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         if (storedAuthMarker && storedAuthMarker !== authMarker) {
           resetChatSession(authMarker, hasInteractedRef.current);
         } else {
-          if (!hasInteractedRef.current && storedOpenState === 'true') {
-            setIsOpen(true);
-          }
-
           if (storedMessages) {
             const parsedMessages = JSON.parse(storedMessages) as unknown;
             if (Array.isArray(parsedMessages)) {
@@ -688,6 +841,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     };
   }, [
     chatbotRole,
+    shouldRestoreOpenState,
     resetChatSession,
     storageKeys.authMarker,
     storageKeys.context,
@@ -910,13 +1064,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       return;
     }
 
-    if (activeRequestTimeoutIdRef.current !== null) {
-      window.clearTimeout(activeRequestTimeoutIdRef.current);
-      activeRequestTimeoutIdRef.current = null;
-    }
+    activeRequestAbortReasonRef.current = 'manual';
 
-    if (assistantMessageId && !activeRequestFinalizedRef.current) {
-      activeRequestFinalizedRef.current = true;
+    if (assistantMessageId) {
       setMessages((currentMessages) =>
         currentMessages.map((currentMessage) =>
           currentMessage.id === assistantMessageId
@@ -926,11 +1076,23 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       );
     }
 
-    activeRequestAbortReasonRef.current = 'manual';
+    // Invalidate the in-flight request so any late resolution cannot overwrite
+    // the paused state or re-open the spinner.
+    activeRequestIdRef.current += 1;
+    activeRequestFinalizedRef.current = true;
+    if (activeRequestTimeoutIdRef.current !== null) {
+      window.clearTimeout(activeRequestTimeoutIdRef.current);
+      activeRequestTimeoutIdRef.current = null;
+    }
+
     controller.abort();
+    activeRequestControllerRef.current = null;
+    activeRequestMessageIdRef.current = null;
     setIsSending(false);
     setErrorMessage(null);
     setLastFailedMessage(null);
+    setActiveGuidance(null);
+    setPausedReplyText(PAUSED_REPLY_MESSAGE);
     toolStatus.reset();
   }, [toolStatus]);
 
@@ -970,6 +1132,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       setDraftMessage('');
       setErrorMessage(null);
       setLastFailedMessage(null);
+      setActiveGuidance(null);
+      setPausedReplyText(null);
       setIsSending(true);
       toolStatus.updateStatus('resolving_intent');
       activeRequestAbortReasonRef.current = null;
@@ -1075,6 +1239,14 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           setIsSending(false);
           setErrorMessage(null);
           setDraftMessage('');
+          setPausedReplyText(null);
+          if (isRefundRelatedMessage(message)) {
+            setActiveGuidance({
+              kind: 'refund',
+              message:
+                'Open Orders to continue the refund application manually, then choose the right order and tap Request Refund.',
+            });
+          }
 
           // Show toast notification about fallback mode
           addToast({
@@ -1108,11 +1280,23 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           timeoutPromise,
         ])) as RequestOutcome;
 
+        if (activeRequestIdRef.current !== requestId || activeRequestAbortReasonRef.current === 'manual') {
+          return null;
+        }
+
         if (requestOutcome.kind === 'timeout') {
           const errorText = `The chat request timed out after ${CHAT_REQUEST_TIMEOUT_SECONDS} seconds. Please try again.`;
           const replyText = isRefundRelatedMessage(message)
             ? buildRefundTimeoutReply(message, CHAT_REQUEST_TIMEOUT_SECONDS)
             : errorText;
+
+          if (isRefundRelatedMessage(message)) {
+            setActiveGuidance({
+              kind: 'refund',
+              message:
+                'The assistant timed out, but you can still submit the refund manually from Orders.',
+            });
+          }
 
           setMessages((currentMessages) =>
             currentMessages.map((currentMessage) =>
@@ -1121,13 +1305,14 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 : currentMessage,
             ),
           );
+          setPausedReplyText(null);
           if (isRefundRelatedMessage(message)) {
             addToast({
               message: 'Open Orders to submit the refund request manually.',
               variant: 'info',
               actionLabel: 'Open Orders',
               onAction: () => {
-                window.location.href = REFUND_MANUAL_REQUEST_ROUTE;
+                window.location.href = REFUND_MANUAL_REQUEST_GUIDED_ROUTE;
               },
               durationMs: 0,
             });
@@ -1176,7 +1361,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 durationMs: 0,
                 actionLabel: 'Open Orders',
                 onAction: () => {
-                  window.location.href = '/buyer/orders';
+                  window.location.href = REFUND_MANUAL_REQUEST_GUIDED_ROUTE;
                 },
               });
             } else {
@@ -1199,6 +1384,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           ),
         );
         setChatContext(body.updatedContext);
+        setActiveGuidance(null);
         toolStatus.updateStatus('completed');
 
         if (recommendationToastTimer) {
@@ -1220,6 +1406,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         const nextContext = createFallbackContext(chatContext, message);
         const isAbortError = error instanceof DOMException && error.name === 'AbortError';
         const abortReason = activeRequestAbortReasonRef.current;
+
+        if (activeRequestIdRef.current !== requestId && abortReason === 'manual') {
+          return null;
+        }
 
         if (isAbortError && abortReason === 'manual') {
           setMessages((currentMessages) =>
@@ -1274,6 +1464,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           }
         }
       } finally {
+        const abortReason = activeRequestAbortReasonRef.current;
         window.clearTimeout(timeoutId);
         if (activeRequestTimeoutIdRef.current === timeoutId) {
           activeRequestTimeoutIdRef.current = null;
@@ -1286,6 +1477,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           activeRequestControllerRef.current = null;
           activeRequestAbortReasonRef.current = null;
           activeRequestMessageIdRef.current = null;
+          if (abortReason !== 'manual') {
+            setPausedReplyText(null);
+          }
         }
         if (refundOrdersToastTimer) {
           window.clearTimeout(refundOrdersToastTimer);
@@ -1310,6 +1504,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       draftMessage,
       isSending,
       chatMode.isAgentic,
+      CHAT_REQUEST_TIMEOUT_MS,
+      CHAT_REQUEST_TIMEOUT_SECONDS,
       messages,
       role,
       setChatContext,
@@ -1463,9 +1659,12 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               <button
                 type="button"
                 onClick={() => {
-                  chatMode.toggle();
                   const newMode =
                     chatMode.currentMode === 'agentic' ? 'manual-fallback' : 'agentic';
+                  chatMode.toggle(newMode);
+                  if (newMode === 'agentic') {
+                    setActiveGuidance(null);
+                  }
                   const message =
                     newMode === 'agentic'
                       ? 'Switched to AI mode.'
@@ -1683,11 +1882,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                     <p className="text-[11px] leading-5 text-slate-600">
                                       Open Orders to submit the refund request manually.
                                     </p>
-                                    <a
-                                      href={REFUND_MANUAL_REQUEST_ROUTE}
-                                      className="inline-flex shrink-0 items-center justify-center rounded-full bg-rose-500 px-3 py-2 text-[11px] font-semibold text-white shadow-[0_10px_20px_rgba(244,63,94,0.16)] transition hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                                    >
-                                      Open Orders
+                <a
+                  href={REFUND_MANUAL_REQUEST_GUIDED_ROUTE}
+                  className="inline-flex shrink-0 items-center justify-center rounded-full bg-rose-500 px-3 py-2 text-[11px] font-semibold text-white shadow-[0_10px_20px_rgba(244,63,94,0.16)] transition hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                >
+                  Open Orders
                                     </a>
                                   </div>
                                 </div>
@@ -1756,6 +1955,13 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 })}
               </AnimatePresence>
             </motion.div>
+
+            {pausedReplyText ? (
+              <div className="mx-4 mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] sm:mx-5">
+                <p className="font-semibold">Reply paused</p>
+                <p className="mt-1 leading-5">{pausedReplyText}</p>
+              </div>
+            ) : null}
 
             {/* removed floating submit button to simplify layout */}
 
@@ -1898,6 +2104,29 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 </div>
               ) : null}
 
+              {isLocalhost ? (
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+                  <div>
+                    <p className="font-semibold">Local timeout mode</p>
+                    <p className="mt-1 text-[11px] text-sky-800">
+                      Fast timeout is only active on localhost.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUseLocalTimeout((current) => !current)}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                      useLocalTimeout
+                        ? 'bg-sky-600 text-white hover:bg-sky-700'
+                        : 'bg-white text-sky-700 hover:bg-sky-100'
+                    }`}
+                    aria-pressed={useLocalTimeout}
+                  >
+                    {useLocalTimeout ? 'Fast' : 'Normal'}
+                  </button>
+                </div>
+              ) : null}
+
               {!chatMode.isAgentic ? (
                 <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
                   <p className="font-semibold">Manual support mode active</p>
@@ -1907,6 +2136,19 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   </p>
                 </div>
               ) : null}
+
+              <AnimatePresence mode="wait">
+                {activeGuidance?.kind === 'refund' ? (
+                  <RefundGuidanceCard
+                    key="refund-guidance"
+                  message={activeGuidance.message}
+                  onOpenOrders={() => {
+                      window.location.href = REFUND_MANUAL_REQUEST_GUIDED_ROUTE;
+                    }}
+                    onDismiss={() => setActiveGuidance(null)}
+                  />
+                ) : null}
+              </AnimatePresence>
 
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] focus-within:border-rose-200 focus-within:ring-2 focus-within:ring-rose-100">
                 <input
@@ -1935,7 +2177,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
                     void handleSend();
                   }}
-                  disabled={isSending || !draftMessage.trim() || !chatMode.isAgentic}
+                  disabled={!chatMode.isAgentic || (!isSending && !draftMessage.trim())}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
                   aria-label={isSending ? 'Stop generating' : 'Send message'}
                 >

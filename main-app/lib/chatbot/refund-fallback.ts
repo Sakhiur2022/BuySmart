@@ -1,6 +1,7 @@
 const REFUND_MESSAGE_PATTERN = /\b(refund|return|refund policy|refund status|request refund|wrong item|defective|damaged|exchange)\b/i;
 const ORDER_ID_PATTERN = /\bORD[-_]?(\d+)\b/i;
 export const REFUND_MANUAL_REQUEST_ROUTE = '/buyer/orders';
+export const REFUND_MANUAL_REQUEST_GUIDED_ROUTE = '/buyer/orders?guide=refund';
 
 function extractOrderId(message: string) {
   const match = message.match(ORDER_ID_PATTERN);
