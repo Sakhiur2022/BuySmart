@@ -12,7 +12,7 @@ import {
   Sparkles,
   X,
   Paperclip,
-  Square,
+  Zap,
 } from 'lucide-react';
 import type {
   ChatAPIRequest,
@@ -30,6 +30,7 @@ import {
 import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
 import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
 import { useRefundEvidenceAttachment } from '@/lib/hooks/use-refund-evidence-attachment';
+import { useChatMode } from '@/lib/hooks/use-chat-mode';
 import { createClient } from '@/lib/supabase/client';
 import { clearChatbotSessionStorage, getChatbotStorageKeys } from '@/lib/chatbot/session';
 
@@ -474,6 +475,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const chatMode = useChatMode(role);
   const [now, setNow] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -596,6 +598,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       setRefundComments('');
       setRefundError(null);
       evidenceManager.clear();
+      chatMode.reset();
       if (!preserveOpenState) {
         setIsOpen(false);
       }
@@ -609,7 +612,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         }
       }
     },
-    [chatbotRole, evidenceManager, storageKeys.authMarker],
+    [chatbotRole, evidenceManager, storageKeys.authMarker, chatMode],
   );
 
   useEffect(() => {
@@ -1044,6 +1047,44 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
       try {
         toolStatus.updateStatus('invoking_tool');
+
+        // In manual fallback mode, return a default response
+        if (!chatMode.isAgentic) {
+          const fallbackResponse: ChatAPIResponse = {
+            reply: FALLBACK_REPLY,
+            updatedContext: chatContext,
+            products: undefined,
+            order: undefined,
+            refundReferenceId: undefined,
+            toolCall: undefined,
+            toolError: undefined,
+            intent: 'SUPPORT',
+            isEscalation: true,
+          };
+          responseBody = fallbackResponse;
+
+          const updatedMessages = [
+            ...messages,
+            userMessage,
+            buildAssistantMessage(fallbackResponse),
+          ];
+          setMessages(updatedMessages);
+          setChatContext(fallbackResponse.updatedContext);
+          toolStatus.updateStatus('completed');
+          setIsSending(false);
+          setErrorMessage(null);
+          setDraftMessage('');
+
+          // Show toast notification about fallback mode
+          addToast({
+            message: 'Using manual fallback mode. For assistance, please contact support.',
+            variant: 'info',
+            durationMs: 5000,
+          });
+
+          return responseBody;
+        }
+
         const endpoint =
           role === 'seller'
             ? '/api/seller/chat'
@@ -1267,6 +1308,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       dismissToast,
       draftMessage,
       isSending,
+      chatMode.isAgentic,
+      messages,
       role,
       setChatContext,
       setDraftMessage,
@@ -1394,25 +1437,87 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 Support
               </div>
               <h2 className="text-lg font-semibold leading-none text-slate-900">Chat with us</h2>
-              <p className="text-xs text-slate-500 sm:text-sm">
-                BuySmart assistant - typically replies in minutes
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-500 sm:text-sm">
+                  {chatMode.isAgentic
+                    ? 'BuySmart assistant - typically replies in minutes'
+                    : 'Manual mode - please contact support'}
+                </p>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    chatMode.isAgentic
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${chatMode.isAgentic ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                  />
+                  {chatMode.isAgentic ? 'Agentic' : 'Manual'}
+                </span>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                hasInteractedRef.current = true;
-                setIsOpen(false);
-              }}
-              onMouseDown={() => {
-                hasInteractedRef.current = true;
-              }}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-              aria-label="Close chat"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  chatMode.toggle();
+                  const newMode =
+                    chatMode.currentMode === 'agentic' ? 'manual-fallback' : 'agentic';
+                  const message =
+                    newMode === 'agentic'
+                      ? 'Switched to AI mode.'
+                      : 'Switched to manual support mode.';
+                  addToast({
+                    message,
+                    variant: 'info',
+                    durationMs: 2000,
+                  });
+                }}
+                className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 ${
+                  chatMode.isAgentic
+                    ? 'border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-rose-50 focus-visible:ring-rose-200'
+                    : 'border-amber-200 bg-amber-50 text-amber-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-amber-100 focus-visible:ring-amber-200'
+                }`}
+                title={
+                  chatMode.isAgentic ? 'Agentic Mode (AI Assistant Active)' : 'Manual Fallback Mode'
+                }
+                aria-label={
+                  chatMode.isAgentic
+                    ? 'Agentic mode active. Click to enable manual fallback mode.'
+                    : 'Manual fallback mode active. Click to enable agentic mode.'
+                }
+              >
+                <Zap className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen((current) => !current)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Maximize2 className="h-5 w-5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  hasInteractedRef.current = true;
+                  setIsOpen(false);
+                }}
+                onMouseDown={() => {
+                  hasInteractedRef.current = true;
+                }}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                aria-label="Close chat"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),rgba(255,241,242,0.5))]">
@@ -1782,6 +1887,16 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 </div>
               ) : null}
 
+              {!chatMode.isAgentic ? (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+                  <p className="font-semibold">Manual support mode active</p>
+                  <p className="mt-1 text-[11px] text-amber-800">
+                    This chat is in manual fallback mode. For immediate assistance, please contact
+                    our support team directly.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] focus-within:border-rose-200 focus-within:ring-2 focus-within:ring-rose-100">
                 <input
                   ref={inputRef}
@@ -1795,7 +1910,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                       void handleSend();
                     }
                   }}
-                  disabled={isSending}
+                  disabled={isSending || !chatMode.isAgentic}
                   className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
                   aria-label="Type a message"
                 />
@@ -1809,7 +1924,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
                     void handleSend();
                   }}
-                  disabled={!isSending && !draftMessage.trim()}
+                  disabled={isSending || !draftMessage.trim() || !chatMode.isAgentic}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-[0_10px_20px_rgba(244,63,94,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] transition-transform hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:translate-y-0 disabled:cursor-not-allowed disabled:bg-rose-300"
                   aria-label={isSending ? 'Stop generating' : 'Send message'}
                 >
