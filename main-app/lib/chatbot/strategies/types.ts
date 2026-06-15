@@ -1,5 +1,4 @@
-import type { ChatContext, ChatAPIResponse } from '@/lib/chatbot/types';
-import type { UIMessage } from '@/lib/chatbot/types';
+import type { ChatContext, ChatAPIResponse, UIMessage } from '@/lib/chatbot/types';
 
 export interface ChatMessageSendOptions {
   intentOutput?: unknown;

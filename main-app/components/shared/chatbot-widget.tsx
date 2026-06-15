@@ -13,6 +13,7 @@ import {
   X,
   Paperclip,
   Zap,
+  Square,
 } from 'lucide-react';
 import type {
   ChatAPIRequest,

@@ -1,5 +1,5 @@
 import type { ChatbotRole } from '@/lib/chatbot/types';
-import type { ChatStrategy, ChatMessageSendOptions } from './strategies/types';
+import type { ChatStrategy } from './strategies/types';
 import type { ChatMode } from '@/lib/chatbot/chat-mode-events';
 import { AgenticChatStrategy } from './strategies/agentic-chat-strategy';
 import { ManualFallbackStrategy } from './strategies/manual-fallback-strategy';
