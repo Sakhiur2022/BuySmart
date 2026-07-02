@@ -3,14 +3,30 @@ import BuyerRefundRequestFormShell from '@/components/orders/buyer-refund-reques
 
 type BuyerRefundRequestPageProps = {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{
+    guide?: string | string[];
+  }>;
 };
 
-export default async function BuyerRefundRequestPage({ params }: BuyerRefundRequestPageProps) {
+function getSearchValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
+export default async function BuyerRefundRequestPage({
+  params,
+  searchParams,
+}: BuyerRefundRequestPageProps) {
   const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const refundGuide = getSearchValue(resolvedSearchParams?.guide) === 'refund';
 
   return (
-    <BuyerRefundRequestFormShell>
-      <BuyerRefundRequestForm orderId={resolvedParams.id} />
+    <BuyerRefundRequestFormShell refundGuide={refundGuide}>
+      <BuyerRefundRequestForm orderId={resolvedParams.id} refundGuide={refundGuide} />
     </BuyerRefundRequestFormShell>
   );
 }

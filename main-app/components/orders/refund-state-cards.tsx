@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from 'react';
 import { AlertCircle, InboxIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -158,23 +161,60 @@ export function FormErrorAlert({
   suggestion?: string;
   onDismiss?: () => void;
 }) {
+  const [showFallback, setShowFallback] = useState(false);
+
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 space-y-2">
-      <div className="flex items-start justify-between gap-3">
+    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0">
+          <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center animate-in slide-in-from-left-6">
+            <svg viewBox="0 0 48 48" className="h-6 w-6 text-red-700" aria-hidden>
+              <circle cx="24" cy="24" r="22" fill="currentColor" opacity="0.08" />
+              <g fill="currentColor">
+                <path d="M24 12c3.866 0 7 3.134 7 7s-3.134 7-7 7-7-3.134-7-7 3.134-7 7-7z" />
+                <path d="M15 32c1.5-3 5-5 9-5s7.5 2 9 5v1H15v-1z" opacity="0.9" />
+              </g>
+            </svg>
+          </div>
+        </div>
+
         <div className="flex-1">
           <p className="font-medium">{message}</p>
           {suggestion && <p className="mt-1 text-red-800">{suggestion}</p>}
+
+          <div className="mt-3 flex items-center gap-3">
+            <Button size="sm" variant="ghost" onClick={() => setShowFallback((s) => !s)}>
+              {showFallback ? 'Hide manual steps' : 'Try manual fallback'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={onDismiss}>
+              Dismiss
+            </Button>
+          </div>
         </div>
-        {onDismiss && (
-          <button
-            onClick={onDismiss}
-            className="text-red-700 hover:text-red-900 transition flex-shrink-0"
-            aria-label="Dismiss error"
-          >
-            ×
-          </button>
-        )}
       </div>
+
+      {showFallback && (
+        <div
+          role="region"
+          aria-live="polite"
+          className="mt-2 rounded-md border border-red-100 bg-white p-3 text-red-900 animate-in slide-in-from-bottom-6"
+        >
+          <p className="text-sm font-medium">Quick manual fallback</p>
+          <ol className="mt-2 list-decimal pl-5 text-xs text-red-800">
+            <li>Copy your order ID and the refund message shown above.</li>
+            <li>Reach out to support via the Help center or email with these details.</li>
+            <li>Attach a screenshot and any photos of the item if relevant.</li>
+          </ol>
+          <div className="mt-3 flex items-center gap-2">
+            <Button asChild size="sm">
+              <Link href="/help/contact">Contact support</Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/buyer/orders`}>Go to orders</Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -199,7 +239,19 @@ export function FormSuccessAlert({
 }) {
   return (
     <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4 text-emerald-900 space-y-3">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0">
+          <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center animate-in slide-in-from-left-6">
+            <svg viewBox="0 0 48 48" className="h-6 w-6 text-emerald-700" aria-hidden>
+              <circle cx="24" cy="24" r="22" fill="currentColor" opacity="0.06" />
+              <g fill="currentColor">
+                <path d="M24 14c2.761 0 5 2.239 5 5s-2.239 5-5 5-5-2.239-5-5 2.239-5 5-5z" />
+                <path d="M17 32c2-2.5 6-4 10-4s8 1.5 10 4v1H17v-1z" opacity="0.9" />
+              </g>
+            </svg>
+          </div>
+        </div>
+
         <div className="flex-1">
           <p className="font-semibold">{title}</p>
           <p className="mt-1 text-sm text-emerald-800">{message}</p>
@@ -213,6 +265,7 @@ export function FormSuccessAlert({
             </div>
           )}
         </div>
+
         {onDismiss && (
           <button
             onClick={onDismiss}

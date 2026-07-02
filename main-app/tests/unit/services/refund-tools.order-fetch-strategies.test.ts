@@ -34,30 +34,75 @@ describe('Order fetch strategies', () => {
     });
     vi.mocked(fetchOrderItemsByOrderId).mockResolvedValue([]);
 
-    const strategy = new RecentOrdersStrategy();
+    const refundLookup = {
+      getRefundedOrderIdsByBuyer: vi.fn().mockResolvedValue([]),
+    };
+
+    const strategy = new RecentOrdersStrategy({ refundOrderLookup: refundLookup });
     const result = await strategy.fetch({
       buyerId: 'buyer-1',
       orderSignal: { recentOrders: true },
     });
 
     expect(getBuyerOrders).toHaveBeenCalled();
+    expect(refundLookup.getRefundedOrderIdsByBuyer).toHaveBeenCalledWith('buyer-1');
     expect(result.orders).toHaveLength(1);
   });
 
   it('returns the specific order by id', async () => {
+    const refundLookup = {
+      getRefundedOrderIdsByBuyer: vi.fn().mockResolvedValue([]),
+    };
+
     vi.mocked(getBuyerOrderById).mockResolvedValue({
       order,
       items: [],
       feedbackByOrderItemId: {},
     });
 
-    const strategy = new SpecificOrderStrategy();
+    const strategy = new SpecificOrderStrategy({ refundOrderLookup: refundLookup });
     const result = await strategy.fetch({
       buyerId: 'buyer-1',
       orderSignal: { orderId: order.order_id },
     });
 
+    expect(refundLookup.getRefundedOrderIdsByBuyer).toHaveBeenCalledWith('buyer-1');
     expect(getBuyerOrderById).toHaveBeenCalledWith('buyer-1', order.order_id);
     expect(result.orders).toHaveLength(1);
+  });
+
+  it('omits orders that already have a submitted refund request', async () => {
+    vi.mocked(getBuyerOrders).mockResolvedValue({
+      orders: [order],
+      pagination: { page: 1, pageSize: 5, totalCount: 1, totalPages: 1 },
+    });
+
+    const refundLookup = {
+      getRefundedOrderIdsByBuyer: vi.fn().mockResolvedValue([order.order_id]),
+    };
+
+    const strategy = new RecentOrdersStrategy({ refundOrderLookup: refundLookup });
+    const result = await strategy.fetch({
+      buyerId: 'buyer-1',
+      orderSignal: { recentOrders: true },
+    });
+
+    expect(result.orders).toHaveLength(0);
+    expect(fetchOrderItemsByOrderId).not.toHaveBeenCalled();
+  });
+
+  it('omits a specific order card when a refund has already been submitted', async () => {
+    const refundLookup = {
+      getRefundedOrderIdsByBuyer: vi.fn().mockResolvedValue([order.order_id]),
+    };
+
+    const strategy = new SpecificOrderStrategy({ refundOrderLookup: refundLookup });
+    const result = await strategy.fetch({
+      buyerId: 'buyer-1',
+      orderSignal: { orderId: order.order_id },
+    });
+
+    expect(result.orders).toHaveLength(0);
+    expect(getBuyerOrderById).not.toHaveBeenCalled();
   });
 });

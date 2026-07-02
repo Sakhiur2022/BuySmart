@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import GuidanceAutoScroll from '@/components/orders/guidance-auto-scroll';
 import { FormErrorAlert, FormSuccessAlert } from '@/components/orders/refund-state-cards';
 import { REFUND_REASON_VALUES } from '@/lib/types/refund.types';
 
@@ -81,7 +82,13 @@ function toFieldErrorMap(error: z.ZodFormattedError<z.infer<typeof refundRequest
   return fieldErrors;
 }
 
-export default function BuyerRefundRequestForm({ orderId }: { orderId: string }) {
+export default function BuyerRefundRequestForm({
+  orderId,
+  refundGuide = false,
+}: {
+  orderId: string;
+  refundGuide?: boolean;
+}) {
   const [formState, setFormState] = useState<RefundRequestFormState>(initialFormState);
   const [fieldErrors, setFieldErrors] = useState<RefundFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -217,6 +224,8 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
 
   return (
     <>
+      <GuidanceAutoScroll enabled={refundGuide} targetId="refund-submit-cta" />
+
       {submissionNotice ? (
         <div className="pointer-events-none fixed inset-x-0 top-20 z-[200] flex justify-center px-4 sm:top-24">
           <div
@@ -368,7 +377,16 @@ export default function BuyerRefundRequestForm({ orderId }: { orderId: string })
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button type="submit" disabled={!canSubmit} className="sm:min-w-44">
+        <Button
+          id="refund-submit-cta"
+          type="submit"
+          disabled={!canSubmit}
+          className={
+            refundGuide
+              ? 'sm:min-w-44 animate-pulse border-rose-200 bg-rose-500 text-white shadow-[0_0_0_1px_rgba(251,113,133,0.22),0_0_22px_rgba(244,63,94,0.18)] hover:bg-rose-600'
+              : 'sm:min-w-44'
+          }
+        >
           {isSubmitting ? 'Submitting refund...' : successState ? 'Refund submitted' : 'Submit refund request'}
         </Button>
 
