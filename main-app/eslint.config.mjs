@@ -11,7 +11,7 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   {
-    ignores: ['**/.next/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: ['**/.next/**', '**/coverage/**', '**/node_modules/**', 'next-env.d.ts'],
   },
   {
     settings: {
