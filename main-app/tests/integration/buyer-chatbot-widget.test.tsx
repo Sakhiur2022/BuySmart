@@ -65,14 +65,14 @@ function jsonResponse(payload: unknown, ok = true): Response {
   } as Response;
 }
 
-function createTimeoutMock(originalSetTimeout: typeof window.setTimeout): typeof window.setTimeout {
-  const mockedSetTimeout: typeof window.setTimeout = (handler, timeout, ...args) => {
+function createTimeoutMock(originalSetTimeout: Window['setTimeout']): Window['setTimeout'] {
+  const mockedSetTimeout = ((handler: Parameters<Window['setTimeout']>[0], timeout: Parameters<Window['setTimeout']>[1], ...args: Parameters<Window['setTimeout']> extends [unknown, unknown, ...infer rest] ? rest : never) => {
     if (timeout === 20000) {
       return originalSetTimeout(handler, 0, ...args);
     }
 
     return originalSetTimeout(handler, timeout as number, ...args);
-  };
+  }) as Window['setTimeout'];
 
   return mockedSetTimeout;
 }
@@ -518,3 +518,5 @@ describe('BuyerChatbotWidget', () => {
     expect(screen.getByText('Hi there! How can I help you today?')).toBeInTheDocument();
   });
 });
+
+
