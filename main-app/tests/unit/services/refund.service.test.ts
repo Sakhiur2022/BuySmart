@@ -53,6 +53,7 @@ describe('refund.service eligibility', () => {
       findById: vi.fn(),
       findDetailById: vi.fn(),
       isSellerScopedToRefund: vi.fn(),
+      getRefundedOrderIdsByBuyer: vi.fn(),
       getEligibilitySnapshot: vi.fn(),
       applyDecision: vi.fn(),
       saveAIAnalysis: vi.fn(),

@@ -65,6 +65,18 @@ function jsonResponse(payload: unknown, ok = true): Response {
   } as Response;
 }
 
+function createTimeoutMock(originalSetTimeout: typeof window.setTimeout): typeof window.setTimeout {
+  const mockedSetTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+    if (timeout === 20000) {
+      return originalSetTimeout(handler, 0, ...(args as never[]));
+    }
+
+    return originalSetTimeout(handler, timeout as number, ...(args as never[]));
+  }) as unknown as typeof window.setTimeout;
+
+  return mockedSetTimeout;
+}
+
 function mockMatchMedia() {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: mediaQueryState.matches && query.includes('max-width: 640px'),
@@ -129,6 +141,29 @@ describe('BuyerChatbotWidget', () => {
     expect(panel).toHaveClass('w-[min(40rem,calc(100vw-1.5rem))]');
     expect(panel).toHaveClass('rounded-3xl');
     expect(screen.queryByRole('button', { name: 'Close chat backdrop' })).not.toBeInTheDocument();
+  });
+
+  it('toggles fullscreen mode on desktop', async () => {
+    render(<BuyerChatbotWidget />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    const panel = screen.getByTestId('buyer-chatbot-panel');
+    const fullscreenButton = screen.getByRole('button', { name: 'Enter full-screen chat' });
+
+    await user.click(fullscreenButton);
+
+    expect(panel).toHaveClass('h-[100dvh]');
+    expect(panel).toHaveClass('w-[100vw]');
+    expect(panel).toHaveClass('rounded-none');
+    expect(screen.getByRole('button', { name: 'Exit full-screen chat' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Exit full-screen chat' }));
+
+    expect(panel).toHaveClass('h-[min(30rem,calc(100dvh-2rem))]');
+    expect(panel).toHaveClass('w-[min(40rem,calc(100vw-1.5rem))]');
+    expect(panel).toHaveClass('rounded-3xl');
   });
 
   it('sends messages to the chat API and renders structured assistant replies', async () => {
@@ -262,13 +297,7 @@ describe('BuyerChatbotWidget', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(((handler, timeout, ...args) => {
-      if (timeout === 20000) {
-        return originalSetTimeout(handler, 0, ...args);
-      }
-
-      return originalSetTimeout(handler, timeout as number, ...args);
-    }) as typeof window.setTimeout);
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(createTimeoutMock(originalSetTimeout));
 
     try {
       render(<BuyerChatbotWidget />);
@@ -300,13 +329,7 @@ describe('BuyerChatbotWidget', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(((handler, timeout, ...args) => {
-      if (timeout === 20000) {
-        return originalSetTimeout(handler, 0, ...args);
-      }
-
-      return originalSetTimeout(handler, timeout as number, ...args);
-    }) as typeof window.setTimeout);
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(createTimeoutMock(originalSetTimeout));
 
     try {
       render(<BuyerChatbotWidget />);
@@ -495,3 +518,4 @@ describe('BuyerChatbotWidget', () => {
     expect(screen.getByText('Hi there! How can I help you today?')).toBeInTheDocument();
   });
 });
+

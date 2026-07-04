@@ -16,6 +16,8 @@ import {
   Square,
   CheckCircle2,
   ReceiptText,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import type {
   ChatAPIRequest,
@@ -570,6 +572,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const shouldReduceMotion = useReducedMotion();
   const isSmallScreen = useMediaQuery('(max-width: 640px)');
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
   const evidenceManager = useRefundEvidenceAttachment();
@@ -593,6 +596,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const chatMode = useChatMode(role);
   const [isLocalhost, setIsLocalhost] = useState(false);
   const [useLocalTimeout, setUseLocalTimeout] = useState(true);
+  const closeChat = useCallback(() => {
+    setIsOpen(false);
+    setIsFullscreen(false);
+  }, []);
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
@@ -656,6 +663,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     pathname === '/buyer/order-confirmation' ||
     pathname.startsWith('/orders/');
   const shouldRestoreOpenState = !shouldLiftWidget;
+  const isMobileOverlayOpen = isSmallScreen && isOpen;
+  const isDesktopFullscreen = isOpen && isFullscreen && !isSmallScreen;
+  const isFullscreenLayout = isMobileOverlayOpen || isDesktopFullscreen;
 
   const positionClassName = shouldLiftWidget
     ? 'bottom-20 right-4 md:bottom-24 md:right-8'
@@ -759,7 +769,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       evidenceManager.clear();
       chatMode.reset();
       if (!preserveOpenState) {
-        setIsOpen(false);
+        closeChat();
       }
       clearChatbotSessionStorage();
 
@@ -771,7 +781,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         }
       }
     },
-    [chatbotRole, evidenceManager, storageKeys.authMarker, chatMode],
+    [chatbotRole, evidenceManager, storageKeys.authMarker, chatMode, closeChat],
   );
 
   useEffect(() => {
@@ -824,7 +834,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           sessionStorage.setItem(storageKeys.authMarker, authMarker);
         }
       } catch {
-        setIsOpen(false);
+        closeChat();
         setMessages([getGreetingMessage(chatbotRole)]);
         setChatContext(DEFAULT_CONTEXT);
       } finally {
@@ -841,6 +851,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     };
   }, [
     chatbotRole,
+    closeChat,
     shouldRestoreOpenState,
     resetChatSession,
     storageKeys.authMarker,
@@ -979,7 +990,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsOpen(false);
+        closeChat();
       }
     };
 
@@ -987,7 +998,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, closeChat]);
 
   const pushAssistantMessage = useCallback((text: string) => {
     setMessages((currentMessages) => [
@@ -1591,7 +1602,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
   return (
     <>
-      {isSmallScreen && isOpen ? (
+      {isMobileOverlayOpen ? (
         <button
           type="button"
           aria-label="Close chat backdrop"
@@ -1599,25 +1610,29 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           className="fixed inset-0 z-[190] cursor-default bg-slate-950/35 backdrop-blur-[2px]"
           onClick={() => {
             hasInteractedRef.current = true;
-            setIsOpen(false);
+            closeChat();
           }}
         />
       ) : null}
 
       <div
         className={`pointer-events-none fixed ${
-          isSmallScreen && isOpen
-            ? 'inset-0 z-[200] p-2 sm:p-4'
+          isFullscreenLayout
+            ? isMobileOverlayOpen
+              ? 'inset-0 z-[200] p-2 sm:p-4'
+              : 'inset-0 z-[200] p-0'
             : `${positionClassName} z-[200]`
-        } flex flex-col items-end justify-end gap-3 font-sans`}
+        } flex flex-col ${isFullscreenLayout ? 'items-stretch justify-stretch' : 'items-end justify-end'} gap-3 font-sans`}
       >
         <ToastList toasts={toasts} onDismiss={dismissToast} />
         <motion.div
           data-testid="buyer-chatbot-panel"
           key={sessionGeneration}
           className={`relative flex min-h-0 flex-col overflow-hidden border border-rose-100 bg-rose-50/95 shadow-[0_24px_70px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl ${
-            isSmallScreen && isOpen
+            isMobileOverlayOpen
               ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
+              : isDesktopFullscreen
+                ? 'pointer-events-auto h-[100dvh] w-[100vw] rounded-none border-0 shadow-none'
               : `pointer-events-auto h-[min(30rem,calc(100dvh-2rem))] w-[min(40rem,calc(100vw-1.5rem))] rounded-3xl ${
                   isOpen ? 'pointer-events-auto' : 'pointer-events-none'
                 }`
@@ -1693,31 +1708,24 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               </button>
               <button
                 type="button"
-                onClick={() => {}}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                aria-label="Adjust chat size"
+                onClick={() => {
+                  setIsFullscreen((current) => !current);
+                }}
+                className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 sm:inline-flex"
+                aria-label={isDesktopFullscreen ? 'Exit full-screen chat' : 'Enter full-screen chat'}
+                title={isDesktopFullscreen ? 'Exit full-screen chat' : 'Enter full-screen chat'}
               >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-5 w-5"
-                >
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                  <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-                  <path d="M21 16v3a2 2 0 0 1-2 2h-3" />
-                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-                </svg>
+                {isDesktopFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Maximize2 className="h-5 w-5" />
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => {
                   hasInteractedRef.current = true;
-                  setIsOpen(false);
+                  closeChat();
                 }}
                 onMouseDown={() => {
                   hasInteractedRef.current = true;
