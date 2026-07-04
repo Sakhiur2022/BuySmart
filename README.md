@@ -2,7 +2,13 @@
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=sakhiur2022/buysmart&type=date&legend=top-left)](https://www.star-history.com/?repos=sakhiur2022%2Fbuysmart&type=date&legend=top-left)
+<a href="https://www.star-history.com/?repos=sakhiur2022%2Fbuysmart&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=sakhiur2022/buysmart&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=sakhiur2022/buysmart&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=sakhiur2022/buysmart&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## Project Overview
 
