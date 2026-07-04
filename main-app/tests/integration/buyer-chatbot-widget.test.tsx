@@ -65,6 +65,18 @@ function jsonResponse(payload: unknown, ok = true): Response {
   } as Response;
 }
 
+function createTimeoutMock(originalSetTimeout: typeof window.setTimeout): typeof window.setTimeout {
+  const mockedSetTimeout: typeof window.setTimeout = (handler, timeout, ...args) => {
+    if (timeout === 20000) {
+      return originalSetTimeout(handler, 0, ...args);
+    }
+
+    return originalSetTimeout(handler, timeout as number, ...args);
+  };
+
+  return mockedSetTimeout;
+}
+
 function mockMatchMedia() {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: mediaQueryState.matches && query.includes('max-width: 640px'),
@@ -262,13 +274,7 @@ describe('BuyerChatbotWidget', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(((handler, timeout, ...args) => {
-      if (timeout === 20000) {
-        return originalSetTimeout(handler, 0, ...args);
-      }
-
-      return originalSetTimeout(handler, timeout as number, ...args);
-    }) as typeof window.setTimeout);
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(createTimeoutMock(originalSetTimeout));
 
     try {
       render(<BuyerChatbotWidget />);
@@ -300,13 +306,7 @@ describe('BuyerChatbotWidget', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(((handler, timeout, ...args) => {
-      if (timeout === 20000) {
-        return originalSetTimeout(handler, 0, ...args);
-      }
-
-      return originalSetTimeout(handler, timeout as number, ...args);
-    }) as typeof window.setTimeout);
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation(createTimeoutMock(originalSetTimeout));
 
     try {
       render(<BuyerChatbotWidget />);
