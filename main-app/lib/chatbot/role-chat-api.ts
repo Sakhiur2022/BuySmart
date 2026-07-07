@@ -12,6 +12,10 @@ type FacadeResult<T> =
 
 import { invokeSellerToolCall } from '@/lib/chatbot/seller-intent/tool-invocation';
 import type { SellerToolCall as SellerInvocationToolCall } from '@/lib/chatbot/seller-intent/tool-invocation';
+import type {
+  SalesSummaryToolInput,
+  ListingCreateToolInput,
+} from '@/lib/chatbot/seller-intent/tool-contracts';
 import type { SellerToolCall as SellerFacadeToolCall } from '@/lib/chatbot/seller-intent/facade';
 import type { SellerIntent } from '@/lib/chatbot/seller-intent/schemas';
 
@@ -534,13 +538,29 @@ export async function handleRoleChatRequest(
                 | undefined;
               const sellerId = typeof metadata?.sellerId === 'string' ? metadata.sellerId : '';
 
-              const invocationCall: SellerInvocationToolCall = {
-                toolName: (toolCallResult.value as any).toolName,
-                input: (toolCallResult.value as any).input,
-              };
+              const facadeCall = toolCallResult.value as SellerFacadeToolCall;
+              if (facadeCall.toolName === 'seller_sales_summary') {
+                const invocationCall: SellerInvocationToolCall = {
+                  toolName: 'seller_sales_summary',
+                  input: facadeCall.input as SalesSummaryToolInput,
+                };
 
-              const invoked = await invokeSellerToolCall(invocationCall, sellerId);
-              toolResult = invoked;
+                const invoked = await invokeSellerToolCall(invocationCall, sellerId);
+                toolResult = invoked;
+              } else if (facadeCall.toolName === 'seller_listing_create') {
+                const invocationCall: SellerInvocationToolCall = {
+                  toolName: 'seller_listing_create',
+                  input: facadeCall.input as ListingCreateToolInput,
+                };
+
+                const invoked = await invokeSellerToolCall(invocationCall, sellerId);
+                toolResult = invoked;
+              } else {
+                toolError = {
+                  code: 'TOOL_INVOCATION_ERROR',
+                  message: 'Unknown seller tool',
+                } as ChatAPIResponse['toolError'];
+              }
             } catch (err: unknown) {
               const errMsg = err instanceof Error ? err.message : String(err);
               toolError = {
