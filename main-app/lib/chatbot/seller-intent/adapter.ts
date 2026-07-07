@@ -22,8 +22,10 @@ export class SellerIntentPayloadAdapterImpl implements SellerIntentPayloadAdapte
       };
     }
 
-    const payload = (intent as any).payload ?? {};
-    const input: SalesSummaryToolInput = { timeframe: payload.timeframe };
+    const payload = intent.payload ?? {};
+    const input: SalesSummaryToolInput = {
+      timeframe: (payload as { timeframe?: string }).timeframe,
+    };
 
     return { success: true, value: { toolName: 'seller_sales_summary', input } };
   }
@@ -38,7 +40,7 @@ export class SellerIntentPayloadAdapterImpl implements SellerIntentPayloadAdapte
       };
     }
 
-    const payload = (intent as any).payload ?? {};
+    const payload = intent.payload ?? {};
     if (!payload.name || !payload.price) {
       return {
         success: false,

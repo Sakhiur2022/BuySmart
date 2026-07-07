@@ -95,7 +95,6 @@ export async function createSellerProduct(
   const { name, price, category, photos, stockQuantity } = payload;
   // The product repository expects a specific shape; we reuse the existing create logic if any.
   // Here we simply call a placeholder repository function; implementation can be added later.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { createProduct } = require('@/lib/repositories/product.repository');
   await createProduct({
     seller_id: sellerId,

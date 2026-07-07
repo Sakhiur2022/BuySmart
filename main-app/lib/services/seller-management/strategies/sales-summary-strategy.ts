@@ -34,7 +34,15 @@ export async function salesSummaryStrategy(
     throw new Error(orderIdsError.message);
   }
 
-  const orderIds = Array.from(new Set((orderIdsData ?? []).map((r: any) => r.order_id)));
+  const orderIds = Array.from(
+    new Set(
+      (orderIdsData ?? [])
+        .map((r: { order_id?: string } | null) =>
+          r && typeof r === 'object' ? r.order_id : undefined,
+        )
+        .filter((v): v is string => typeof v === 'string'),
+    ),
+  );
 
   let pendingRefundCount = 0;
   if (orderIds.length > 0) {

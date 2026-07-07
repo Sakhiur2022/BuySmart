@@ -1,5 +1,3 @@
-import type { SalesSummaryToolInput, ListingCreateToolInput } from './tool-contracts';
-
 export type SellerTool = {
   name: string;
   inputSchema?: unknown;
