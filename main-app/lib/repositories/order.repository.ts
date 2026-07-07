@@ -242,7 +242,9 @@ export async function fetchBuyerOrdersWithItemStatuses(input: {
     throw new Error(error.message);
   }
 
-  return (data ?? []) as Array<OrderRow & { order_items: Array<{ status: OrderItemStatus | null }> }>;
+  return (data ?? []) as Array<
+    OrderRow & { order_items: Array<{ status: OrderItemStatus | null }> }
+  >;
 }
 
 export async function fetchBuyerOrderCountByStatus(input: {
@@ -345,4 +347,72 @@ export async function fetchBuyerFeedbackByOrderItemIds(
   }
 
   return (data ?? []) as BuyerOrderItemFeedbackRecord[];
+}
+
+export interface SellerSalesData {
+  totalItemsSold: number;
+  totalRevenue: number;
+  topProduct?: { product_id: string; name?: string | null; itemsSold: number } | null;
+}
+
+export async function fetchSellerSalesData(input: {
+  sellerId: string;
+  fromIso?: string;
+  toIso?: string;
+}): Promise<SellerSalesData> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('order_items')
+    .select('product_id, quantity, unit_price, products!inner(product_id, seller_id, name)')
+    .eq('products.seller_id', input.sellerId);
+
+  if (input.fromIso) {
+    query = query.gte('created_at', input.fromIso);
+  }
+
+  if (input.toIso) {
+    query = query.lte('created_at', input.toIso);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as Array<{
+    product_id: string;
+    quantity: number;
+    unit_price: number;
+    products?: { product_id: string; seller_id?: string; name?: string }[];
+  }>;
+
+  let totalItems = 0;
+  let totalRevenue = 0;
+  const byProduct = new Map<string, { items: number; name?: string | null }>();
+
+  rows.forEach((r) => {
+    const qty = Number(r.quantity) || 0;
+    const price = Number(r.unit_price) || 0;
+    totalItems += qty;
+    totalRevenue += qty * price;
+    const pid = r.product_id;
+    const existing = byProduct.get(pid) ?? { items: 0, name: r.products?.[0]?.name ?? null };
+    existing.items += qty;
+    byProduct.set(pid, existing);
+  });
+
+  let topProduct: { product_id: string; name?: string | null; itemsSold: number } | null = null;
+  for (const [productId, info] of byProduct.entries()) {
+    if (!topProduct || info.items > topProduct.itemsSold) {
+      topProduct = { product_id: productId, name: info.name, itemsSold: info.items };
+    }
+  }
+
+  return {
+    totalItemsSold: totalItems,
+    totalRevenue,
+    topProduct,
+  };
 }

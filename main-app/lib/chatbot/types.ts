@@ -107,11 +107,19 @@ export interface ChatAPIResponse {
   updatedContext: ChatContext;
   intentResolution?: {
     success: boolean;
-    intent?: import('@/lib/chatbot/buyer-intent/types').BuyerIntent;
-    error?: import('@/lib/chatbot/buyer-intent/errors').BuyerIntentError;
+    intent?:
+      | import('@/lib/chatbot/buyer-intent/types').BuyerIntent
+      | import('@/lib/chatbot/seller-intent/schemas').SellerIntent;
+    error?:
+      | import('@/lib/chatbot/buyer-intent/errors').BuyerIntentError
+      | import('@/lib/chatbot/seller-intent/errors').SellerIntentError;
   };
-  toolCall?: import('@/lib/chatbot/buyer-intent/facade').BuyerToolCall;
-  toolError?: import('@/lib/chatbot/buyer-intent/errors').BuyerIntentError;
+  toolCall?:
+    | import('@/lib/chatbot/buyer-intent/facade').BuyerToolCall
+    | import('@/lib/chatbot/seller-intent/facade').SellerToolCall;
+  toolError?:
+    | import('@/lib/chatbot/buyer-intent/errors').BuyerIntentError
+    | import('@/lib/chatbot/seller-intent/errors').SellerIntentError;
   toolResult?: unknown;
   refundReferenceId?: string;
 }

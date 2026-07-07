@@ -86,3 +86,31 @@ export async function findBuyerProducts(
     },
   };
 }
+
+export async function createProduct(input: {
+  seller_id: string;
+  name: string;
+  short_description?: string | null;
+  images?: unknown;
+  status?: string;
+  inventory_quantity?: number;
+  price: number;
+  category_id?: string | number | null;
+}): Promise<void> {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from(PRODUCTS_TABLE).insert({
+    seller_id: input.seller_id,
+    name: input.name,
+    short_description: input.short_description ?? null,
+    images: input.images ?? null,
+    status: input.status ?? 'draft',
+    inventory_quantity: input.inventory_quantity ?? 0,
+    price: input.price,
+    category_id: input.category_id ?? null,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
