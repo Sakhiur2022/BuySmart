@@ -1,6 +1,7 @@
-import { fetchSellerSalesData } from '@/lib/repositories/order.repository';
-import { createSellerProduct } from '@/lib/services/product.service';
+import { salesSummaryStrategy } from './strategies/sales-summary-strategy';
+import { listingCreateStrategy } from './strategies/listing-create-strategy';
 import { createClient } from '@/lib/supabase/server';
+import type { SalesSummaryOptions } from './strategies/sales-summary-strategy';
 
 export interface SalesSummaryResult {
   totalItemsSold: number;
@@ -16,46 +17,11 @@ export class SellerManagementToolFacade {
     sellerId: string,
     options?: { fromIso?: string; toIso?: string },
   ): Promise<SalesSummaryResult> {
-    const sales = await fetchSellerSalesData({
-      sellerId,
-      fromIso: options?.fromIso,
-      toIso: options?.toIso,
-    });
+    const opts: SalesSummaryOptions | undefined = options
+      ? { fromIso: options.fromIso, toIso: options.toIso }
+      : undefined;
 
-    // Count pending refunds scoped to this seller
-    const supabase = await this.supabaseClientFactory();
-    const { data: orderIdsData, error: orderIdsError } = await supabase
-      .from('order_items')
-      .select('order_id')
-      .eq('seller_id', sellerId);
-
-    if (orderIdsError) {
-      throw new Error(orderIdsError.message);
-    }
-
-    const orderIds = Array.from(new Set((orderIdsData ?? []).map((r: any) => r.order_id)));
-
-    let pendingRefundCount = 0;
-    if (orderIds.length > 0) {
-      const { count, error } = await supabase
-        .from('refunds')
-        .select('refund_id', { count: 'exact', head: true })
-        .in('order_id', orderIds)
-        .eq('status', 'pending');
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      pendingRefundCount = count ?? 0;
-    }
-
-    return {
-      totalItemsSold: sales.totalItemsSold,
-      totalRevenue: sales.totalRevenue,
-      topProduct: sales.topProduct ?? null,
-      pendingRefundCount,
-    };
+    return salesSummaryStrategy(sellerId, opts, this.supabaseClientFactory);
   }
 
   public async createListing(
@@ -68,15 +34,12 @@ export class SellerManagementToolFacade {
       stockQuantity: number;
     },
   ) {
-    // Delegate to product service which validates and inserts the product
-    await createSellerProduct(sellerId, {
+    return listingCreateStrategy(sellerId, {
       name: payload.name,
       price: payload.price,
       category: payload.category,
       photos: payload.photos,
       stockQuantity: payload.stockQuantity,
     });
-
-    return { success: true };
   }
 }
