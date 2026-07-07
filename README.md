@@ -1,6 +1,7 @@
 # BuySmart: AI-Assisted E-Commerce Platform
 
 ## Star History
+
 [![Star History Chart](https://api.star-history.com/chart?repos=sakhiur2022/buysmart&type=date&legend=top-left)](https://www.star-history.com/?repos=sakhiur2022%2Fbuysmart&type=date&legend=top-left)
 
 ## Project Overview
@@ -176,9 +177,8 @@ _Screenshots and demo videos showcasing key user journeys:_
 
 [![BuySmart Platform Demo](https://img.youtube.com/vi/1Y7PBGhYrHY/0.jpg)](https://youtu.be/1Y7PBGhYrHY)
 
-
-
 **Watch the full platform demo:** [BuySmart in Action](https://youtu.be/1Y7PBGhYrHY)
+
 - User registration and authentication flow
 - Product browsing and AI-powered recommendations
 - Complete purchase workflow from cart to confirmation

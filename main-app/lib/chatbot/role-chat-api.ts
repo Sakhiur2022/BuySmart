@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import type {
-  AIParams,
-  AIResponse,
-  ChatAPIResponse,
-  ChatContext,
-} from '@/lib/chatbot/types';
+import type { AIParams, AIResponse, ChatAPIResponse, ChatContext } from '@/lib/chatbot/types';
 import type { RecommendationAdapterContext } from '@/lib/chatbot/buyer-intent/adapter';
 import { BuyerChatToolsFacade } from '@/lib/chatbot/buyer-intent/facade';
 import { getIntentValidationEventEmitter } from '@/lib/chatbot/buyer-intent/events';
 import { invokeBuyerToolCall } from '@/lib/chatbot/buyer-intent/tool-invocation';
+// Minimal local facade type to avoid importing the seller facade type directly.
+type FacadeResult<T> =
+  | { success: true; value: T }
+  | { success: false; error: { code: string; message: string } };
+
+import { invokeSellerToolCall } from '@/lib/chatbot/seller-intent/tool-invocation';
+import type { SellerToolCall as SellerInvocationToolCall } from '@/lib/chatbot/seller-intent/tool-invocation';
+import type {
+  SalesSummaryToolInput,
+  ListingCreateToolInput,
+} from '@/lib/chatbot/seller-intent/tool-contracts';
+import type { SellerToolCall as SellerFacadeToolCall } from '@/lib/chatbot/seller-intent/facade';
+import type { SellerIntent } from '@/lib/chatbot/seller-intent/schemas';
+
+type SellerFacadeType = {
+  resolveIntent: (raw: unknown) => FacadeResult<SellerIntent>;
+  buildToolCall: (intent: SellerIntent, context?: unknown) => FacadeResult<SellerFacadeToolCall>;
+};
 import { recommendationCandidateSchema } from '@/lib/chatbot/buyer-intent/tool-contracts';
 import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 import { mockGetOrder, mockSearchProducts, MOCK_POLICY } from '@/lib/chatbot/mockData';
@@ -253,11 +266,12 @@ function composeReply(intent: string, params: AIParams): string {
         parts.push(`features: ${params.features.join(', ')}`);
       }
       if (params.price_min || params.price_max) {
-        const priceRange = params.price_min && params.price_max
-          ? `${params.price_min}–${params.price_max} taka`
-          : params.price_max
-          ? `under ${params.price_max} taka`
-          : `above ${params.price_min} taka`;
+        const priceRange =
+          params.price_min && params.price_max
+            ? `${params.price_min}–${params.price_max} taka`
+            : params.price_max
+              ? `under ${params.price_max} taka`
+              : `above ${params.price_min} taka`;
         parts.push(priceRange);
       }
 
@@ -295,11 +309,19 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
     query: normalized,
   };
 
-  const hasOrderPhrases = /\b(track|where.*order|order status|find my order|order update|shipment|delivered)\b/.test(normalized);
-  const hasRefundPhrases = /\b(refund|return|refund policy|cancel order|wrong item|defective|exchange)\b/.test(normalized);
-  const hasSupportPhrases = /\b(help|support|human|agent|customer service|complaint|issue|problem)\b/.test(normalized);
+  const hasOrderPhrases =
+    /\b(track|where.*order|order status|find my order|order update|shipment|delivered)\b/.test(
+      normalized,
+    );
+  const hasRefundPhrases =
+    /\b(refund|return|refund policy|cancel order|wrong item|defective|exchange)\b/.test(normalized);
+  const hasSupportPhrases =
+    /\b(help|support|human|agent|customer service|complaint|issue|problem)\b/.test(normalized);
   const hasHumanSupportPhrases = wantsHumanSupport(normalized);
-  const hasProductPhrases = /\b(show|find|search|looking for|need|recommend|suggest|available|buy|price|budget)\b/.test(normalized);
+  const hasProductPhrases =
+    /\b(show|find|search|looking for|need|recommend|suggest|available|buy|price|budget)\b/.test(
+      normalized,
+    );
 
   let intent: AIResponse['intent'] = 'FAQ';
 
@@ -323,8 +345,8 @@ function detectIntent(userMessage: string, context: ChatContext): AIResponse {
 
   const mergedParams: AIParams = {
     ...params,
-    category: params.category ?? (context.category ?? undefined),
-    price_max: params.price_max ?? (context.price_max ?? undefined),
+    category: params.category ?? context.category ?? undefined,
+    price_max: params.price_max ?? context.price_max ?? undefined,
   };
 
   if (!mergedParams.features) {
@@ -395,6 +417,7 @@ async function routeIntent(
 export async function handleRoleChatRequest(
   request: NextRequest,
   role: 'buyer' | 'seller' | 'admin',
+  roleFacade?: SellerFacadeType,
 ) {
   const requestId = createRequestId(role);
   let parsedBody;
@@ -414,10 +437,7 @@ export async function handleRoleChatRequest(
       error,
     );
 
-    return NextResponse.json(
-      { error: 'Invalid JSON payload.', requestId },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'Invalid JSON payload.', requestId }, { status: 400 });
   }
 
   if (!parsedBody.success) {
@@ -439,7 +459,12 @@ export async function handleRoleChatRequest(
   }
 
   try {
-    const { message, context: requestContext, intentOutput, recommendationContext } = parsedBody.data;
+    const {
+      message,
+      context: requestContext,
+      intentOutput,
+      recommendationContext,
+    } = parsedBody.data;
     const context: ChatContext = {
       category: requestContext?.category ?? null,
       price_max: requestContext?.price_max ?? null,
@@ -454,43 +479,101 @@ export async function handleRoleChatRequest(
     let refundReferenceId: ChatAPIResponse['refundReferenceId'] | undefined;
 
     if (intentOutput !== undefined) {
-      const resolvedIntent = buyerIntentFacade.resolveIntent(intentOutput);
+      if (role === 'buyer') {
+        const resolvedIntent = buyerIntentFacade.resolveIntent(intentOutput);
 
-      if (resolvedIntent.success) {
-        intentResolution = { success: true, intent: resolvedIntent.value };
+        if (resolvedIntent.success) {
+          intentResolution = { success: true, intent: resolvedIntent.value };
 
-        const adapterContext: RecommendationAdapterContext | undefined = recommendationContext
-          ? {
-              candidates: recommendationContext.candidates,
-              contextSummary: recommendationContext.contextSummary,
-              maxResults: recommendationContext.maxResults,
-            }
-          : undefined;
+          const adapterContext: RecommendationAdapterContext | undefined = recommendationContext
+            ? {
+                candidates: recommendationContext.candidates,
+                contextSummary: recommendationContext.contextSummary,
+                maxResults: recommendationContext.maxResults,
+              }
+            : undefined;
 
-        const toolCallResult = buyerIntentFacade.buildToolCall(resolvedIntent.value, adapterContext);
-        if (toolCallResult.success) {
-          toolCall = toolCallResult.value;
-          const invoked = await invokeBuyerToolCall(toolCallResult.value);
-          if (invoked.success) {
-            toolResult = invoked.value.output;
+          const toolCallResult = buyerIntentFacade.buildToolCall(
+            resolvedIntent.value,
+            adapterContext,
+          );
+          if (toolCallResult.success) {
+            toolCall = toolCallResult.value;
+            const invoked = await invokeBuyerToolCall(toolCallResult.value);
+            if (invoked.success) {
+              toolResult = invoked.value.output;
 
-            if (
-              invoked.value.toolName === 'refund_request' &&
-              typeof invoked.value.output === 'object' &&
-              invoked.value.output &&
-              'refund' in invoked.value.output
-            ) {
-              const refundOutput = invoked.value.output as { refund?: { refund_number?: string } };
-              refundReferenceId = refundOutput.refund?.refund_number;
+              if (
+                invoked.value.toolName === 'refund_request' &&
+                typeof invoked.value.output === 'object' &&
+                invoked.value.output &&
+                'refund' in invoked.value.output
+              ) {
+                const refundOutput = invoked.value.output as {
+                  refund?: { refund_number?: string };
+                };
+                refundReferenceId = refundOutput.refund?.refund_number;
+              }
+            } else {
+              toolError = invoked.error;
             }
           } else {
-            toolError = invoked.error;
+            toolError = toolCallResult.error;
           }
         } else {
-          toolError = toolCallResult.error;
+          intentResolution = { success: false, error: resolvedIntent.error };
         }
-      } else {
-        intentResolution = { success: false, error: resolvedIntent.error };
+      }
+
+      if (role === 'seller' && roleFacade) {
+        const resolvedIntent = roleFacade.resolveIntent(intentOutput);
+        if (resolvedIntent.success) {
+          intentResolution = { success: true, intent: resolvedIntent.value };
+          const toolCallResult = roleFacade.buildToolCall(resolvedIntent.value);
+          if (toolCallResult.success) {
+            toolCall = toolCallResult.value as unknown as SellerFacadeToolCall;
+            try {
+              const metadata = (intentOutput as Record<string, unknown>)?.metadata as
+                | Record<string, unknown>
+                | undefined;
+              const sellerId = typeof metadata?.sellerId === 'string' ? metadata.sellerId : '';
+
+              const facadeCall = toolCallResult.value as SellerFacadeToolCall;
+              if (facadeCall.toolName === 'seller_sales_summary') {
+                const invocationCall: SellerInvocationToolCall = {
+                  toolName: 'seller_sales_summary',
+                  input: facadeCall.input as SalesSummaryToolInput,
+                };
+
+                const invoked = await invokeSellerToolCall(invocationCall, sellerId);
+                toolResult = invoked;
+              } else if (facadeCall.toolName === 'seller_listing_create') {
+                const invocationCall: SellerInvocationToolCall = {
+                  toolName: 'seller_listing_create',
+                  input: facadeCall.input as ListingCreateToolInput,
+                };
+
+                const invoked = await invokeSellerToolCall(invocationCall, sellerId);
+                toolResult = invoked;
+              } else {
+                toolError = {
+                  code: 'TOOL_INVOCATION_ERROR',
+                  message: 'Unknown seller tool',
+                } as ChatAPIResponse['toolError'];
+              }
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              toolError = {
+                code: 'TOOL_INVOCATION_ERROR',
+                message: errMsg,
+              } as ChatAPIResponse['toolError'];
+            }
+          } else {
+            toolError = toolCallResult.error as ChatAPIResponse['toolError'];
+          }
+        } else {
+          intentResolution = { success: false, error: resolvedIntent.error };
+        }
       }
     }
 
