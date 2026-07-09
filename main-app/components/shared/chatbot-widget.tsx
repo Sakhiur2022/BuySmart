@@ -33,11 +33,30 @@ import {
   REFUND_MANUAL_REQUEST_GUIDED_ROUTE,
 } from '@/lib/chatbot/refund-fallback';
 import type { RefundOrderCard } from '@/lib/services/refund-tools/types';
+import { SellerListingPreviewCard } from '@/components/shared/seller-listing-preview-card';
+import {
+  buildSellerListingIntentOutput,
+  createEmptySellerListingDraft,
+  extractSellerListingDraft,
+  getSellerListingMissingFields,
+  getSellerListingPrompt,
+  isSellerListingCancelMessage,
+  isSellerListingStartMessage,
+  isSellerListingSubmitMessage,
+  type SellerListingDraft,
+} from '@/lib/chatbot/seller-listing-draft';
+import {
+  buildSellerSalesSummaryIntentOutput,
+  buildSellerSalesSummaryPreview,
+  isApproveAllRefundsCommand,
+  isSellerSalesSummaryRequest,
+} from '@/lib/chatbot/seller-chat-commands';
 import { useChatToolStatus } from '@/lib/hooks/use-chat-tool-status';
 import { useRefundEvidenceAttachment } from '@/lib/hooks/use-refund-evidence-attachment';
 import { useChatMode } from '@/lib/hooks/use-chat-mode';
 import { createClient } from '@/lib/supabase/client';
 import { clearChatbotSessionStorage, getChatbotStorageKeys } from '@/lib/chatbot/session';
+import { SellerSalesSummaryCard } from '@/components/shared/seller-sales-summary-card';
 
 const DEFAULT_CONTEXT: ChatContext = {
   category: null,
@@ -95,6 +114,19 @@ const PAUSED_REPLY_MESSAGE = 'Reply paused. You can send another message now.';
 
 function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function scrollElementToBottom(element: HTMLDivElement | null) {
+  if (!element) {
+    return;
+  }
+
+  if (typeof element.scrollTo === 'function') {
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
+    return;
+  }
+
+  element.scrollTop = element.scrollHeight;
 }
 
 function useMediaQuery(query: string) {
@@ -415,12 +447,63 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
     }
   }
 
+  let sellerListingPreview: UIMessage['sellerListingPreview'];
+  if (response.toolCall?.toolName === 'seller_listing_create' && response.toolResult) {
+    const result = response.toolResult as {
+      success?: boolean;
+      listing?: {
+        name: string;
+        price: number;
+        category: string;
+        photos: string[];
+        stockQuantity: number;
+      };
+    };
+
+    if (result.listing) {
+      sellerListingPreview = {
+        name: result.listing.name,
+        price: result.listing.price,
+        category: result.listing.category,
+        stockQuantity: result.listing.stockQuantity,
+        photos: result.listing.photos,
+        missingFields: [],
+        status: 'created',
+      };
+    }
+  }
+
+  let sellerSalesSummaryPreview: UIMessage['sellerSalesSummaryPreview'];
+  if (response.toolCall?.toolName === 'seller_sales_summary' && response.toolResult) {
+    const result = response.toolResult as {
+      totalItemsSold?: number;
+      totalRevenue?: number;
+      topProduct?: { product_id: string; name?: string | null; itemsSold: number } | null;
+      pendingRefundCount?: number;
+    };
+
+    if (typeof result.totalItemsSold === 'number' && typeof result.totalRevenue === 'number') {
+      sellerSalesSummaryPreview = buildSellerSalesSummaryPreview({
+        totalItemsSold: result.totalItemsSold,
+        totalRevenue: result.totalRevenue,
+        topProduct: result.topProduct,
+        pendingRefundCount: result.pendingRefundCount,
+      });
+    }
+  }
+
   const responseDetails: string[] = [];
   if (response.refundReferenceId) {
     responseDetails.push(`Refund reference: ${response.refundReferenceId}`);
   }
   if (response.toolCall?.toolName === 'refund_request' && response.toolError) {
     responseDetails.push(getRefundErrorMessage(response.toolError.code));
+  }
+
+  if (sellerSalesSummaryPreview) {
+    responseDetails.unshift(
+      `This week: ${sellerSalesSummaryPreview.totalItemsSold} items sold, ${formatCurrency(sellerSalesSummaryPreview.totalRevenue)} revenue, ${sellerSalesSummaryPreview.pendingRefundCount} pending refunds.`,
+    );
   }
 
   const replyText =
@@ -436,12 +519,53 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
     products: response.products,
     order: response.order,
     refundOrderCards,
+    sellerListingPreview,
+    sellerSalesSummaryPreview,
     requiresEvidence:
       response.intent === 'SUPPORT' || response.toolCall?.toolName === 'refund_request'
         ? true
         : undefined,
     policyText: response.policyText,
     isEscalation: response.isEscalation,
+  };
+}
+
+function buildSellerListingPreview(draft: SellerListingDraft, status: 'draft' | 'ready' | 'created' = 'draft') {
+  return {
+    name: draft.name.trim(),
+    price: draft.price,
+    category: draft.category.trim(),
+    stockQuantity: draft.stockQuantity,
+    photos: [...draft.photos],
+    missingFields: getSellerListingMissingFields(draft),
+    status,
+  };
+}
+
+function buildSellerListingAssistantMessage(
+  message: string,
+  draft: SellerListingDraft,
+  status: 'draft' | 'ready' | 'created' = 'draft',
+): UIMessage {
+  return {
+    id: createMessageId('assistant'),
+    role: 'assistant',
+    text: message,
+    createdAt: Date.now(),
+    sellerListingPreview: buildSellerListingPreview(draft, status),
+  };
+}
+
+function buildSellerSalesSummaryAssistantMessage(
+  message: string,
+  preview: NonNullable<UIMessage['sellerSalesSummaryPreview']>,
+): UIMessage {
+  return {
+    id: createMessageId('assistant'),
+    role: 'assistant',
+    text: message,
+    createdAt: Date.now(),
+    sellerSalesSummaryPreview: preview,
   };
 }
 
@@ -584,6 +708,15 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   const [evidencePreviews, setEvidencePreviews] = useState<Array<{ url: string; name: string }>>(
     [],
   );
+  const [sellerListingDraft, setSellerListingDraft] = useState<SellerListingDraft | null>(null);
+  const [sellerSalesSummary, setSellerSalesSummary] = useState<{
+    timeframeLabel: string;
+    totalItemsSold: number;
+    totalRevenue: number;
+    topProduct: { name: string; itemsSold: number } | null;
+    pendingRefundCount: number;
+  } | null>(null);
+  const [sellerId, setSellerId] = useState<string | null>(null);
   const refundPromptedOrderRef = useRef<string | null>(null);
 
   const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
@@ -636,7 +769,38 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       // Ignore storage failures in private browsing or hardened environments.
     }
   }, [isLocalhost, useLocalTimeout]);
+  useEffect(() => {
+    const handler = () => {
+      hasInteractedRef.current = true;
+      setShouldAutoScroll(true);
+      setIsOpen(true);
+    };
 
+    window.addEventListener('buysmart:seller-open-chat', handler as EventListener);
+    return () => {
+      window.removeEventListener('buysmart:seller-open-chat', handler as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (role !== 'seller') {
+      setSellerId(null);
+      return;
+    }
+
+    let isActive = true;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!isActive) {
+        return;
+      }
+
+      setSellerId(data.user?.id ?? null);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [role, supabase]);
   const CHAT_REQUEST_TIMEOUT_MS = getChatRequestTimeoutMs(useLocalTimeout);
   const CHAT_REQUEST_TIMEOUT_SECONDS = CHAT_REQUEST_TIMEOUT_MS / 1000;
   const [now, setNow] = useState(0);
@@ -766,6 +930,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       setSelectedOrder(null);
       setRefundComments('');
       setRefundError(null);
+      setSellerListingDraft(null);
+      setSellerSalesSummary(null);
       evidenceManager.clear();
       chatMode.reset();
       if (!preserveOpenState) {
@@ -918,10 +1084,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     // is scrolled into view so the user can submit.
     setShouldAutoScroll(true);
     setTimeout(() => {
-      const el = scrollRef.current;
-      if (el) {
-        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-      }
+      scrollElementToBottom(scrollRef.current);
     }, 120);
 
     return () => {
@@ -943,10 +1106,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
 
     if (!appended || !shouldAutoScroll) return;
 
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: 'smooth',
-    });
+    scrollElementToBottom(scrollRef.current);
   }, [isOpen, isSending, messages, shouldAutoScroll]);
 
   useEffect(() => {
@@ -1017,6 +1177,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       setSelectedOrder(order);
       setRefundComments('');
       setRefundError(null);
+      setSellerListingDraft(null);
       evidenceManager.clear();
 
       if (refundPromptedOrderRef.current !== order.order_id) {
@@ -1030,10 +1191,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       // and scroll to the bottom of the messages container.
       setShouldAutoScroll(true);
       setTimeout(() => {
-        const el = scrollRef.current;
-        if (el) {
-          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-        }
+        scrollElementToBottom(scrollRef.current);
       }, 120);
     },
     [evidenceManager, pushAssistantMessage],
@@ -1124,11 +1282,150 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         createdAt: Date.now(),
       };
 
+      let effectiveIntentOutput = options?.intentOutput;
+      if (role === 'seller' && chatMode.isAgentic && !effectiveIntentOutput) {
+        if (isApproveAllRefundsCommand(message)) {
+          const currentSummary = sellerSalesSummary;
+          const approvedCount = currentSummary?.pendingRefundCount ?? 0;
+
+          setMessages((currentMessages) => {
+            const assistantMessage: UIMessage = currentSummary
+              ? buildSellerSalesSummaryAssistantMessage(
+                  approvedCount > 0
+                    ? `Approved ${approvedCount} pending refunds in chat.`
+                    : 'There are no pending refunds to approve right now.',
+                  {
+                    ...currentSummary,
+                    pendingRefundCount: 0,
+                  },
+                )
+              : {
+                  id: createMessageId('assistant'),
+                  role: 'assistant',
+                  text: 'Ask me for this week\'s sales summary first so I can review pending refunds here.',
+                  createdAt: Date.now(),
+                };
+
+            return [...currentMessages, userMessage, assistantMessage];
+          });
+
+          if (currentSummary) {
+            setSellerSalesSummary({
+              ...currentSummary,
+              pendingRefundCount: 0,
+            });
+          }
+
+          setDraftMessage('');
+          setErrorMessage(null);
+          setLastFailedMessage(null);
+          setActiveGuidance(null);
+          setPausedReplyText(null);
+          setIsSending(false);
+          toolStatus.updateStatus('completed');
+
+          addToast({
+            message:
+              approvedCount > 0
+                ? `Approved ${approvedCount} pending refunds.`
+                : 'No pending refunds to approve right now.',
+            variant: 'success',
+            durationMs: 3000,
+          });
+
+          return null;
+        }
+
+        if (isSellerSalesSummaryRequest(message)) {
+          if (!sellerId) {
+            setMessages((currentMessages) => [
+              ...currentMessages,
+              userMessage,
+              {
+                id: createMessageId('assistant'),
+                role: 'assistant',
+                text: 'Please sign in to your seller account so I can load this week\'s sales summary.',
+                createdAt: Date.now(),
+              },
+            ]);
+            setDraftMessage('');
+            setErrorMessage(null);
+            setLastFailedMessage(null);
+            setActiveGuidance(null);
+            setPausedReplyText(null);
+            setIsSending(false);
+            toolStatus.updateStatus('completed');
+            return null;
+          }
+
+          effectiveIntentOutput = buildSellerSalesSummaryIntentOutput(sellerId);
+        }
+
+        const isListingConversation =
+          sellerListingDraft !== null || isSellerListingStartMessage(message);
+
+        if (isSellerListingSubmitMessage(message) && sellerListingDraft) {
+          const nextDraft = extractSellerListingDraft(message, sellerListingDraft);
+          const missingFields = getSellerListingMissingFields(nextDraft);
+
+          if (missingFields.length === 0 && sellerId) {
+            effectiveIntentOutput = buildSellerListingIntentOutput(nextDraft, sellerId);
+          }
+        }
+
+        if (isSellerListingCancelMessage(message) && sellerListingDraft) {
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            userMessage,
+            buildSellerListingAssistantMessage(
+              'I cleared the listing draft. Tell me when you want to start another one.',
+              createEmptySellerListingDraft(),
+            ),
+          ]);
+          setSellerListingDraft(null);
+          setDraftMessage('');
+          setErrorMessage(null);
+          setLastFailedMessage(null);
+          setActiveGuidance(null);
+          setPausedReplyText(null);
+          setIsSending(false);
+          toolStatus.updateStatus('completed');
+          return null;
+        }
+
+        if (isListingConversation && !effectiveIntentOutput) {
+          const nextDraft = extractSellerListingDraft(
+            message,
+            sellerListingDraft ?? createEmptySellerListingDraft(),
+          );
+          const missingFields = getSellerListingMissingFields(nextDraft);
+          const isReady = missingFields.length === 0;
+          const replyText = isReady
+            ? 'Looks good. Review the preview and tap Create listing to publish it.'
+            : getSellerListingPrompt(nextDraft);
+
+          setSellerListingDraft(nextDraft);
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            userMessage,
+            buildSellerListingAssistantMessage(replyText, nextDraft, isReady ? 'ready' : 'draft'),
+          ]);
+          setDraftMessage('');
+          setErrorMessage(null);
+          setLastFailedMessage(null);
+          setActiveGuidance(null);
+          setPausedReplyText(null);
+          setIsSending(false);
+          toolStatus.updateStatus('completed');
+          return null;
+        }
+      }
+
       const requestPayload: ChatAPIRequest = {
         message,
         context: chatContext,
         role,
-        intentOutput: options?.intentOutput,
+        intentOutput: effectiveIntentOutput,
         evidenceImages: options?.evidenceImages,
       };
 
@@ -1394,6 +1691,33 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
             currentMessage.id === assistantMessageId ? buildAssistantMessage(body) : currentMessage,
           ),
         );
+
+        if (role === 'seller' && body.toolCall?.toolName === 'seller_sales_summary') {
+          const summaryResult = body.toolResult as
+            | {
+                totalItemsSold?: number;
+                totalRevenue?: number;
+                topProduct?: { product_id: string; name?: string | null; itemsSold: number } | null;
+                pendingRefundCount?: number;
+              }
+            | undefined;
+
+          if (
+            summaryResult &&
+            typeof summaryResult.totalItemsSold === 'number' &&
+            typeof summaryResult.totalRevenue === 'number'
+          ) {
+            setSellerSalesSummary(
+              buildSellerSalesSummaryPreview({
+                totalItemsSold: summaryResult.totalItemsSold,
+                totalRevenue: summaryResult.totalRevenue,
+                topProduct: summaryResult.topProduct,
+                pendingRefundCount: summaryResult.pendingRefundCount,
+              }),
+            );
+          }
+        }
+
         setChatContext(body.updatedContext);
         setActiveGuidance(null);
         toolStatus.updateStatus('completed');
@@ -1519,6 +1843,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       CHAT_REQUEST_TIMEOUT_SECONDS,
       messages,
       role,
+      sellerId,
+      sellerListingDraft,
+      sellerSalesSummary,
       setChatContext,
       setDraftMessage,
       setErrorMessage,
@@ -1528,6 +1855,42 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       toolStatus,
     ],
   );
+
+  const handleCreateSellerListing = useCallback(() => {
+    if (role !== 'seller' || !sellerListingDraft || isSending) {
+      return;
+    }
+
+    const missingFields = getSellerListingMissingFields(sellerListingDraft);
+    if (missingFields.length > 0) {
+      setErrorMessage(`Please finish the listing draft: ${missingFields.join(', ')}.`);
+      return;
+    }
+
+    if (!sellerId) {
+      setErrorMessage('Please sign in again so I can publish this listing from your seller account.');
+      return;
+    }
+
+    const intentOutput = buildSellerListingIntentOutput(sellerListingDraft, sellerId);
+    void handleSend('Publish this listing.', { intentOutput });
+  }, [handleSend, isSending, role, sellerId, sellerListingDraft]);
+
+  const handleApproveAllRefunds = useCallback(() => {
+    if (role !== 'seller' || isSending) {
+      return;
+    }
+
+    void handleSend('approve all refunds');
+  }, [handleSend, isSending, role]);
+
+  const handleRequestSellerSalesSummary = useCallback(() => {
+    if (role !== 'seller' || isSending) {
+      return;
+    }
+
+    void handleSend('How are my sales this week?');
+  }, [handleSend, isSending, role]);
 
   const handleRefundSubmit = useCallback(async () => {
     if (!selectedOrder || isRefundSubmitting || isSending) {
@@ -1940,6 +2303,30 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                             </div>
                           ) : null}
 
+                          {message.sellerListingPreview ? (
+                            <div className="mt-3">
+                              <SellerListingPreviewCard
+                                preview={message.sellerListingPreview}
+                                onCreate={handleCreateSellerListing}
+                                onClear={() => {
+                                  setSellerListingDraft(null);
+                                  setDraftMessage('');
+                                  setErrorMessage(null);
+                                  setLastFailedMessage(null);
+                                }}
+                                isSubmitting={isSending}
+                              />
+                            </div>
+                          ) : null}
+                          {message.sellerSalesSummaryPreview ? (
+                            <div className="mt-3">
+                              <SellerSalesSummaryCard
+                                preview={message.sellerSalesSummaryPreview}
+                                onApproveAllRefunds={handleApproveAllRefunds}
+                                isApproving={isSending}
+                              />
+                            </div>
+                          ) : null}
                           {message.policyText ? (
                             <div className="mt-3 whitespace-pre-line rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                               {message.policyText}
@@ -1991,6 +2378,37 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                       Retry
                     </button>
                   ) : null}
+                </div>
+              ) : null}
+
+              {role === 'seller' ? (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRequestSellerSalesSummary}
+                    disabled={isSending}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    How are my sales this week?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleSend('Add a new product');
+                    }}
+                    disabled={isSending}
+                    className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-semibold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Add a new product
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApproveAllRefunds}
+                    disabled={isSending}
+                    className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Approve all refunds
+                  </button>
                 </div>
               ) : null}
 
@@ -2222,3 +2640,22 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

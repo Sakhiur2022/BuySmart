@@ -36,6 +36,25 @@ export interface OrderItem {
   price: number;
 }
 
+export interface SellerListingPreview {
+  name: string;
+  price: number | null;
+  category: string;
+  stockQuantity: number | null;
+  photos: string[];
+  missingFields: Array<'name' | 'price' | 'category' | 'photos' | 'stockQuantity'>;
+  status: 'draft' | 'ready' | 'created';
+}
+
+export interface SellerSalesSummaryPreview {
+  timeframeLabel: string;
+  totalItemsSold: number;
+  totalRevenue: number;
+  topProduct: { name: string; itemsSold: number } | null;
+  pendingRefundCount: number;
+}
+
+
 export interface Order {
   id: string;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -63,6 +82,8 @@ export interface UIMessage {
   products?: Product[];
   order?: Order;
   refundOrderCards?: RefundOrderCard[];
+  sellerListingPreview?: SellerListingPreview;
+  sellerSalesSummaryPreview?: SellerSalesSummaryPreview;
   requiresEvidence?: boolean;
   policyText?: string;
   isEscalation?: boolean;
@@ -123,3 +144,4 @@ export interface ChatAPIResponse {
   toolResult?: unknown;
   refundReferenceId?: string;
 }
+

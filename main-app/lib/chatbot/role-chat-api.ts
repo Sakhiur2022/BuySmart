@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { AIParams, AIResponse, ChatAPIResponse, ChatContext } from '@/lib/chatbot/types';
+import type {
+  AIParams,
+  AIResponse,
+  ChatAPIResponse,
+  ChatContext,
+  Order,
+  Product,
+} from '@/lib/chatbot/types';
 import type { RecommendationAdapterContext } from '@/lib/chatbot/buyer-intent/adapter';
 import { BuyerChatToolsFacade } from '@/lib/chatbot/buyer-intent/facade';
 import { getIntentValidationEventEmitter } from '@/lib/chatbot/buyer-intent/events';
@@ -25,7 +32,96 @@ type SellerFacadeType = {
 };
 import { recommendationCandidateSchema } from '@/lib/chatbot/buyer-intent/tool-contracts';
 import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
-import { mockGetOrder, mockSearchProducts, MOCK_POLICY } from '@/lib/chatbot/mockData';
+
+export const SAMPLE_PRODUCTS: Product[] = [
+  {
+    id: 'p1',
+    name: 'Redmi Note 13 Pro',
+    price: 18999,
+    category: 'phone',
+    images: [],
+    stock_available: true,
+    features: ['gaming', 'battery', 'camera'],
+    badge: 'Best battery',
+    emoji: 'phone',
+  },
+  {
+    id: 'p2',
+    name: 'Realme Narzo 60',
+    price: 17500,
+    category: 'phone',
+    images: [],
+    stock_available: true,
+    features: ['gaming', 'fast-charge'],
+    badge: 'Gaming pick',
+    emoji: 'phone',
+  },
+  {
+    id: 'p3',
+    name: 'HP Victus 15',
+    price: 58000,
+    category: 'laptop',
+    images: [],
+    stock_available: true,
+    features: ['gaming', 'gpu'],
+    badge: 'GTX 1650',
+    emoji: 'laptop',
+  },
+  {
+    id: 'p4',
+    name: 'Sony WH-1000XM5',
+    price: 35000,
+    category: 'headphone',
+    images: [],
+    stock_available: true,
+    features: ['noise-cancel', 'battery'],
+    badge: 'ANC',
+    emoji: 'headphone',
+  },
+];
+
+export const SAMPLE_ORDER: Order = {
+  id: 'ORD-4821',
+  status: 'shipped',
+  created_at: '2026-04-24T10:30:00Z',
+  buyer_id: 'user_demo',
+  items: [{ id: 'i1', name: 'Samsung Galaxy M34 5G', quantity: 1, price: 20000 }],
+};
+
+export const SAMPLE_REFUND_POLICY = `You can request a refund within 7 days of delivery for any defective or wrong item.
+Tap Orders, open View details for the order, and use Request Refund.
+After submission, check the latest refund progress in Refund status and tap Details.
+Approved refunds are typically processed within 3-5 business days to the original payment method.`;
+
+export function searchSampleProducts(params: AIParams): Product[] {
+  let results = SAMPLE_PRODUCTS;
+
+  if (params.category) {
+    results = results.filter((product) =>
+      product.category.toLowerCase().includes(params.category!.toLowerCase()),
+    );
+  }
+
+  if (params.price_max) {
+    results = results.filter((product) => product.price <= params.price_max!);
+  }
+
+  if (params.price_min) {
+    results = results.filter((product) => product.price >= params.price_min!);
+  }
+
+  if (params.features && params.features.length > 0) {
+    results = results.filter((product) =>
+      params.features!.some((feature) => product.features.includes(feature)),
+    );
+  }
+
+  return results.slice(0, 4);
+}
+
+export function getSampleOrder(_orderId: string): Order {
+  return SAMPLE_ORDER;
+}
 
 function createRequestId(role: 'buyer' | 'seller' | 'admin') {
   return `${role}-chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -368,7 +464,7 @@ async function routeIntent(
 ): Promise<Partial<ChatAPIResponse>> {
   switch (aiResponse.intent) {
     case 'PRODUCT_SEARCH': {
-      const products = mockSearchProducts(aiResponse.params);
+      const products = searchSampleProducts(aiResponse.params);
       const searchReply = await answerProductSearchQuestion(userMessage, products, {
         category: aiResponse.params.category,
         price_min: aiResponse.params.price_min,
@@ -383,7 +479,7 @@ async function routeIntent(
 
     case 'TRACK_ORDER': {
       const orderId = aiResponse.params.orderId ?? context.lastOrderId ?? 'ORD-4821';
-      const order = mockGetOrder(orderId);
+      const order = getSampleOrder(orderId);
       return {
         reply: aiResponse.reply,
         order,
@@ -393,7 +489,9 @@ async function routeIntent(
     case 'REFUND_POLICY': {
       return {
         reply: aiResponse.reply,
-        policyText: shouldShowRefundPolicy(aiResponse.params.query) ? MOCK_POLICY : undefined,
+        policyText: shouldShowRefundPolicy(aiResponse.params.query)
+          ? SAMPLE_REFUND_POLICY
+          : undefined,
       };
     }
 
@@ -640,3 +738,4 @@ export async function handleRoleChatRequest(
     );
   }
 }
+

@@ -28,5 +28,6 @@ export async function listingCreateStrategy(sellerId: string, payload: ListingCr
     stockQuantity: payload.stockQuantity,
   });
 
-  return { success: true };
+  return { success: true, listing: { ...payload, photos: [...payload.photos] } };
 }
+

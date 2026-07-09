@@ -327,6 +327,26 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
         </div>
       </section>
 
+      <div className="flex flex-wrap gap-2 rounded-2xl border bg-white/80 p-2 shadow-sm">
+        <a
+          href="#seller-listings"
+          className="rounded-full border border-rose-100 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+        >
+          Listings
+        </a>
+        <a
+          href="#seller-orders"
+          className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          Orders
+        </a>
+        <a
+          href="#seller-analytics"
+          className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+        >
+          Analytics
+        </a>
+      </div>
       {deleted ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           Product deleted successfully.
@@ -338,7 +358,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section id="seller-analytics" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-muted-foreground">Total Revenue</CardTitle>
@@ -402,7 +422,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
         feedbackInsightsError={feedbackInsightsError}
       />
 
-      <section>
+      <section id="seller-listings">
         <Card>
           <CardHeader>
             <CardTitle>Your Products</CardTitle>
@@ -483,7 +503,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
         </Card>
       </section>
 
-      <section>
+      <section id="seller-orders">
         <Card>
           <CardHeader>
             <CardTitle>Delivery Confirmation</CardTitle>
@@ -494,7 +514,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
         </Card>
       </section>
 
-      <section>
+      <section id="seller-recent-orders">
         <Card>
           <CardHeader>
             <CardTitle>Recent Orders</CardTitle>
@@ -558,3 +578,7 @@ export default async function SellerPage({ searchParams }: SellerPageProps) {
     </div>
   );
 }
+
+
+
+

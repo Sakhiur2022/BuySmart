@@ -14,4 +14,5 @@ export type ListingCreateToolInput = {
   stockQuantity: number;
 };
 
-export type ListingCreateToolOutput = { success: boolean };
+export type ListingCreateToolOutput = { success: boolean; listing: ListingCreateToolInput };
+

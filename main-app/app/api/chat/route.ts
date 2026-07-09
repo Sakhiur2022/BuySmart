@@ -15,10 +15,10 @@ import {
 } from '@/lib/chatbot/buyer-intent/tool-contracts';
 import { answerProductSearchQuestion, answerSupportQuestion } from '@/lib/chatbot/support-ai';
 import {
-  mockGetOrder,
-  mockSearchProducts,
-  MOCK_POLICY,
-} from '@/lib/chatbot/mockData';
+  getSampleOrder,
+  SAMPLE_REFUND_POLICY,
+  searchSampleProducts,
+} from '@/lib/chatbot/role-chat-api';
 
 function createRequestId() {
   return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -350,7 +350,7 @@ async function routeIntent(
 ): Promise<Partial<ChatAPIResponse>> {
   switch (aiResponse.intent) {
     case 'PRODUCT_SEARCH': {
-      const products = mockSearchProducts(aiResponse.params);
+      const products = searchSampleProducts(aiResponse.params);
       const searchReply = await answerProductSearchQuestion(userMessage, products, {
         category: aiResponse.params.category,
         price_min: aiResponse.params.price_min,
@@ -365,7 +365,7 @@ async function routeIntent(
 
     case 'TRACK_ORDER': {
       const orderId = aiResponse.params.orderId ?? context.lastOrderId ?? 'ORD-4821';
-      const order = mockGetOrder(orderId);
+      const order = getSampleOrder(orderId);
       return {
         reply: aiResponse.reply,
         order,
@@ -375,7 +375,9 @@ async function routeIntent(
     case 'REFUND_POLICY': {
       return {
         reply: aiResponse.reply,
-        policyText: shouldShowRefundPolicy(aiResponse.params.query) ? MOCK_POLICY : undefined,
+        policyText: shouldShowRefundPolicy(aiResponse.params.query)
+          ? SAMPLE_REFUND_POLICY
+          : undefined,
       };
     }
 
