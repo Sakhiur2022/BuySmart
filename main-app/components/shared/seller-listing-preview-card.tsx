@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
 import type { SellerListingPreview } from '@/lib/chatbot/types';
 import { getSellerListingFieldSummary } from '@/lib/chatbot/seller-listing-draft';
 
@@ -164,6 +165,9 @@ export function SellerListingPreviewCard({
         ) : null}
 
         <div className="flex flex-wrap gap-2 pt-1">
+          <Button asChild type="button" variant="outline">
+            <Link href="/seller/products/new">Edit in product form</Link>
+          </Button>
           <Button
             type="button"
             onClick={onCreate}

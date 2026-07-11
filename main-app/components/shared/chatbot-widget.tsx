@@ -717,6 +717,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     pendingRefundCount: number;
   } | null>(null);
   const [sellerId, setSellerId] = useState<string | null>(null);
+  const [isSellerAuthLoaded, setIsSellerAuthLoaded] = useState(false);
   const refundPromptedOrderRef = useRef<string | null>(null);
 
   const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
@@ -785,9 +786,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
   useEffect(() => {
     if (role !== 'seller') {
       setSellerId(null);
+      setIsSellerAuthLoaded(true);
       return;
     }
 
+    setIsSellerAuthLoaded(false);
     let isActive = true;
     void supabase.auth.getUser().then(({ data }) => {
       if (!isActive) {
@@ -795,6 +798,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       }
 
       setSellerId(data.user?.id ?? null);
+      setIsSellerAuthLoaded(true);
     });
 
     return () => {
@@ -1337,6 +1341,27 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         }
 
         if (isSellerSalesSummaryRequest(message)) {
+          if (!isSellerAuthLoaded) {
+            setMessages((currentMessages) => [
+              ...currentMessages,
+              userMessage,
+              {
+                id: createMessageId('assistant'),
+                role: 'assistant',
+                text: 'Loading your seller account. Try that again in a moment.',
+                createdAt: Date.now(),
+              },
+            ]);
+            setDraftMessage('');
+            setErrorMessage(null);
+            setLastFailedMessage(null);
+            setActiveGuidance(null);
+            setPausedReplyText(null);
+            setIsSending(false);
+            toolStatus.updateStatus('completed');
+            return null;
+          }
+
           if (!sellerId) {
             setMessages((currentMessages) => [
               ...currentMessages,
@@ -1844,6 +1869,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       messages,
       role,
       sellerId,
+      isSellerAuthLoaded,
       sellerListingDraft,
       sellerSalesSummary,
       setChatContext,
