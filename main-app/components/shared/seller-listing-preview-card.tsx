@@ -1,12 +1,16 @@
+import { ProductForm } from '@/components/forms/product-form';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import type { Category } from '@/lib/models/category.model';
 import type { SellerListingPreview } from '@/lib/chatbot/types';
 import { getSellerListingFieldSummary } from '@/lib/chatbot/seller-listing-draft';
 
 export type SellerListingPreviewCardProps = {
   preview: SellerListingPreview;
+  categories?: Category[];
+  action?: (formData: FormData) => void | Promise<void>;
   onCreate: () => void;
   onClear: () => void;
   isSubmitting?: boolean;
@@ -22,10 +26,51 @@ function formatCurrency(amount: number | null) {
 
 export function SellerListingPreviewCard({
   preview,
+  categories = [],
+  action,
   onCreate,
   onClear,
   isSubmitting = false,
 }: SellerListingPreviewCardProps) {
+  const selectedCategory = categories.find(
+    (category) => category.name.trim().toLowerCase() === preview.category.trim().toLowerCase(),
+  );
+  const canRenderInlineEditor = Boolean(action && categories.length > 0);
+
+  if (canRenderInlineEditor && action) {
+    return (
+      <div className="space-y-3">
+        <ProductForm
+          title="Edit listing draft"
+          description="Adjust the fields below, then publish the product without leaving chat."
+          submitLabel="Create Product"
+          action={action}
+          categories={categories}
+          isLocked={preview.status === 'created'}
+          lockedMessage="This product has been published. The form is locked to prevent further edits from chat."
+          lockOnSubmit
+          values={{
+            categoryId: selectedCategory?.category_id ?? null,
+            name: preview.name,
+            price: preview.price ?? 0,
+            inventoryQuantity: preview.stockQuantity ?? 0,
+            status: preview.status === 'created' || preview.missingFields.length === 0 ? 'active' : 'draft',
+            shortDescription: '',
+            description: '',
+            imageUrls: preview.photos,
+          }}
+        />
+        {preview.status !== 'created' ? (
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={onClear} disabled={isSubmitting}>
+              Clear draft
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   const hasPhotos = preview.photos.length > 0;
   const fieldSummary = getSellerListingFieldSummary({
     name: preview.name,

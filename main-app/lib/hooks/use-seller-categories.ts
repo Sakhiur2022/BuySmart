@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import type { Category } from '@/lib/models/category.model';
 import { createClient } from '@/lib/supabase/client';
 
 export function useSellerCategories() {
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -11,7 +12,7 @@ export function useSellerCategories() {
 
       const { data, error } = await supabase
         .from('categories')
-        .select('name')
+        .select('category_id, name')
         .eq('is_active', true)
         .order('name');
 
@@ -19,7 +20,7 @@ export function useSellerCategories() {
         console.error('Failed to load categories for chatbot:', error);
         setCategories([]);
       } else {
-        setCategories(data?.map((c) => c.name) || []);
+        setCategories((data as Category[] | null) || []);
       }
       setLoading(false);
     }

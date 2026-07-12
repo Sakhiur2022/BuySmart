@@ -3,6 +3,8 @@ import { LayoutDashboard, Package, PlusCircle } from 'lucide-react';
 import SellerChatbotWidget from '@/components/shared/seller-chatbot-widget';
 import { SellerMascotWelcome } from '@/components/seller/seller-mascot-welcome';
 import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/server';
+import { getActiveCategories } from '@/lib/controllers/category.controller';
 
 const sellerNav = [
   { href: '/seller', label: 'Dashboard', icon: LayoutDashboard },
@@ -10,7 +12,13 @@ const sellerNav = [
   { href: '/seller/products/new', label: 'Add Product', icon: PlusCircle },
 ];
 
-export default function SellerLayout({ children }: { children: React.ReactNode }) {
+export default async function SellerLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const categories = await getActiveCategories();
+
   return (
     <div className="flex flex-1">
       {/* Sidebar */}
@@ -35,7 +43,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       {/* Content */}
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">{children}</main>
       <SellerMascotWelcome />
-      <SellerChatbotWidget />
+      <SellerChatbotWidget sellerUserId={user?.id ?? null} categories={categories} />
     </div>
   );
 }

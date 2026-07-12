@@ -58,6 +58,7 @@ import { createClient } from '@/lib/supabase/client';
 import { clearChatbotSessionStorage, getChatbotStorageKeys } from '@/lib/chatbot/session';
 import { SellerSalesSummaryCard } from '@/components/shared/seller-sales-summary-card';
 import { useSellerCategories } from '@/lib/hooks/use-seller-categories';
+import type { Category } from '@/lib/models/category.model';
 
 const DEFAULT_CONTEXT: ChatContext = {
   category: null,
@@ -691,14 +692,28 @@ function RefundOrderCardItem({
 
 type ChatbotWidgetProps = {
   chatbotRole?: ChatbotRole;
+  initialSellerId?: string | null;
+  initialSellerCategories?: Category[];
+  sellerCreateProductAction?: (formData: FormData) => void | Promise<void>;
 };
 
-export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetProps) {
+export default function ChatbotWidget({
+  chatbotRole = 'buyer',
+  initialSellerId = null,
+  initialSellerCategories,
+  sellerCreateProductAction,
+}: ChatbotWidgetProps) {
   const pathname = usePathname();
-  const { categories: validCategories } = useSellerCategories();
+  const resolvedChatbotRole = pathname.startsWith('/seller') ? 'seller' : chatbotRole;
+  const { categories: fetchedSellerCategories } = useSellerCategories();
+  const sellerCategories = initialSellerCategories ?? fetchedSellerCategories;
+  const validCategories = useMemo(
+    () => sellerCategories.map((category) => category.name),
+    [sellerCategories],
+  );
   const supabase = useMemo(() => createClient(), []);
-  const storageKeys = useMemo(() => getChatbotStorageKeys(chatbotRole), [chatbotRole]);
-  const role = chatbotRole;
+  const storageKeys = useMemo(() => getChatbotStorageKeys(resolvedChatbotRole), [resolvedChatbotRole]);
+  const role = resolvedChatbotRole;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const hasInteractedRef = useRef(false);
@@ -725,11 +740,13 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     topProduct: { name: string; itemsSold: number } | null;
     pendingRefundCount: number;
   } | null>(null);
-  const [sellerId, setSellerId] = useState<string | null>(null);
-  const [isSellerAuthLoaded, setIsSellerAuthLoaded] = useState(false);
+  const [sellerId, setSellerId] = useState<string | null>(initialSellerId);
+  const [isSellerAuthLoaded, setIsSellerAuthLoaded] = useState(
+    role !== 'seller' ? true : initialSellerId !== null,
+  );
   const refundPromptedOrderRef = useRef<string | null>(null);
 
-  const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(chatbotRole)]);
+  const [messages, setMessages] = useState<UIMessage[]>([getGreetingMessage(role)]);
   const [chatContext, setChatContext] = useState<ChatContext>(DEFAULT_CONTEXT);
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -799,6 +816,12 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       return;
     }
 
+    if (initialSellerId) {
+      setSellerId(initialSellerId);
+      setIsSellerAuthLoaded(true);
+      return;
+    }
+
     setIsSellerAuthLoaded(false);
     let isActive = true;
     void supabase.auth.getUser().then(({ data }) => {
@@ -813,7 +836,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     return () => {
       isActive = false;
     };
-  }, [role, supabase]);
+  }, [initialSellerId, role, supabase]);
   const CHAT_REQUEST_TIMEOUT_MS = getChatRequestTimeoutMs(useLocalTimeout);
   const CHAT_REQUEST_TIMEOUT_SECONDS = CHAT_REQUEST_TIMEOUT_MS / 1000;
   const [now, setNow] = useState(0);
@@ -933,7 +956,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       activeRequestAbortReasonRef.current = null;
       sessionVersionRef.current += 1;
       setSessionGeneration((current) => current + 1);
-      setMessages([getGreetingMessage(chatbotRole)]);
+      setMessages([getGreetingMessage(role)]);
       setChatContext(DEFAULT_CONTEXT);
       setDraftMessage('');
       setErrorMessage(null);
@@ -960,7 +983,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         }
       }
     },
-    [chatbotRole, evidenceManager, storageKeys.authMarker, chatMode, closeChat],
+    [role, evidenceManager, storageKeys.authMarker, chatMode, closeChat],
   );
 
   useEffect(() => {
@@ -1014,7 +1037,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
         }
       } catch {
         closeChat();
-        setMessages([getGreetingMessage(chatbotRole)]);
+        setMessages([getGreetingMessage(role)]);
         setChatContext(DEFAULT_CONTEXT);
       } finally {
         if (isActive) {
@@ -1029,7 +1052,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       isActive = false;
     };
   }, [
-    chatbotRole,
+    role,
     closeChat,
     shouldRestoreOpenState,
     resetChatSession,
@@ -2403,6 +2426,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                             <div className="mt-3">
                               <SellerListingPreviewCard
                                 preview={message.sellerListingPreview}
+                                categories={sellerCategories}
+                                action={sellerCreateProductAction}
                                 onCreate={handleCreateSellerListing}
                                 onClear={() => {
                                   setSellerListingDraft(null);

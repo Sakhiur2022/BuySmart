@@ -46,6 +46,9 @@ type ProductFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   categories: Category[];
   values?: Partial<ProductFormValues>;
+  isLocked?: boolean;
+  lockedMessage?: string;
+  lockOnSubmit?: boolean;
 };
 
 const DEFAULT_VALUES: ProductFormValues = {
@@ -72,12 +75,16 @@ export function ProductForm({
   action,
   categories,
   values,
+  isLocked = false,
+  lockedMessage,
+  lockOnSubmit = false,
 }: ProductFormProps) {
   const formValues = {
     ...DEFAULT_VALUES,
     ...values,
   };
   const [isSubmitting, startTransition] = useTransition();
+  const [isPublished, setIsPublished] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState(
     formValues.categoryId ? String(formValues.categoryId) : 'none',
   );
@@ -89,6 +96,7 @@ export function ProductForm({
       categories.map((category) => ({ id: String(category.category_id), label: category.name })),
     [categories],
   );
+  const effectiveLocked = isLocked || (lockOnSubmit && isPublished);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -100,6 +108,10 @@ export function ProductForm({
     for (const upload of imageUploadState.newUploads) {
       formData.append('new_image_tokens', upload.token);
       formData.append('new_images', upload.file);
+    }
+
+    if (lockOnSubmit) {
+      setIsPublished(true);
     }
 
     startTransition(() => {
@@ -115,6 +127,11 @@ export function ProductForm({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid gap-5">
+          {effectiveLocked ? (
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              {lockedMessage ?? 'This product has been published and the form is now locked.'}
+            </div>
+          ) : null}
           {formValues.productId ? (
             <input type="hidden" name="product_id" value={formValues.productId} />
           ) : null}
@@ -133,6 +150,7 @@ export function ProductForm({
               defaultValue={formValues.name}
               required
               maxLength={255}
+              disabled={effectiveLocked}
             />
           </div>
 
@@ -147,6 +165,7 @@ export function ProductForm({
                 min="0"
                 defaultValue={formValues.price}
                 required
+                disabled={effectiveLocked}
               />
             </div>
 
@@ -160,13 +179,18 @@ export function ProductForm({
                 min="0"
                 defaultValue={formValues.inventoryQuantity}
                 required
+                disabled={effectiveLocked}
               />
             </div>
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="category_id">Category</Label>
-            <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+            <Select
+              value={selectedCategoryId}
+              onValueChange={setSelectedCategoryId}
+              disabled={effectiveLocked}
+            >
               <SelectTrigger id="category_id">
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
@@ -187,6 +211,7 @@ export function ProductForm({
               id="status"
               name="status"
               defaultValue={formValues.status}
+              disabled={effectiveLocked}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="active">Active</option>
@@ -199,6 +224,7 @@ export function ProductForm({
           <MultiImageUpload
             initialImageUrls={formValues.imageUrls}
             submitting={isSubmitting}
+            disabled={effectiveLocked}
             onChange={setImageUploadState}
           />
 
@@ -211,6 +237,7 @@ export function ProductForm({
               defaultValue={formValues.shortDescription}
               className="min-h-20"
               maxLength={500}
+              disabled={effectiveLocked}
             />
           </div>
 
@@ -223,6 +250,7 @@ export function ProductForm({
               defaultValue={formValues.description}
               className="min-h-32"
               maxLength={4000}
+              disabled={effectiveLocked}
             />
           </div>
 
@@ -230,8 +258,8 @@ export function ProductForm({
             <Button asChild variant="outline" type="button">
               <Link href="/seller/products">Cancel</Link>
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : submitLabel}
+            <Button type="submit" disabled={isSubmitting || effectiveLocked}>
+              {effectiveLocked ? 'Published' : isSubmitting ? 'Saving...' : submitLabel}
             </Button>
           </div>
         </form>
