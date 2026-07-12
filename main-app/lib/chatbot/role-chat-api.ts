@@ -522,7 +522,13 @@ export async function handleRoleChatRequest(
   let payload: unknown;
 
   try {
-    payload = await request.json();
+    // Read raw request text to safely handle empty bodies
+    const rawText = await request.text();
+    if (!rawText) {
+      return NextResponse.json({ error: 'Invalid JSON payload.', requestId }, { status: 400 });
+    }
+    // Parse JSON manually to avoid Unexpected end of JSON input from request.json()
+    payload = JSON.parse(rawText);
     parsedBody = requestSchema.safeParse(payload);
   } catch (error) {
     logChatError(
@@ -738,4 +744,3 @@ export async function handleRoleChatRequest(
     );
   }
 }
-

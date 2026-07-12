@@ -89,7 +89,7 @@ const FALLBACK_REPLY =
 const RECOMMENDATION_TOAST_DELAY_MS = 1800;
 const REFUND_ORDER_FETCH_TOAST_DELAY_MS = 2000;
 const REFUND_SUBMIT_TOAST_DELAY_MS = 1200;
-const LOCAL_CHAT_REQUEST_TIMEOUT_MS = 1500;
+const LOCAL_CHAT_REQUEST_TIMEOUT_MS = 15000;
 const PROD_CHAT_REQUEST_TIMEOUT_MS = 20000;
 const LOCAL_CHAT_TIMEOUT_STORAGE_KEY = 'buysmart-chat-fast-timeout';
 
@@ -712,7 +712,10 @@ export default function ChatbotWidget({
     [sellerCategories],
   );
   const supabase = useMemo(() => createClient(), []);
-  const storageKeys = useMemo(() => getChatbotStorageKeys(resolvedChatbotRole), [resolvedChatbotRole]);
+  const storageKeys = useMemo(
+    () => getChatbotStorageKeys(resolvedChatbotRole),
+    [resolvedChatbotRole],
+  );
   const role = resolvedChatbotRole;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -755,7 +758,7 @@ export default function ChatbotWidget({
   const [pausedReplyText, setPausedReplyText] = useState<string | null>(null);
   const chatMode = useChatMode(role);
   const [isLocalhost, setIsLocalhost] = useState(false);
-  const [useLocalTimeout, setUseLocalTimeout] = useState(true);
+  const [useLocalTimeout, setUseLocalTimeout] = useState(false);
   const closeChat = useCallback(() => {
     setIsOpen(false);
     setIsFullscreen(false);
@@ -781,7 +784,7 @@ export default function ChatbotWidget({
         setUseLocalTimeout(storedValue === '1');
       }
     } catch {
-      setUseLocalTimeout(true);
+      setUseLocalTimeout(false);
     }
   }, []);
 
