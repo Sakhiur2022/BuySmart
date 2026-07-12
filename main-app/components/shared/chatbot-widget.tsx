@@ -530,7 +530,10 @@ function buildAssistantMessage(response: ChatAPIResponse): UIMessage {
   };
 }
 
-function buildSellerListingPreview(draft: SellerListingDraft, status: 'draft' | 'ready' | 'created' = 'draft') {
+function buildSellerListingPreview(
+  draft: SellerListingDraft,
+  status: 'draft' | 'ready' | 'created' = 'draft',
+) {
   return {
     name: draft.name.trim(),
     price: draft.price,
@@ -601,7 +604,11 @@ function buildErrorAssistantMessage(messageId: string, errorText: string): UIMes
   };
 }
 
-function buildTimeoutAssistantMessage(messageId: string, replyText: string, errorText: string): UIMessage {
+function buildTimeoutAssistantMessage(
+  messageId: string,
+  replyText: string,
+  errorText: string,
+): UIMessage {
   return {
     ...buildErrorAssistantMessage(messageId, errorText),
     text: replyText,
@@ -1306,7 +1313,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               : {
                   id: createMessageId('assistant'),
                   role: 'assistant',
-                  text: 'Ask me for this week\'s sales summary first so I can review pending refunds here.',
+                  text: "Ask me for this week's sales summary first so I can review pending refunds here.",
                   createdAt: Date.now(),
                 };
 
@@ -1369,7 +1376,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               {
                 id: createMessageId('assistant'),
                 role: 'assistant',
-                text: 'Please sign in to your seller account so I can load this week\'s sales summary.',
+                text: "Please sign in to your seller account so I can load this week's sales summary.",
                 createdAt: Date.now(),
               },
             ]);
@@ -1386,6 +1393,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           effectiveIntentOutput = buildSellerSalesSummaryIntentOutput(sellerId);
         }
 
+        // ==================== SELLER LISTING LOGIC (v2 - Better parsing) ====================
         const isListingConversation =
           sellerListingDraft !== null || isSellerListingStartMessage(message);
 
@@ -1403,11 +1411,54 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
             ...currentMessages,
             userMessage,
             buildSellerListingAssistantMessage(
-              'I cleared the listing draft. Tell me when you want to start another one.',
+              'Draft cleared. Say "Add a new product" when you want to start again.',
               createEmptySellerListingDraft(),
             ),
           ]);
           setSellerListingDraft(null);
+          setDraftMessage('');
+          setErrorMessage(null);
+          setLastFailedMessage(null);
+          setActiveGuidance(null);
+          setPausedReplyText(null);
+          setIsSending(false);
+          toolStatus.updateStatus('completed');
+          return null;
+        }
+
+        if (isListingConversation && !effectiveIntentOutput) {
+          let nextDraft: SellerListingDraft;
+          let replyText = '';
+
+          if (sellerListingDraft === null) {
+            // Start new listing
+            nextDraft = createEmptySellerListingDraft();
+            replyText = "Great! Let's create a new product.\n\nWhat is the product **name**?";
+          } else {
+            // Update draft with user's latest message
+            nextDraft = extractSellerListingDraft(message, sellerListingDraft);
+
+            const missingFields = getSellerListingMissingFields(nextDraft);
+
+            if (missingFields.length === 0) {
+              replyText =
+                "Great! Everything looks ready. Review the preview and tap 'Create listing'.";
+            } else {
+              replyText =
+                getSellerListingPrompt(nextDraft) ||
+                `Still missing: ${missingFields.join(', ')}. Please provide them.`;
+            }
+          }
+
+          const isReady = getSellerListingMissingFields(nextDraft).length === 0;
+
+          setSellerListingDraft(nextDraft);
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            userMessage,
+            buildSellerListingAssistantMessage(replyText, nextDraft, isReady ? 'ready' : 'draft'),
+          ]);
+
           setDraftMessage('');
           setErrorMessage(null);
           setLastFailedMessage(null);
@@ -1613,7 +1664,10 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           timeoutPromise,
         ])) as RequestOutcome;
 
-        if (activeRequestIdRef.current !== requestId || activeRequestAbortReasonRef.current === 'manual') {
+        if (
+          activeRequestIdRef.current !== requestId ||
+          activeRequestAbortReasonRef.current === 'manual'
+        ) {
           return null;
         }
 
@@ -1894,7 +1948,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     }
 
     if (!sellerId) {
-      setErrorMessage('Please sign in again so I can publish this listing from your seller account.');
+      setErrorMessage(
+        'Please sign in again so I can publish this listing from your seller account.',
+      );
       return;
     }
 
@@ -2022,9 +2078,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
               ? 'pointer-events-auto h-[calc(100dvh-1rem)] w-full rounded-[1.75rem] sm:h-[calc(100dvh-2rem)] sm:max-w-md sm:self-end sm:rounded-3xl'
               : isDesktopFullscreen
                 ? 'pointer-events-auto h-[100dvh] w-[100vw] rounded-none border-0 shadow-none'
-              : `pointer-events-auto h-[min(30rem,calc(100dvh-2rem))] w-[min(40rem,calc(100vw-1.5rem))] rounded-3xl ${
-                  isOpen ? 'pointer-events-auto' : 'pointer-events-none'
-                }`
+                : `pointer-events-auto h-[min(30rem,calc(100dvh-2rem))] w-[min(40rem,calc(100vw-1.5rem))] rounded-3xl ${
+                    isOpen ? 'pointer-events-auto' : 'pointer-events-none'
+                  }`
           }`}
           aria-hidden={!isOpen}
           initial={false}
@@ -2101,7 +2157,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                   setIsFullscreen((current) => !current);
                 }}
                 className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 sm:inline-flex"
-                aria-label={isDesktopFullscreen ? 'Exit full-screen chat' : 'Enter full-screen chat'}
+                aria-label={
+                  isDesktopFullscreen ? 'Exit full-screen chat' : 'Enter full-screen chat'
+                }
                 title={isDesktopFullscreen ? 'Exit full-screen chat' : 'Enter full-screen chat'}
               >
                 {isDesktopFullscreen ? (
@@ -2223,8 +2281,9 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                             >
                               <p className="text-xs font-medium">
                                 {message.status === 'timeout'
-                                  ? message.errorMessage ?? 'The assistant is taking longer than expected.'
-                                  : message.errorMessage ?? 'Unable to complete this message.'}
+                                  ? (message.errorMessage ??
+                                    'The assistant is taking longer than expected.')
+                                  : (message.errorMessage ?? 'Unable to complete this message.')}
                               </p>
                               {message.retryable && lastFailedMessage ? (
                                 <button
@@ -2237,7 +2296,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                       ? 'border-amber-200 text-amber-800 hover:border-amber-300 hover:bg-amber-100'
                                       : 'border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-100'
                                   }`}
-                                  >
+                                >
                                   Retry
                                 </button>
                               ) : null}
@@ -2250,7 +2309,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                     <motion.span
                                       aria-hidden="true"
                                       animate={{ x: [0, 8, 0], opacity: [0.55, 1, 0.55] }}
-                                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                                      transition={{
+                                        duration: 1.5,
+                                        repeat: Infinity,
+                                        ease: 'easeInOut',
+                                      }}
                                       className="text-rose-400"
                                     >
                                       →
@@ -2279,11 +2342,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                                     <p className="text-[11px] leading-5 text-slate-600">
                                       Open Orders to submit the refund request manually.
                                     </p>
-                <a
-                  href={REFUND_MANUAL_REQUEST_GUIDED_ROUTE}
-                  className="inline-flex shrink-0 items-center justify-center rounded-full bg-rose-500 px-3 py-2 text-[11px] font-semibold text-white shadow-[0_10px_20px_rgba(244,63,94,0.16)] transition hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                >
-                  Open Orders
+                                    <a
+                                      href={REFUND_MANUAL_REQUEST_GUIDED_ROUTE}
+                                      className="inline-flex shrink-0 items-center justify-center rounded-full bg-rose-500 px-3 py-2 text-[11px] font-semibold text-white shadow-[0_10px_20px_rgba(244,63,94,0.16)] transition hover:-translate-y-0.5 hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                                    >
+                                      Open Orders
                                     </a>
                                   </div>
                                 </div>
@@ -2593,8 +2656,8 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 {activeGuidance?.kind === 'refund' ? (
                   <RefundGuidanceCard
                     key="refund-guidance"
-                  message={activeGuidance.message}
-                  onOpenOrders={() => {
+                    message={activeGuidance.message}
+                    onOpenOrders={() => {
                       window.location.href = REFUND_MANUAL_REQUEST_GUIDED_ROUTE;
                     }}
                     onDismiss={() => setActiveGuidance(null)}
@@ -2666,22 +2729,3 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
