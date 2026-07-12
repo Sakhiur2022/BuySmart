@@ -29,6 +29,7 @@ export function createEmptySellerListingDraft(): SellerListingDraft {
 export function extractSellerListingDraft(
   message: string,
   currentDraft: SellerListingDraft | null,
+  validCategories: string[] = [],
 ): SellerListingDraft {
   const draft = currentDraft ?? createEmptySellerListingDraft();
   const normalized = message.toLowerCase().trim();
@@ -38,57 +39,70 @@ export function extractSellerListingDraft(
     photos: [...draft.photos],
   };
 
-  // === NAME ===
+  // Name
   if (!nextDraft.name) {
     const nameMatch = message.match(/(?:product\s+)?name\s*[:=\-]\s*([^\n\r;]+)/i);
-    if (nameMatch?.[1]?.trim()) {
-      nextDraft.name = nameMatch[1].trim();
-    } else if (/^["']?([A-Za-z0-9].{2,100})["']?$/.test(message.trim())) {
-      // If user just typed a name directly
-      nextDraft.name = message.trim().replace(/^["']|["']$/g, '');
+    if (nameMatch?.[1]) nextDraft.name = nameMatch[1].trim();
+    else if (message.length > 2 && message.length < 100) {
+      nextDraft.name = message.trim();
     }
   }
 
-  // === PRICE (Improved) ===
+  // Price
   const priceMatch = message.match(
-    /(?:price|cost|set|for|tk|taka|bdt)?\s*[:=\-]?\s*(?:bdt|tk)?\s*(\d{1,8}(?:[.,]\d{1,2})?)/i,
+    /(?:price|cost|set|for)?\s*[:=\-]?\s*(?:bdt|tk|taka)?\s*(\d{1,8}(?:[.,]\d{1,2})?)/i,
   );
   if (priceMatch?.[1]) {
-    const cleanPrice = priceMatch[1].replace(/,/g, '');
-    const parsed = Number(cleanPrice);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      nextDraft.price = parsed;
+    const num = Number(priceMatch[1].replace(/,/g, ''));
+    if (Number.isFinite(num) && num > 0) nextDraft.price = num;
+  }
+
+  // Category (Dynamic from Supabase)
+  // CATEGORY - Support numbered choice + direct name
+  if (!nextDraft.category) {
+    const catMatch = message.match(/(?:category|type)\s*[:=\-]\s*([^\n\r;]+)/i);
+    if (catMatch?.[1]) {
+      const input = catMatch[1].trim().toLowerCase();
+      const matched = validCategories.find(
+        (cat) => cat.toLowerCase() === input || input.includes(cat.toLowerCase()),
+      );
+      if (matched) nextDraft.category = matched;
+    }
+
+    // Handle "1", "2", "3" replies
+    const numberMatch = message.match(/^\s*(1|2|3)\b/);
+    if (numberMatch && validCategories.length > 0) {
+      const index = parseInt(numberMatch[1]) - 1;
+      if (validCategories[index]) {
+        nextDraft.category = validCategories[index];
+      }
+    }
+
+    // Fallback scan
+    if (!nextDraft.category) {
+      for (const cat of validCategories) {
+        if (normalized.includes(cat.toLowerCase())) {
+          nextDraft.category = cat;
+          break;
+        }
+      }
     }
   }
 
-  // === CATEGORY ===
-  const categoryValue = message.match(/(?:category|type)\s*[:=\-]\s*([^\n\r;]+)/i);
-  if (categoryValue?.[1]?.trim()) {
-    nextDraft.category = categoryValue[1].trim();
-  } else if (!nextDraft.category && normalized.includes('phone')) {
-    nextDraft.category = 'phone';
-  }
+  // Stock
+  const stockMatch = message.match(/(?:stock|qty|quantity)\s*[:=\-]?\s*(\d+)/i);
+  if (stockMatch?.[1]) nextDraft.stockQuantity = Number(stockMatch[1]);
 
-  // === STOCK ===
-  const stockMatch = message.match(/(?:stock|quantity|qty|units?)\s*[:=\-]?\s*(\d{1,6})/i);
-  if (stockMatch?.[1]) {
-    const parsed = Number(stockMatch[1]);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      nextDraft.stockQuantity = parsed;
-    }
-  }
-
-  // === PHOTOS ===
-  const urlMatches = message.match(/https?:\/\/[^\s,)]+/gi);
-  if (urlMatches?.length) {
+  // Photos
+  const urls = message.match(/https?:\/\/[^\s,)]+/gi);
+  if (urls) {
     const unique = new Set(nextDraft.photos);
-    urlMatches.forEach((url) => unique.add(url));
+    urls.forEach((u) => unique.add(u));
     nextDraft.photos = Array.from(unique).slice(0, 10);
   }
 
   return nextDraft;
 }
-
 export function getSellerListingMissingFields(draft: SellerListingDraft) {
   const missing: Array<SellerListingField> = [];
 
@@ -101,7 +115,7 @@ export function getSellerListingMissingFields(draft: SellerListingDraft) {
   return missing;
 }
 
-export function getSellerListingPrompt(draft: SellerListingDraft) {
+export function getSellerListingPrompt(draft: SellerListingDraft, validCategories: string[] = []) {
   const missing = getSellerListingMissingFields(draft);
 
   if (missing.length === 0) {
@@ -116,7 +130,40 @@ export function getSellerListingPrompt(draft: SellerListingDraft) {
     case 'price':
       return 'What price should I set? (e.g. 15000 or 25k)';
     case 'category':
-      return 'Which category? (phone, laptop, headphone, etc.)';
+      // Intelligent top 3 suggestion based on name
+      const productName = draft.name.toLowerCase();
+      let suggested: string[] = [];
+
+      // Simple keyword-based scoring
+      const scores: Array<{ cat: string; score: number }> = validCategories.map((cat: string) => {
+        const catLower = cat.toLowerCase();
+        let score = 0;
+
+        if (productName.includes(catLower)) score += 10;
+        if (catLower.includes('phone') && productName.includes('phone')) score += 5;
+        if (catLower.includes('laptop') && productName.includes('laptop')) score += 5;
+        if (
+          (catLower.includes('head') || catLower.includes('ear')) &&
+          (productName.includes('head') || productName.includes('ear'))
+        )
+          score += 5;
+
+        return { cat, score };
+      });
+
+      // Sort by score and take top 3
+      suggested = scores
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map((item: { cat: string }) => item.cat);
+
+      return (
+        `Based on "${draft.name}", I suggest these categories:\n\n` +
+        `1. ${suggested[0] || 'Phone'}\n` +
+        `2. ${suggested[1] || 'Laptop'}\n` +
+        `3. ${suggested[2] || 'Headphone'}\n\n` +
+        `Reply with the number (1, 2, 3) or type the full category name.`
+      );
     case 'photos':
       return 'Share product photo URLs, or type "skip" if you want to add them later.';
     case 'stockQuantity':

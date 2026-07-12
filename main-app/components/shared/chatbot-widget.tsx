@@ -57,6 +57,7 @@ import { useChatMode } from '@/lib/hooks/use-chat-mode';
 import { createClient } from '@/lib/supabase/client';
 import { clearChatbotSessionStorage, getChatbotStorageKeys } from '@/lib/chatbot/session';
 import { SellerSalesSummaryCard } from '@/components/shared/seller-sales-summary-card';
+import { useSellerCategories } from '@/lib/hooks/use-seller-categories';
 
 const DEFAULT_CONTEXT: ChatContext = {
   category: null,
@@ -694,6 +695,7 @@ type ChatbotWidgetProps = {
 
 export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetProps) {
   const pathname = usePathname();
+  const { categories: validCategories } = useSellerCategories();
   const supabase = useMemo(() => createClient(), []);
   const storageKeys = useMemo(() => getChatbotStorageKeys(chatbotRole), [chatbotRole]);
   const role = chatbotRole;
@@ -1398,7 +1400,11 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           sellerListingDraft !== null || isSellerListingStartMessage(message);
 
         if (isSellerListingSubmitMessage(message) && sellerListingDraft) {
-          const nextDraft = extractSellerListingDraft(message, sellerListingDraft);
+          const nextDraft = extractSellerListingDraft(
+            message,
+            sellerListingDraft ?? createEmptySellerListingDraft(),
+            validCategories,
+          );
           const missingFields = getSellerListingMissingFields(nextDraft);
 
           if (missingFields.length === 0 && sellerId) {
@@ -1445,7 +1451,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
                 "Great! Everything looks ready. Review the preview and tap 'Create listing'.";
             } else {
               replyText =
-                getSellerListingPrompt(nextDraft) ||
+                getSellerListingPrompt(nextDraft, validCategories) ||
                 `Still missing: ${missingFields.join(', ')}. Please provide them.`;
             }
           }
@@ -1478,7 +1484,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
           const isReady = missingFields.length === 0;
           const replyText = isReady
             ? 'Looks good. Review the preview and tap Create listing to publish it.'
-            : getSellerListingPrompt(nextDraft);
+            : getSellerListingPrompt(nextDraft, validCategories);
 
           setSellerListingDraft(nextDraft);
           setMessages((currentMessages) => [
@@ -1926,6 +1932,7 @@ export default function ChatbotWidget({ chatbotRole = 'buyer' }: ChatbotWidgetPr
       isSellerAuthLoaded,
       sellerListingDraft,
       sellerSalesSummary,
+      validCategories,
       setChatContext,
       setDraftMessage,
       setErrorMessage,

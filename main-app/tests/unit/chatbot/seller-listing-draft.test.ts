@@ -20,7 +20,7 @@ describe('seller listing draft helpers', () => {
       'photos',
       'stockQuantity',
     ]);
-    expect(getSellerListingPrompt(draft)).toBe('What is the product name?');
+    expect(getSellerListingPrompt(draft, [])).toBe('What is the product name?');
   });
 
   it('extracts a structured draft from one seller message', () => {
