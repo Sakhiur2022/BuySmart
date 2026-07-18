@@ -1322,6 +1322,39 @@ export default function ChatbotWidget({
       };
 
       let effectiveIntentOutput = options?.intentOutput;
+      
+      // Add AI-powered intent detection for buyer messages via server-side API
+      if (role === 'buyer' && chatMode.isAgentic && !effectiveIntentOutput) {
+        try {
+          const history = messages.slice(-6).map((msg) => ({
+            role: msg.role,
+            content: msg.text,
+          }));
+          
+          const detectionResponse = await fetch('/api/buyer/intent-detection', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+              message,
+              history,
+            }),
+          });
+          
+          if (detectionResponse.ok) {
+            const detectionData = await detectionResponse.json();
+            if (detectionData.success && detectionData.intent) {
+              effectiveIntentOutput = detectionData.intent;
+              console.log('AI intent detection successful:', detectionData.usedAI);
+            }
+          }
+        } catch (error) {
+          // Silently fall back to no intent output on error
+          console.error('Server-side intent detection failed:', error);
+        }
+      }
+      
       if (role === 'seller' && chatMode.isAgentic && !effectiveIntentOutput) {
         if (isApproveAllRefundsCommand(message)) {
           const currentSummary = sellerSalesSummary;
