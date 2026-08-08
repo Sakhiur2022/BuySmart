@@ -1,8 +1,5 @@
 # BuySmart: AI-Assisted E-Commerce Platform
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/chart?repos=sakhiur2022/buysmart&type=date&legend=top-left)](https://www.star-history.com/?repos=sakhiur2022%2Fbuysmart&type=date&legend=top-left)
 
 ## Project Overview
 
